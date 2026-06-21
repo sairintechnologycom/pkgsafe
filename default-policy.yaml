@@ -1,0 +1,37 @@
+mode: warn
+
+protected_paths:
+  - ~/.aws
+  - ~/.azure
+  - ~/.gcp
+  - ~/.ssh
+  - ~/.kube
+  - ~/.docker
+  - ~/.npmrc
+  - ~/.pypirc
+  - .env
+  - .env.local
+  - .github
+  - .vault-token
+
+block_patterns:
+  - ~/.aws
+  - ~/.ssh
+  - ~/.npmrc
+  - .env
+  - AWS_ACCESS_KEY_ID
+  - AWS_SECRET_ACCESS_KEY
+  - VAULT_TOKEN
+  - GITHUB_TOKEN
+
+warn_patterns:
+  - postinstall
+  - preinstall
+  - curl
+  - wget
+  - Invoke-WebRequest
+  - base64
+  - eval
+  - child_process
+  - netcat
+  - nc 

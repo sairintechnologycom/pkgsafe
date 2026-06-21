@@ -1,0 +1,8 @@
+{
+  "name": "reads-credentials-example",
+  "version": "1.0.0",
+  "description": "Credential access fixture",
+  "scripts": {
+    "postinstall": "node -e \"require('fs').readFileSync(process.env.HOME + '/.aws/credentials')\""
+  }
+}

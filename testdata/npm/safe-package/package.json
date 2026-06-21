@@ -1,0 +1,9 @@
+{
+  "name": "safe-example",
+  "version": "1.0.0",
+  "description": "A safe test fixture",
+  "repository": { "type": "git", "url": "https://example.com/safe-example.git" },
+  "scripts": {
+    "test": "echo ok"
+  }
+}

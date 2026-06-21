@@ -1,0 +1,6 @@
+{
+  "name": "axois",
+  "version": "1.0.0",
+  "description": "Looks like axios typo",
+  "repository": { "type": "git", "url": "https://example.com/axois.git" }
+}
