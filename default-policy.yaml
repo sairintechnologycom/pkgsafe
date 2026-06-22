@@ -104,3 +104,19 @@ rules:
     enabled: true
     severity: critical
     score: 100
+
+  ai_package_squatting_candidate:
+    enabled: true
+    severity: high
+    score: 25
+
+  ai_agent_requested_suspicious_package:
+    enabled: true
+    severity: high
+    score: 15
+
+mcp:
+  enabled: true
+  default_mode: warn
+  ai_agent_default_install_allowed_on_warn: false
+  human_default_install_allowed_on_warn: true

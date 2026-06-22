@@ -5,50 +5,65 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
-
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
 )
 
-type Request struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      any             `json:"id,omitempty"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
+// ServerConfig defines configuration parameters for starting the MCP server.
+type ServerConfig struct {
+	PolicyPath string
+	Mode       string
+	Offline    bool
+	LogLevel   string
 }
 
-type Response struct {
-	JSONRPC string `json:"jsonrpc"`
-	ID      any    `json:"id,omitempty"`
-	Result  any    `json:"result,omitempty"`
-	Error   *Error `json:"error,omitempty"`
+// Executor coordinates calling of specific MCP tools using active config.
+type Executor struct {
+	PolicyPath string
+	Mode       string
+	Offline    bool
+	LogLevel   string
 }
 
-type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
+// Serve starts a local MCP stdio server.
+func Serve(config ServerConfig, r io.Reader, w io.Writer) error {
+	if config.LogLevel == "debug" {
+		fmt.Fprintln(os.Stderr, "starting pkgsafe mcp server...")
+	}
 
-type ValidateParams struct {
-	Ecosystem string `json:"ecosystem"`
-	Name      string `json:"name"`
-	Version   string `json:"version,omitempty"`
-}
+	exec := &Executor{
+		PolicyPath: config.PolicyPath,
+		Mode:       config.Mode,
+		Offline:    config.Offline,
+		LogLevel:   config.LogLevel,
+	}
 
-func Serve(r io.Reader, w io.Writer) error {
 	scanner := bufio.NewScanner(r)
 	enc := json.NewEncoder(w)
+
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
+		if config.LogLevel == "debug" {
+			fmt.Fprintln(os.Stderr, "received line:", line)
+		}
+
 		var req Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			_ = enc.Encode(Response{JSONRPC: "2.0", Error: &Error{Code: -32700, Message: err.Error()}})
+			_ = enc.Encode(Response{
+				JSONRPC: "2.0",
+				Error:   &Error{Code: -32700, Message: "Parse error: " + err.Error()},
+			})
 			continue
 		}
-		resp := handle(req)
+
+		resp := exec.Handle(req)
+		if req.ID == nil {
+			// This was a notification, do not send response
+			continue
+		}
 		if err := enc.Encode(resp); err != nil {
 			return err
 		}
@@ -56,38 +71,58 @@ func Serve(r io.Reader, w io.Writer) error {
 	return scanner.Err()
 }
 
-func handle(req Request) Response {
+// Handle routes the JSON-RPC request to the correct handler.
+func (e *Executor) Handle(req Request) Response {
 	switch req.Method {
 	case "ping":
 		return Response{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"ok": true}}
-	case "tools/list":
-		return Response{JSONRPC: "2.0", ID: req.ID, Result: []map[string]any{
-			{"name": "validate_package_install", "description": "Validate an npm package before install"},
-		}}
-	case "validate_package_install":
-		var p ValidateParams
-		if err := json.Unmarshal(req.Params, &p); err != nil {
-			return errResp(req.ID, -32602, err.Error())
-		}
-		if p.Ecosystem == "" {
-			p.Ecosystem = "npm"
-		}
-		if p.Ecosystem != "npm" {
-			return errResp(req.ID, -32602, "only npm is supported in this MVP")
-		}
-		if p.Name == "" {
-			return errResp(req.ID, -32602, "name is required")
-		}
-		res, err := snpm.ScanPackage(p.Name, p.Version)
-		if err != nil {
-			return errResp(req.ID, -32000, fmt.Sprintf("npm scan failed: %v", err))
-		}
-		return Response{JSONRPC: "2.0", ID: req.ID, Result: res}
-	default:
-		return errResp(req.ID, -32601, "method not found")
-	}
-}
 
-func errResp(id any, code int, msg string) Response {
-	return Response{JSONRPC: "2.0", ID: id, Error: &Error{Code: code, Message: msg}}
+	case "initialize":
+		var params InitializeParams
+		_ = json.Unmarshal(req.Params, &params)
+
+		result := InitializeResult{
+			ProtocolVersion: "2024-11-05",
+			ServerInfo: ServerInfo{
+				Name:    "pkgsafe",
+				Version: "0.1.0",
+			},
+		}
+		result.Capabilities.Tools = struct{}{}
+		return Response{JSONRPC: "2.0", ID: req.ID, Result: result}
+
+	case "notifications/initialized":
+		return Response{}
+
+	case "tools/list":
+		tools := GetToolsList()
+		return Response{JSONRPC: "2.0", ID: req.ID, Result: tools}
+
+	case "tools/call":
+		var p CallToolParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return errResp(req.ID, -32602, "Invalid parameters: "+err.Error())
+		}
+
+		var res CallToolResult
+		switch p.Name {
+		case "validate_package_install":
+			res = e.ValidatePackageInstall(p.Arguments)
+		case "explain_package_risk":
+			res = e.ExplainPackageRisk(p.Arguments)
+		case "score_lockfile":
+			res = e.ScoreLockfile(p.Arguments)
+		case "suggest_safe_alternative":
+			res = e.SuggestSafeAlternative(p.Arguments)
+		case "validate_install_command":
+			res = e.ValidateInstallCommand(p.Arguments)
+		default:
+			return errResp(req.ID, -32601, "Tool not found: "+p.Name)
+		}
+
+		return Response{JSONRPC: "2.0", ID: req.ID, Result: res}
+
+	default:
+		return errResp(req.ID, -32601, "Method not found: "+req.Method)
+	}
 }

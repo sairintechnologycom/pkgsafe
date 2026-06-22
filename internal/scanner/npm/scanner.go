@@ -8,6 +8,7 @@ import (
 	"time"
 
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
+	"github.com/niyam-ai/pkgsafe/internal/agent"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
 	"github.com/niyam-ai/pkgsafe/internal/db"
 	"github.com/niyam-ai/pkgsafe/internal/intel"
@@ -148,13 +149,22 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 	var baseFindings []types.Reason
 	baseFindings = append(baseFindings, res.Reasons...)
+	ageDays := -1
 	if !vm.Time.IsZero() {
+		ageDays = int(time.Since(vm.Time).Hours() / 24)
 		if rule, ok := policy.RuleFor(pol, "new_package"); ok && rule.MaxAgeDays > 0 {
-			ageDays := int(time.Since(vm.Time).Hours() / 24)
 			if ageDays >= 0 && ageDays <= rule.MaxAgeDays {
 				baseFindings = append(baseFindings, risk.NewPackageFinding(ageDays))
 			}
 		}
+	}
+	hasScripts := len(res.Lifecycle) > 0
+	if agent.CheckAISquatting(res.Package.Name, vm.Description, vm.Repository, hasScripts, ageDays) {
+		baseFindings = append(baseFindings, types.Reason{
+			ID:          "ai_package_squatting_candidate",
+			Description: "Package name resembles an AI-generated package name with low ecosystem reputation",
+			Evidence:    res.Package.Name,
+		})
 	}
 
 	osvClient := osv.NewClient()

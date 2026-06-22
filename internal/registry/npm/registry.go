@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const DefaultRegistryURL = "https://registry.npmjs.org"
+var DefaultRegistryURL = "https://registry.npmjs.org"
 
 type Client struct {
 	BaseURL    string

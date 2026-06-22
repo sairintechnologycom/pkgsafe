@@ -28,6 +28,13 @@ type PackageLists struct {
 	NPM []string
 }
 
+type MCPSettings struct {
+	Enabled                            bool
+	DefaultMode                        string
+	AIAgentDefaultInstallAllowedOnWarn bool
+	HumanDefaultInstallAllowedOnWarn   bool
+}
+
 type Policy struct {
 	Mode            Mode
 	Thresholds      types.Thresholds
@@ -37,6 +44,7 @@ type Policy struct {
 	Rules           map[string]Rule
 	BlockPatterns   []string
 	WarnPatterns    []string
+	MCP             MCPSettings
 }
 
 func Default() Policy {
@@ -54,22 +62,24 @@ func Default() Policy {
 		TrustedPackages: PackageLists{NPM: []string{"lodash", "axios", "react", "express", "typescript"}},
 		BlockedPackages: PackageLists{NPM: []string{}},
 		Rules: map[string]Rule{
-			"lifecycle_script_present":     {Enabled: true, Severity: "medium", Score: 20},
-			"network_command_in_lifecycle": {Enabled: true, Severity: "high", Score: 30},
-			"credential_path_reference":    {Enabled: true, Severity: "critical", Score: 100},
-			"secret_keyword_reference":     {Enabled: true, Severity: "high", Score: 35},
-			"obfuscated_script":            {Enabled: true, Severity: "high", Score: 25},
-			"typosquat_candidate":          {Enabled: true, Severity: "high", Score: 25},
-			"missing_repository":           {Enabled: true, Severity: "low", Score: 10},
-			"missing_license":              {Enabled: true, Severity: "low", Score: 5},
-			"new_package":                  {Enabled: true, Severity: "medium", Score: 15, MaxAgeDays: 14},
-			"trusted_package_reduction":    {Enabled: true, Severity: "informational", Score: -20},
-			"blocked_package":              {Enabled: true, Severity: "critical", Score: 100},
-			"known_vulnerability_critical": {Enabled: true, Severity: "critical", Score: 70},
-			"known_vulnerability_high":     {Enabled: true, Severity: "high", Score: 50},
-			"known_vulnerability_medium":   {Enabled: true, Severity: "medium", Score: 25},
-			"known_vulnerability_low":      {Enabled: true, Severity: "low", Score: 10},
-			"known_malware_indicator":      {Enabled: true, Severity: "critical", Score: 100},
+			"lifecycle_script_present":              {Enabled: true, Severity: "medium", Score: 20},
+			"network_command_in_lifecycle":          {Enabled: true, Severity: "high", Score: 30},
+			"credential_path_reference":             {Enabled: true, Severity: "critical", Score: 100},
+			"secret_keyword_reference":              {Enabled: true, Severity: "high", Score: 35},
+			"obfuscated_script":                     {Enabled: true, Severity: "high", Score: 25},
+			"typosquat_candidate":                   {Enabled: true, Severity: "high", Score: 25},
+			"missing_repository":                    {Enabled: true, Severity: "low", Score: 10},
+			"missing_license":                       {Enabled: true, Severity: "low", Score: 5},
+			"new_package":                           {Enabled: true, Severity: "medium", Score: 15, MaxAgeDays: 14},
+			"trusted_package_reduction":             {Enabled: true, Severity: "informational", Score: -20},
+			"blocked_package":                       {Enabled: true, Severity: "critical", Score: 100},
+			"known_vulnerability_critical":          {Enabled: true, Severity: "critical", Score: 70},
+			"known_vulnerability_high":              {Enabled: true, Severity: "high", Score: 50},
+			"known_vulnerability_medium":            {Enabled: true, Severity: "medium", Score: 25},
+			"known_vulnerability_low":               {Enabled: true, Severity: "low", Score: 10},
+			"known_malware_indicator":               {Enabled: true, Severity: "critical", Score: 100},
+			"ai_package_squatting_candidate":        {Enabled: true, Severity: "high", Score: 25},
+			"ai_agent_requested_suspicious_package": {Enabled: true, Severity: "high", Score: 15},
 		},
 		BlockPatterns: []string{
 			"~/.aws", "~/.azure", "~/.gcp", "~/.ssh", "~/.kube", "~/.npmrc", "~/.pypirc",
@@ -80,6 +90,12 @@ func Default() Policy {
 			"curl", "wget", "invoke-webrequest", "http://", "https://", "bash -c", "sh -c",
 			"base64", "eval", "child_process", "powershell", "netcat", " nc ",
 			"aws_access_key_id", "aws_secret_access_key", "github_token", "vault_token", "token", "secret",
+		},
+		MCP: MCPSettings{
+			Enabled:                            true,
+			DefaultMode:                        "warn",
+			AIAgentDefaultInstallAllowedOnWarn: false,
+			HumanDefaultInstallAllowedOnWarn:   true,
 		},
 	}
 }
@@ -214,7 +230,7 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			switch key {
 			case "mode":
 				pol.Mode = ParseMode(unquote(val))
-			case "thresholds", "rules":
+			case "thresholds", "rules", "mcp":
 			case "protected_paths":
 				pol.ProtectedPaths = nil
 				pol.BlockPatterns = nil
@@ -229,6 +245,22 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			continue
 		}
 		switch section {
+		case "mcp":
+			if indent != 2 {
+				return fmt.Errorf("line %d: expected mcp property", lineNo+1)
+			}
+			switch key {
+			case "enabled":
+				pol.MCP.Enabled = strings.EqualFold(unquote(val), "true")
+			case "default_mode":
+				pol.MCP.DefaultMode = unquote(val)
+			case "ai_agent_default_install_allowed_on_warn":
+				pol.MCP.AIAgentDefaultInstallAllowedOnWarn = strings.EqualFold(unquote(val), "true")
+			case "human_default_install_allowed_on_warn":
+				pol.MCP.HumanDefaultInstallAllowedOnWarn = strings.EqualFold(unquote(val), "true")
+			default:
+				return fmt.Errorf("line %d: unsupported mcp property %q", lineNo+1, key)
+			}
 		case "thresholds":
 			n, err := strconv.Atoi(unquote(val))
 			if err != nil {

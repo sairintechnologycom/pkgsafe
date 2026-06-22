@@ -241,10 +241,28 @@ func cmdNPMInstall(args []string) error {
 }
 
 func cmdMCP(args []string) error {
-	if len(args) != 1 || args[0] != "serve" {
-		return errors.New("usage: pkgsafe mcp serve")
+	if len(args) < 1 || args[0] != "serve" {
+		return errors.New("usage: pkgsafe mcp serve [--policy <path>] [--mode <mode>] [--offline] [--log-level <level>]")
 	}
-	return mcp.Serve(os.Stdin, os.Stdout)
+
+	fs := flag.NewFlagSet("mcp-serve", flag.ContinueOnError)
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run mcp server offline")
+	logLevel := fs.String("log-level", "", "log level (e.g. debug)")
+
+	if err := fs.Parse(reorderFlags(args[1:])); err != nil {
+		return err
+	}
+
+	config := mcp.ServerConfig{
+		PolicyPath: *policyPath,
+		Mode:       *mode,
+		Offline:    *offline,
+		LogLevel:   *logLevel,
+	}
+
+	return mcp.Serve(config, os.Stdin, os.Stdout)
 }
 
 func scanRemoteNPM(name, version string, pol policy.Policy) (types.ScanResult, error) {
@@ -432,7 +450,7 @@ func flagNeedsValue(arg string) bool {
 	name := strings.TrimLeft(arg, "-")
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
-	case "version", "mode", "policy":
+	case "version", "mode", "policy", "log-level":
 		return true
 	default:
 		return false
