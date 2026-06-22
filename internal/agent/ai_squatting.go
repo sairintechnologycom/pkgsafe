@@ -18,6 +18,10 @@ var frameworkNames = []string{
 
 // CheckAISquatting runs heuristics to determine if a package is a likely AI package squatting candidate.
 func CheckAISquatting(name string, description string, repository any, hasScripts bool, ageDays int) bool {
+	return CheckAISquattingEcosystem("npm", name, description, repository, hasScripts, ageDays, false)
+}
+
+func CheckAISquattingEcosystem(ecosystem, name string, description string, repository any, hasScripts bool, ageDays int, sourceOnly bool) bool {
 	lowerName := strings.ToLower(name)
 
 	// Signal 2 & 7: Resembles popular framework/package name and has generic suffixes
@@ -30,7 +34,14 @@ func CheckAISquatting(name string, description string, repository any, hasScript
 	}
 
 	hasFramework := false
-	for _, f := range frameworkNames {
+	frameworks := frameworkNames
+	if strings.EqualFold(ecosystem, "pypi") {
+		frameworks = append(append([]string{}, frameworkNames...),
+			"requests", "flask", "django", "fastapi", "numpy", "pandas", "scipy", "scikit-learn",
+			"tensorflow", "torch", "transformers", "langchain", "openai", "anthropic", "pydantic",
+			"sqlalchemy", "pytest", "beautifulsoup4", "boto3", "azure", "google-cloud")
+	}
+	for _, f := range frameworks {
 		if strings.Contains(lowerName, f) {
 			hasFramework = true
 			break
@@ -77,6 +88,9 @@ func CheckAISquatting(name string, description string, repository any, hasScript
 
 	// Signal 8: Package has install lifecycle scripts
 	if hasScripts {
+		signals++
+	}
+	if sourceOnly {
 		signals++
 	}
 

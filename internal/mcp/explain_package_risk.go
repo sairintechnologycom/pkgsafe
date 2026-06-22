@@ -7,6 +7,7 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/output"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
+	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
@@ -55,11 +56,11 @@ func (e *Executor) ExplainPackageRisk(args json.RawMessage) CallToolResult {
 	if p.Ecosystem == "" {
 		p.Ecosystem = "npm"
 	}
-	if p.Ecosystem != "npm" {
+	if p.Ecosystem != "npm" && p.Ecosystem != "pypi" {
 		return CallToolResult{
 			Content: []ToolContent{{
 				Type: "text",
-				Text: serializeError("UNSUPPORTED_ECOSYSTEM", "Only npm is supported in this Milestone", map[string]string{"ecosystem": p.Ecosystem}),
+				Text: serializeError("UNSUPPORTED_ECOSYSTEM", "Supported ecosystems are npm and pypi", map[string]string{"ecosystem": p.Ecosystem}),
 			}},
 			IsError: true,
 		}
@@ -94,13 +95,21 @@ func (e *Executor) ExplainPackageRisk(args json.RawMessage) CallToolResult {
 		pol.Mode = policy.ParseMode(e.Mode)
 	}
 
-	scanner := snpm.New()
-	scanner.Policy = pol
-	scanner.Offline = e.Offline || p.Offline
-
-	res, err := scanner.ScanPackage(p.Name, p.Version)
-	if err != nil {
-		te := MapScanError(err, p.Ecosystem, p.Name, p.Version)
+	var res types.ScanResult
+	var scanErr error
+	if p.Ecosystem == "pypi" {
+		scanner := spypi.New()
+		scanner.Policy = pol
+		scanner.Offline = e.Offline || p.Offline
+		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
+	} else {
+		scanner := snpm.New()
+		scanner.Policy = pol
+		scanner.Offline = e.Offline || p.Offline
+		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
+	}
+	if scanErr != nil {
+		te := MapScanError(scanErr, p.Ecosystem, p.Name, p.Version)
 		b, _ := json.MarshalIndent(te, "", "  ")
 		return CallToolResult{
 			Content: []ToolContent{{

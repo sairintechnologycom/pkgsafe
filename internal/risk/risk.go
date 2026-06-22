@@ -175,6 +175,22 @@ func defaultMessage(id string) string {
 		return "Package version has a low severity advisory"
 	case "known_malware_indicator":
 		return "Package contains malware or malicious code"
+	case "pypi_source_distribution_only":
+		return "Package version only provides a source distribution"
+	case "pypi_yanked_release":
+		return "PyPI release is yanked"
+	case "pypi_setup_py_present":
+		return "Source distribution contains setup.py"
+	case "pypi_setup_py_shell_execution":
+		return "setup.py executes shell commands"
+	case "pypi_setup_py_network_call":
+		return "setup.py performs network calls"
+	case "pypi_setup_py_credential_access":
+		return "setup.py reads credentials or sensitive paths"
+	case "pypi_unknown_build_backend":
+		return "pyproject.toml uses an unusual or unknown build backend"
+	case "pypi_ai_package_squatting_candidate":
+		return "Package name resembles AI-generated package naming pattern"
 	default:
 		return id
 	}

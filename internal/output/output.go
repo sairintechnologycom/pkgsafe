@@ -25,6 +25,7 @@ type JSONResult struct {
 	LifecycleScripts []string              `json:"lifecycle_scripts,omitempty"`
 	Suspicious       []string              `json:"suspicious_patterns,omitempty"`
 	Sandbox          types.SandboxSummary  `json:"sandbox,omitempty"`
+	ArtifactAnalysis types.ArtifactSummary `json:"artifact_analysis,omitempty"`
 }
 
 func isSandboxReason(id string) bool {
@@ -69,6 +70,7 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 			LifecycleScripts: result.Lifecycle,
 			Suspicious:       result.Suspicious,
 			Sandbox:          result.Sandbox,
+			ArtifactAnalysis: result.Artifact,
 		})
 	}
 
@@ -147,6 +149,19 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 				fmt.Fprintf(w, " (%s)", r.Evidence)
 			}
 			fmt.Fprintln(w)
+		}
+	}
+	if result.Package.Ecosystem == "pypi" {
+		fmt.Fprintln(w, "\nArtifact Analysis:")
+		fmt.Fprintf(w, "- Wheel available: %v\n", result.Artifact.WheelAvailable)
+		fmt.Fprintf(w, "- Source distribution available: %v\n", result.Artifact.SourceDistributionAvailable)
+		fmt.Fprintf(w, "- Yanked: %v\n", result.Artifact.Yanked)
+		if result.Artifact.BuildBackend != "" {
+			fmt.Fprintf(w, "- Build backend: %s\n", result.Artifact.BuildBackend)
+		}
+		fmt.Fprintf(w, "- setup.py present: %v\n", result.Artifact.SetupPyPresent)
+		if result.Artifact.SandboxNote != "" {
+			fmt.Fprintf(w, "- Sandbox: %s\n", result.Artifact.SandboxNote)
 		}
 	}
 	if len(result.Vulnerabilities) > 0 {

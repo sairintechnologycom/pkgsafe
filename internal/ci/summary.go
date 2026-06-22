@@ -15,7 +15,14 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 	fmt.Fprintf(w, "Decision: %s\n", strings.ToUpper(result.Decision))
 	fmt.Fprintf(w, "Mode: %s\n", strings.ToUpper(result.Mode))
 	fmt.Fprintf(w, "Fail On: %s\n", strings.ToUpper(result.FailOn))
-	fmt.Fprintf(w, "Lockfile: %s\n", result.Lockfile)
+	if result.Ecosystem != "" {
+		fmt.Fprintf(w, "Ecosystem: %s\n", result.Ecosystem)
+	}
+	if len(result.DependencyFiles) > 0 {
+		fmt.Fprintf(w, "Dependency Files: %s\n", strings.Join(result.DependencyFiles, ", "))
+	} else {
+		fmt.Fprintf(w, "Lockfile: %s\n", result.Lockfile)
+	}
 	fmt.Fprintf(w, "Changed Only: %v\n", result.ChangedOnly)
 	fmt.Fprintf(w, "Packages Scanned: %d\n", result.Summary.PackagesScanned)
 	fmt.Fprintln(w)
@@ -162,9 +169,7 @@ func WriteSarifOutput(path string, result *ScanResult) error {
 				Locations: []SarifLocation{
 					{
 						PhysicalLocation: SarifPhysicalLocation{
-							ArtifactLocation: SarifArtifactLocation{
-								URI: result.Lockfile,
-							},
+							ArtifactLocation: SarifArtifactLocation{URI: artifactURI(result)},
 							Region: &SarifRegion{
 								StartLine: 1,
 							},
@@ -193,9 +198,7 @@ func WriteSarifOutput(path string, result *ScanResult) error {
 				Locations: []SarifLocation{
 					{
 						PhysicalLocation: SarifPhysicalLocation{
-							ArtifactLocation: SarifArtifactLocation{
-								URI: result.Lockfile,
-							},
+							ArtifactLocation: SarifArtifactLocation{URI: artifactURI(result)},
 							Region: &SarifRegion{
 								StartLine: 1,
 							},
@@ -236,6 +239,13 @@ func WriteSarifOutput(path string, result *ScanResult) error {
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
 	return enc.Encode(report)
+}
+
+func artifactURI(result *ScanResult) string {
+	if len(result.DependencyFiles) > 0 {
+		return result.DependencyFiles[0]
+	}
+	return result.Lockfile
 }
 
 func severityToSarifLevel(sev string) string {

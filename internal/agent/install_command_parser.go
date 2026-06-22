@@ -7,8 +7,9 @@ import (
 
 // ParsedPackage represents a package name and version parsed from a command.
 type ParsedPackage struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Ecosystem string `json:"ecosystem"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
 }
 
 // ParseInstallCommand parses an npm install/add command to extract package specs.
@@ -16,6 +17,7 @@ func ParseInstallCommand(command string) ([]ParsedPackage, error) {
 	cmd := strings.TrimSpace(command)
 
 	var rest string
+	ecosystem := "npm"
 	if strings.HasPrefix(cmd, "npm install ") {
 		rest = strings.TrimPrefix(cmd, "npm install ")
 	} else if strings.HasPrefix(cmd, "npm install") && len(cmd) == 11 {
@@ -28,6 +30,15 @@ func ParseInstallCommand(command string) ([]ParsedPackage, error) {
 		rest = strings.TrimPrefix(cmd, "npm add ")
 	} else if strings.HasPrefix(cmd, "npm add") && len(cmd) == 7 {
 		return nil, errors.New("no packages specified")
+	} else if strings.HasPrefix(cmd, "pip install ") {
+		ecosystem = "pypi"
+		rest = strings.TrimPrefix(cmd, "pip install ")
+	} else if strings.HasPrefix(cmd, "python -m pip install ") {
+		ecosystem = "pypi"
+		rest = strings.TrimPrefix(cmd, "python -m pip install ")
+	} else if strings.HasPrefix(cmd, "python3 -m pip install ") {
+		ecosystem = "pypi"
+		rest = strings.TrimPrefix(cmd, "python3 -m pip install ")
 	} else {
 		return nil, errors.New("unsupported or invalid install command")
 	}
@@ -40,6 +51,7 @@ func ParseInstallCommand(command string) ([]ParsedPackage, error) {
 			continue
 		}
 
+		field = strings.Trim(field, `"'`)
 		name, version := splitPackageSpec(field)
 		if name == "" {
 			continue
@@ -48,8 +60,9 @@ func ParseInstallCommand(command string) ([]ParsedPackage, error) {
 			version = "latest"
 		}
 		packages = append(packages, ParsedPackage{
-			Name:    name,
-			Version: version,
+			Ecosystem: ecosystem,
+			Name:      name,
+			Version:   version,
 		})
 	}
 
@@ -61,6 +74,15 @@ func ParseInstallCommand(command string) ([]ParsedPackage, error) {
 }
 
 func splitPackageSpec(s string) (string, string) {
+	for _, op := range []string{"===", "==", "~=", ">=", "<=", "!=", ">", "<"} {
+		if idx := strings.Index(s, op); idx > 0 {
+			name := strings.TrimSpace(s[:idx])
+			if op == "==" || op == "===" {
+				return name, strings.TrimSpace(s[idx+len(op):])
+			}
+			return name, "latest"
+		}
+	}
 	if strings.HasPrefix(s, "@") {
 		idx := strings.LastIndex(s, "@")
 		if idx > 0 {

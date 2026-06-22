@@ -30,15 +30,17 @@ type Summary struct {
 }
 
 type ScanResult struct {
-	SchemaVersion string    `json:"schema_version"`
-	Tool          string    `json:"tool"`
-	Command       string    `json:"command"`
-	Mode          string    `json:"mode"`
-	FailOn        string    `json:"fail_on"`
-	Decision      string    `json:"decision"`
-	Lockfile      string    `json:"lockfile"`
-	ChangedOnly   bool      `json:"changed_only"`
-	Baseline      string    `json:"baseline"`
-	Summary       Summary   `json:"summary"`
-	Findings      []Finding `json:"findings"`
+	SchemaVersion   string    `json:"schema_version"`
+	Tool            string    `json:"tool"`
+	Command         string    `json:"command"`
+	Mode            string    `json:"mode"`
+	FailOn          string    `json:"fail_on"`
+	Decision        string    `json:"decision"`
+	Lockfile        string    `json:"lockfile"`
+	DependencyFiles []string  `json:"dependency_files,omitempty"`
+	Ecosystem       string    `json:"ecosystem,omitempty"`
+	ChangedOnly     bool      `json:"changed_only"`
+	Baseline        string    `json:"baseline"`
+	Summary         Summary   `json:"summary"`
+	Findings        []Finding `json:"findings"`
 }

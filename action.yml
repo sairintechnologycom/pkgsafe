@@ -11,6 +11,16 @@ inputs:
     required: false
     default: "package-lock.json"
 
+  dependency-file:
+    description: "Path to dependency file such as requirements.txt or pyproject.toml"
+    required: false
+    default: ""
+
+  ecosystem:
+    description: "Ecosystem to scan: npm, pypi, or empty for autodetect"
+    required: false
+    default: ""
+
   policy:
     description: "Path to PkgSafe policy file"
     required: false
@@ -115,6 +125,8 @@ runs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
         INPUT_LOCKFILE: ${{ inputs.lockfile }}
+        INPUT_DEPENDENCY_FILE: ${{ inputs.dependency-file }}
+        INPUT_ECOSYSTEM: ${{ inputs.ecosystem }}
         INPUT_POLICY: ${{ inputs.policy }}
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_FAIL_ON: ${{ inputs.fail-on }}

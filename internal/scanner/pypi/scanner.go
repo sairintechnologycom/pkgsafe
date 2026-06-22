@@ -1,0 +1,249 @@
+package pypi
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/niyam-ai/pkgsafe/internal/agent"
+	apypi "github.com/niyam-ai/pkgsafe/internal/analyzer/pypi"
+	"github.com/niyam-ai/pkgsafe/internal/cache"
+	"github.com/niyam-ai/pkgsafe/internal/db"
+	"github.com/niyam-ai/pkgsafe/internal/intel"
+	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
+	"github.com/niyam-ai/pkgsafe/internal/policy"
+	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
+	"github.com/niyam-ai/pkgsafe/internal/risk"
+	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/niyam-ai/pkgsafe/internal/typosquat"
+)
+
+type Scanner struct {
+	Registry       rpypi.Client
+	Policy         policy.Policy
+	CacheDir       string
+	Offline        bool
+	DBPath         string
+	SandboxEnabled bool
+}
+
+func New() Scanner {
+	return Scanner{
+		Registry: rpypi.NewClient(""),
+		Policy:   policy.Default(),
+	}
+}
+
+func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
+	if name == "" {
+		return types.ScanResult{}, fmt.Errorf("package name is required")
+	}
+	pol := s.Policy
+	if pol.Mode == "" {
+		pol = policy.Default()
+	}
+	ctx := context.Background()
+	if s.Offline {
+		return s.scanOffline(ctx, name, version, pol)
+	}
+
+	md, err := s.Registry.FetchMetadata(name)
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+	vm, err := rpypi.ResolveVersion(md, version)
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+
+	tmp, err := os.MkdirTemp("", "pkgsafe-pypi-*")
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+	defer os.RemoveAll(tmp)
+
+	filesToAnalyze := selectArtifacts(vm)
+	for i, file := range filesToAnalyze {
+		artifactPath, err := s.Registry.DownloadArtifact(file.URL, s.CacheDir)
+		if err != nil {
+			return types.ScanResult{}, err
+		}
+		if err := rpypi.VerifyArtifactHash(artifactPath, file.Digests); err != nil {
+			return types.ScanResult{}, err
+		}
+		extractDir := filepath.Join(tmp, fmt.Sprintf("artifact-%d", i))
+		if err := os.MkdirAll(extractDir, 0o755); err != nil {
+			return types.ScanResult{}, err
+		}
+		if err := rpypi.ExtractArtifact(artifactPath, extractDir); err != nil {
+			return types.ScanResult{}, err
+		}
+	}
+
+	analysis, err := apypi.AnalyzeDir(tmp, apypi.Metadata{
+		Name:        firstNonEmpty(vm.Name, name),
+		Version:     vm.Version,
+		Summary:     vm.Summary,
+		Description: vm.Description,
+		Repository:  vm.Repository,
+		License:     vm.License,
+		Yanked:      vm.Yanked,
+		Wheel:       len(vm.WheelFiles) > 0,
+		Source:      len(vm.SourceFiles) > 0,
+	}, pol)
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+
+	findings := append([]types.Reason{}, analysis.Findings...)
+	alts := typosquat.CheckEcosystem("pypi", analysis.Result.Package.Name)
+	if len(alts) > 0 {
+		findings = risk.AddReason(findings, "typosquat_candidate", "Package name resembles a popular package", fmt.Sprint(alts))
+	}
+	ageDays := -1
+	if !vm.Time.IsZero() {
+		ageDays = int(time.Since(vm.Time).Hours() / 24)
+		if rule, ok := policy.RuleFor(pol, "new_package"); ok && rule.MaxAgeDays > 0 && ageDays >= 0 && ageDays <= rule.MaxAgeDays {
+			findings = append(findings, risk.NewPackageFinding(ageDays))
+		}
+	}
+	if agent.CheckAISquattingEcosystem("pypi", analysis.Result.Package.Name, vm.Summary, vm.Repository, analysis.Artifact.SetupPyPresent, ageDays, len(vm.SourceFiles) > 0 && len(vm.WheelFiles) == 0) {
+		findings = risk.AddReason(findings, "pypi_ai_package_squatting_candidate", "Package name resembles AI-generated package naming pattern", analysis.Result.Package.Name)
+	}
+
+	vulns, vulnFindings := s.lookupOnlineVulnerabilities(ctx, analysis.Result.Package.Name, vm.Version)
+	findings = append(stripPolicyGeneratedReasons(findings), vulnFindings...)
+	res := risk.Evaluate(analysis.Result.Package, findings, nil, analysis.Result.Suspicious, alts, pol)
+	res.Vulnerabilities = vulns
+	res.Artifact = analysis.Artifact
+	if s.SandboxEnabled {
+		res.Sandbox = types.SandboxSummary{
+			Enabled:       true,
+			Available:     false,
+			NotPerformed:  true,
+			NotPerfReason: "PyPI sandbox execution is not implemented yet. Static analysis completed only.",
+		}
+		res.Artifact.SandboxNote = res.Sandbox.NotPerfReason
+	}
+	return res, nil
+}
+
+func (s Scanner) scanOffline(ctx context.Context, name, version string, pol policy.Policy) (types.ScanResult, error) {
+	store, err := cache.Load("")
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+	res, ok := store.Get("pypi", name, version)
+	if !ok {
+		return types.ScanResult{}, fmt.Errorf("offline scan failed: package %s@%s not cached locally (run online scan first)", name, version)
+	}
+	d, err := db.Open(s.DBPath)
+	if err != nil {
+		return res, nil
+	}
+	defer d.Close()
+	dbVulns, err := d.GetVulnerabilitiesForPackage(ctx, "PyPI", res.Package.Name)
+	if err != nil {
+		return res, nil
+	}
+	var vulns []types.Vulnerability
+	var findings []types.Reason
+	for _, v := range dbVulns {
+		if intel.IsVersionAffected(res.Package.Version, v) {
+			vulns = append(vulns, typeVuln(v))
+			findings = append(findings, vulnFinding(v))
+		}
+	}
+	baseReasons := stripPolicyGeneratedReasons(res.Reasons)
+	eval := risk.Evaluate(res.Package, append(baseReasons, findings...), nil, res.Suspicious, res.SafeAlternates, pol)
+	eval.Vulnerabilities = vulns
+	eval.Artifact = res.Artifact
+	eval.Sandbox = res.Sandbox
+	return eval, nil
+}
+
+func (s Scanner) lookupOnlineVulnerabilities(ctx context.Context, name, version string) ([]types.Vulnerability, []types.Reason) {
+	rawVulns, err := osv.NewClient().Query(ctx, osv.QueryRequest{
+		Package: &osv.Package{Name: name, Ecosystem: "PyPI"},
+		Version: version,
+	})
+	var out []types.Vulnerability
+	var findings []types.Reason
+	if err != nil || len(rawVulns) == 0 {
+		return out, findings
+	}
+	d, dbErr := db.Open(s.DBPath)
+	if dbErr == nil {
+		defer d.Close()
+	}
+	var dbVulns []db.Vulnerability
+	for _, v := range rawVulns {
+		dbV := osv.MapVulnerability(v, name, "PyPI")
+		dbVulns = append(dbVulns, dbV)
+		out = append(out, typeVuln(dbV))
+		findings = append(findings, vulnFinding(dbV))
+	}
+	if dbErr == nil {
+		_ = d.SaveVulnerabilities(ctx, dbVulns)
+		for _, v := range dbVulns {
+			_ = d.SaveVulnerabilityIndex(ctx, "PyPI", name, version, v.ID)
+		}
+	}
+	return out, findings
+}
+
+func selectArtifacts(vm rpypi.VersionMetadata) []rpypi.File {
+	var files []rpypi.File
+	if len(vm.WheelFiles) > 0 {
+		files = append(files, vm.WheelFiles[0])
+	}
+	if len(vm.SourceFiles) > 0 {
+		files = append(files, vm.SourceFiles[0])
+	}
+	return files
+}
+
+func typeVuln(v db.Vulnerability) types.Vulnerability {
+	return types.Vulnerability{
+		ID:            v.ID,
+		Aliases:       v.Aliases,
+		Severity:      v.Severity,
+		Summary:       v.Summary,
+		FixedVersions: v.FixedVersions,
+		References:    v.References,
+	}
+}
+
+func vulnFinding(v db.Vulnerability) types.Reason {
+	if intel.IsMalware(v) {
+		return types.Reason{ID: "known_malware_indicator", Description: "Package contains malware or malicious code", Evidence: v.ID}
+	}
+	return types.Reason{ID: "known_vulnerability_" + v.Severity, Description: fmt.Sprintf("Package version has a %s severity advisory", v.Severity), Evidence: v.ID}
+}
+
+func stripPolicyGeneratedReasons(reasons []types.Reason) []types.Reason {
+	out := make([]types.Reason, 0, len(reasons))
+	for _, reason := range reasons {
+		switch reason.ID {
+		case "trusted_package_reduction", "blocked_package",
+			"known_vulnerability_critical", "known_vulnerability_high",
+			"known_vulnerability_medium", "known_vulnerability_low",
+			"known_malware_indicator":
+			continue
+		default:
+			out = append(out, types.Reason{ID: reason.ID, Description: reason.Description, Evidence: reason.Evidence})
+		}
+	}
+	return out
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return "unknown"
+}

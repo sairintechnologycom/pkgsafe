@@ -48,6 +48,16 @@ type ScanResult struct {
 	Recommended     string          `json:"recommended_action,omitempty"`
 	ScannedAt       time.Time       `json:"scanned_at"`
 	Sandbox         SandboxSummary  `json:"sandbox,omitempty"`
+	Artifact        ArtifactSummary `json:"artifact_analysis,omitempty"`
+}
+
+type ArtifactSummary struct {
+	WheelAvailable              bool   `json:"wheel_available"`
+	SourceDistributionAvailable bool   `json:"source_distribution_available"`
+	Yanked                      bool   `json:"yanked"`
+	BuildBackend                string `json:"build_backend,omitempty"`
+	SetupPyPresent              bool   `json:"setup_py_present"`
+	SandboxNote                 string `json:"sandbox_note,omitempty"`
 }
 
 type SandboxSummary struct {

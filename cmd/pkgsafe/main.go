@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,10 +16,12 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/cache"
 	"github.com/niyam-ai/pkgsafe/internal/ci"
 	"github.com/niyam-ai/pkgsafe/internal/cli"
+	pydeps "github.com/niyam-ai/pkgsafe/internal/deps/python"
 	"github.com/niyam-ai/pkgsafe/internal/mcp"
 	"github.com/niyam-ai/pkgsafe/internal/output"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
+	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
@@ -63,10 +66,16 @@ func run(args []string) error {
 		return cmdScanLocalNPM(args[1:])
 	case "scan-npm-package":
 		return cmdScanNPMPackage(args[1:])
+	case "scan-pypi-package":
+		return cmdScanPyPIPackage(args[1:])
+	case "scan-python-deps":
+		return cmdScanPythonDeps(args[1:])
 	case "scan-lockfile":
 		return cmdScanLockfile(args[1:])
 	case "explain":
 		return cmdExplain(args[1:])
+	case "explain-pypi":
+		return cmdExplainPyPI(args[1:])
 	case "npm-install":
 		return cmdNPMInstall(args[1:])
 	case "mcp":
@@ -95,13 +104,97 @@ func usage() {
 Usage:
   pkgsafe scan-local-npm <dir> [--json]
   pkgsafe scan-npm-package <name> [--version <version>] [--policy <path>] [--mode warn|block|audit] [--json]
+  pkgsafe scan-pypi-package <name> [--version <version>] [--policy <path>] [--mode warn|block|audit] [--json]
+  pkgsafe scan-python-deps <requirements.txt|pyproject.toml> [--json]
   pkgsafe scan-lockfile <package-lock.json> [--json]
   pkgsafe explain <name> [--version <version>] [--policy <path>]
+  pkgsafe explain-pypi <name> [--version <version>] [--policy <path>]
   pkgsafe npm-install <name> [--version <version>] [--mode warn|block|audit]
   pkgsafe ci scan [--lockfile <path>] [--policy <path>] [--mode audit|warn|block] [--fail-on none|warn|block]
   pkgsafe mcp serve
   pkgsafe version
 `)
+}
+
+func cmdScanPyPIPackage(args []string) error {
+	fs := flag.NewFlagSet("scan-pypi-package", flag.ContinueOnError)
+	ver := fs.String("version", "", "package version")
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
+	sandbox := fs.Bool("sandbox", false, "return PyPI sandbox unsupported note")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("package name is required")
+	}
+	pol, err := loadPolicy(*policyPath, *mode)
+	if err != nil {
+		return err
+	}
+	scanner := spypi.New()
+	scanner.Policy = pol
+	scanner.Offline = *offline
+	scanner.SandboxEnabled = *sandbox
+	res, err := scanner.ScanPackage(fs.Arg(0), *ver)
+	if err != nil {
+		return err
+	}
+	_ = saveResult(res)
+	return output.Write(os.Stdout, res, *asJSON)
+}
+
+func cmdScanPythonDeps(args []string) error {
+	fs := flag.NewFlagSet("scan-python-deps", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("dependency file path is required")
+	}
+	pol, err := loadPolicy(*policyPath, *mode)
+	if err != nil {
+		return err
+	}
+	deps, err := pydeps.ParseFile(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	scanner := spypi.New()
+	scanner.Policy = pol
+	scanner.Offline = *offline
+	var results []types.ScanResult
+	for _, dep := range deps {
+		if !dep.Pinned {
+			fmt.Fprintf(os.Stderr, "Warning: %s is unpinned in %s\n", dep.Name, fs.Arg(0))
+		}
+		res, err := scanner.ScanPackage(dep.Name, dep.Version)
+		if err != nil {
+			return fmt.Errorf("scan dependency %s: %w", dep.Name, err)
+		}
+		_ = saveResult(res)
+		results = append(results, res)
+	}
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(results)
+	}
+	for i, res := range results {
+		if i > 0 {
+			fmt.Fprintln(os.Stdout)
+		}
+		if err := output.Write(os.Stdout, res, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func cmdScanLocalNPM(args []string) error {
@@ -300,6 +393,45 @@ func cmdExplain(args []string) error {
 	cached, hasCached := store.Get("npm", pkgName, *ver)
 
 	scanner := snpm.New()
+	scanner.Policy = pol
+	scanner.Offline = *offline
+	res, err := scanner.ScanPackage(pkgName, *ver)
+	if err != nil {
+		if hasCached {
+			return output.Write(os.Stdout, cached, *asJSON)
+		}
+		return err
+	}
+	_ = saveResult(res)
+	if *asJSON {
+		return output.Write(os.Stdout, res, true)
+	}
+	writeExplain(os.Stdout, res, cached, hasCached, pol)
+	return nil
+}
+
+func cmdExplainPyPI(args []string) error {
+	fs := flag.NewFlagSet("explain-pypi", flag.ContinueOnError)
+	ver := fs.String("version", "", "package version")
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run explain offline using cached database")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("package name is required")
+	}
+	pkgName := fs.Arg(0)
+	pol, err := loadPolicy(*policyPath, *mode)
+	if err != nil {
+		return err
+	}
+	store, _ := cache.Load("")
+	cached, hasCached := store.Get("pypi", pkgName, *ver)
+
+	scanner := spypi.New()
 	scanner.Policy = pol
 	scanner.Offline = *offline
 	res, err := scanner.ScanPackage(pkgName, *ver)
@@ -576,7 +708,7 @@ func flagNeedsValue(arg string) bool {
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network",
-		"lockfile", "fail-on", "json-output", "sarif-output", "summary-output", "baseline":
+		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline":
 		return true
 	default:
 		return false
@@ -586,6 +718,8 @@ func flagNeedsValue(arg string) bool {
 func cmdCIScan(args []string) error {
 	fs := flag.NewFlagSet("ci-scan", flag.ContinueOnError)
 	lockfile := fs.String("lockfile", "package-lock.json", "path to package-lock.json")
+	dependencyFile := fs.String("dependency-file", "", "path to dependency file")
+	ecosystem := fs.String("ecosystem", "", "package ecosystem: npm or pypi")
 	policyPath := fs.String("policy", "", "path to PkgSafe policy file")
 	mode := fs.String("mode", "", "PkgSafe mode: audit, warn, or block")
 	failOn := fs.String("fail-on", "", "minimum decision that fails the workflow: none, warn, block")
@@ -614,6 +748,8 @@ func cmdCIScan(args []string) error {
 
 	opts := ci.ScanOptions{
 		LockfilePath:         *lockfile,
+		DependencyFile:       *dependencyFile,
+		Ecosystem:            *ecosystem,
 		PolicyPath:           *policyPath,
 		Mode:                 *mode,
 		FailOn:               *failOn,

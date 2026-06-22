@@ -5,6 +5,12 @@ thresholds:
   warn_max_score: 69
   block_min_score: 70
 
+ecosystems:
+  npm:
+    enabled: true
+  pypi:
+    enabled: true
+
 sandbox:
   enabled: false
   default_timeout_seconds: 10
@@ -31,9 +37,19 @@ trusted_packages:
     - react
     - express
     - typescript
+  pypi:
+    - requests
+    - flask
+    - django
+    - fastapi
+    - numpy
+    - pandas
+    - pydantic
+    - pytest
 
 blocked_packages:
   npm: []
+  pypi: []
 
 rules:
   lifecycle_script_present:
@@ -186,6 +202,46 @@ rules:
     enabled: true
     severity: medium
     score: 20
+
+  pypi_source_distribution_only:
+    enabled: true
+    severity: medium
+    score: 15
+
+  pypi_yanked_release:
+    enabled: true
+    severity: high
+    score: 40
+
+  pypi_setup_py_present:
+    enabled: true
+    severity: medium
+    score: 15
+
+  pypi_setup_py_shell_execution:
+    enabled: true
+    severity: high
+    score: 50
+
+  pypi_setup_py_network_call:
+    enabled: true
+    severity: critical
+    score: 100
+
+  pypi_setup_py_credential_access:
+    enabled: true
+    severity: critical
+    score: 100
+
+  pypi_unknown_build_backend:
+    enabled: true
+    severity: medium
+    score: 20
+
+  pypi_ai_package_squatting_candidate:
+    enabled: true
+    severity: high
+    score: 25
 
 mcp:
   enabled: true

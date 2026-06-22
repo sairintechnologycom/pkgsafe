@@ -25,7 +25,8 @@ type Rule struct {
 }
 
 type PackageLists struct {
-	NPM []string
+	NPM  []string
+	PyPI []string
 }
 
 type MCPSettings struct {
@@ -43,6 +44,15 @@ type SandboxSettings struct {
 	FailOpenWhenUnavailable bool
 }
 
+type EcosystemSettings struct {
+	NPM  EcosystemSetting
+	PyPI EcosystemSetting
+}
+
+type EcosystemSetting struct {
+	Enabled bool
+}
+
 type CISettings struct {
 	FailOn      string
 	ChangedOnly bool
@@ -52,6 +62,7 @@ type CISettings struct {
 
 type Policy struct {
 	Mode            Mode
+	Ecosystems      EcosystemSettings
 	Thresholds      types.Thresholds
 	ProtectedPaths  []string
 	TrustedPackages PackageLists
@@ -67,6 +78,10 @@ type Policy struct {
 func Default() Policy {
 	return Policy{
 		Mode: ModeWarn,
+		Ecosystems: EcosystemSettings{
+			NPM:  EcosystemSetting{Enabled: true},
+			PyPI: EcosystemSetting{Enabled: true},
+		},
 		Thresholds: types.Thresholds{
 			AllowMaxScore: 29,
 			WarnMaxScore:  69,
@@ -76,27 +91,30 @@ func Default() Policy {
 			"~/.aws", "~/.azure", "~/.gcp", "~/.ssh", "~/.kube",
 			"~/.npmrc", "~/.pypirc", ".env", ".env.local", ".vault-token",
 		},
-		TrustedPackages: PackageLists{NPM: []string{"lodash", "axios", "react", "express", "typescript"}},
-		BlockedPackages: PackageLists{NPM: []string{}},
+		TrustedPackages: PackageLists{
+			NPM:  []string{"lodash", "axios", "react", "express", "typescript"},
+			PyPI: []string{"requests", "flask", "django", "fastapi", "numpy", "pandas", "pydantic", "pytest"},
+		},
+		BlockedPackages: PackageLists{NPM: []string{}, PyPI: []string{}},
 		Rules: map[string]Rule{
-			"lifecycle_script_present":              {Enabled: true, Severity: "medium", Score: 20},
-			"network_command_in_lifecycle":          {Enabled: true, Severity: "high", Score: 30},
-			"credential_path_reference":             {Enabled: true, Severity: "critical", Score: 100},
-			"secret_keyword_reference":              {Enabled: true, Severity: "high", Score: 35},
-			"obfuscated_script":                     {Enabled: true, Severity: "high", Score: 25},
-			"typosquat_candidate":                   {Enabled: true, Severity: "high", Score: 25},
-			"missing_repository":                    {Enabled: true, Severity: "low", Score: 10},
-			"missing_license":                       {Enabled: true, Severity: "low", Score: 5},
-			"new_package":                           {Enabled: true, Severity: "medium", Score: 15, MaxAgeDays: 14},
-			"trusted_package_reduction":             {Enabled: true, Severity: "informational", Score: -20},
-			"blocked_package":                       {Enabled: true, Severity: "critical", Score: 100},
-			"known_vulnerability_critical":          {Enabled: true, Severity: "critical", Score: 70},
-			"known_vulnerability_high":              {Enabled: true, Severity: "high", Score: 50},
-			"known_vulnerability_medium":            {Enabled: true, Severity: "medium", Score: 25},
-			"known_vulnerability_low":               {Enabled: true, Severity: "low", Score: 10},
-			"known_malware_indicator":               {Enabled: true, Severity: "critical", Score: 100},
-			"ai_package_squatting_candidate":        {Enabled: true, Severity: "high", Score: 25},
-			"ai_agent_requested_suspicious_package": {Enabled: true, Severity: "high", Score: 15},
+			"lifecycle_script_present":               {Enabled: true, Severity: "medium", Score: 20},
+			"network_command_in_lifecycle":           {Enabled: true, Severity: "high", Score: 30},
+			"credential_path_reference":              {Enabled: true, Severity: "critical", Score: 100},
+			"secret_keyword_reference":               {Enabled: true, Severity: "high", Score: 35},
+			"obfuscated_script":                      {Enabled: true, Severity: "high", Score: 25},
+			"typosquat_candidate":                    {Enabled: true, Severity: "high", Score: 25},
+			"missing_repository":                     {Enabled: true, Severity: "low", Score: 10},
+			"missing_license":                        {Enabled: true, Severity: "low", Score: 5},
+			"new_package":                            {Enabled: true, Severity: "medium", Score: 15, MaxAgeDays: 14},
+			"trusted_package_reduction":              {Enabled: true, Severity: "informational", Score: -20},
+			"blocked_package":                        {Enabled: true, Severity: "critical", Score: 100},
+			"known_vulnerability_critical":           {Enabled: true, Severity: "critical", Score: 70},
+			"known_vulnerability_high":               {Enabled: true, Severity: "high", Score: 50},
+			"known_vulnerability_medium":             {Enabled: true, Severity: "medium", Score: 25},
+			"known_vulnerability_low":                {Enabled: true, Severity: "low", Score: 10},
+			"known_malware_indicator":                {Enabled: true, Severity: "critical", Score: 100},
+			"ai_package_squatting_candidate":         {Enabled: true, Severity: "high", Score: 25},
+			"ai_agent_requested_suspicious_package":  {Enabled: true, Severity: "high", Score: 15},
 			"credential_canary_read":                 {Enabled: true, Severity: "critical", Score: 100},
 			"credential_canary_exfiltration_attempt": {Enabled: true, Severity: "critical", Score: 100},
 			"cloud_metadata_access":                  {Enabled: true, Severity: "critical", Score: 100},
@@ -108,8 +126,16 @@ func Default() Policy {
 			"encoded_payload_execution":              {Enabled: true, Severity: "high", Score: 40},
 			"unexpected_binary_write":                {Enabled: true, Severity: "high", Score: 30},
 			"child_process_spawn":                    {Enabled: true, Severity: "medium", Score: 20},
-			"home_directory_enumeration":              {Enabled: true, Severity: "medium", Score: 20},
+			"home_directory_enumeration":             {Enabled: true, Severity: "medium", Score: 20},
 			"environment_variable_enumeration":       {Enabled: true, Severity: "medium", Score: 20},
+			"pypi_source_distribution_only":          {Enabled: true, Severity: "medium", Score: 15},
+			"pypi_yanked_release":                    {Enabled: true, Severity: "high", Score: 40},
+			"pypi_setup_py_present":                  {Enabled: true, Severity: "medium", Score: 15},
+			"pypi_setup_py_shell_execution":          {Enabled: true, Severity: "high", Score: 50},
+			"pypi_setup_py_network_call":             {Enabled: true, Severity: "critical", Score: 100},
+			"pypi_setup_py_credential_access":        {Enabled: true, Severity: "critical", Score: 100},
+			"pypi_unknown_build_backend":             {Enabled: true, Severity: "medium", Score: 20},
+			"pypi_ai_package_squatting_candidate":    {Enabled: true, Severity: "high", Score: 25},
 		},
 		BlockPatterns: []string{
 			"~/.aws", "~/.azure", "~/.gcp", "~/.ssh", "~/.kube", "~/.npmrc", "~/.pypirc",
@@ -223,8 +249,11 @@ func RuleFor(pol Policy, id string) (Rule, bool) {
 }
 
 func listForEcosystem(l PackageLists, ecosystem string) []string {
-	if ecosystem == "npm" {
+	switch strings.ToLower(ecosystem) {
+	case "npm":
 		return l.NPM
+	case "pypi":
+		return l.PyPI
 	}
 	return nil
 }
@@ -255,8 +284,12 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 				pol.ProtectedPaths = append(pol.ProtectedPaths, item)
 			case section == "trusted_packages" && subsection == "npm":
 				pol.TrustedPackages.NPM = append(pol.TrustedPackages.NPM, item)
+			case section == "trusted_packages" && subsection == "pypi":
+				pol.TrustedPackages.PyPI = append(pol.TrustedPackages.PyPI, item)
 			case section == "blocked_packages" && subsection == "npm":
 				pol.BlockedPackages.NPM = append(pol.BlockedPackages.NPM, item)
+			case section == "blocked_packages" && subsection == "pypi":
+				pol.BlockedPackages.PyPI = append(pol.BlockedPackages.PyPI, item)
 			default:
 				return fmt.Errorf("line %d: list item is not under a supported list", lineNo+1)
 			}
@@ -273,7 +306,7 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			switch key {
 			case "mode":
 				pol.Mode = ParseMode(unquote(val))
-			case "thresholds", "rules", "mcp", "sandbox", "ci":
+			case "thresholds", "rules", "mcp", "sandbox", "ci", "ecosystems":
 			case "protected_paths":
 				pol.ProtectedPaths = nil
 				pol.BlockPatterns = nil
@@ -288,6 +321,26 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			continue
 		}
 		switch section {
+		case "ecosystems":
+			if indent == 2 && val == "" {
+				subsection = key
+				continue
+			}
+			if indent != 4 || subsection == "" {
+				return fmt.Errorf("line %d: expected ecosystem property", lineNo+1)
+			}
+			if key != "enabled" {
+				return fmt.Errorf("line %d: unsupported ecosystem property %q", lineNo+1, key)
+			}
+			enabled := strings.EqualFold(unquote(val), "true")
+			switch subsection {
+			case "npm":
+				pol.Ecosystems.NPM.Enabled = enabled
+			case "pypi":
+				pol.Ecosystems.PyPI.Enabled = enabled
+			default:
+				return fmt.Errorf("line %d: unsupported ecosystem %q", lineNo+1, subsection)
+			}
 		case "ci":
 			if indent != 2 {
 				return fmt.Errorf("line %d: expected ci property", lineNo+1)

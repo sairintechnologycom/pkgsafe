@@ -6,6 +6,7 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/agent"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
+	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
@@ -77,18 +78,31 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 		pol.Mode = policy.ParseMode(p.Mode)
 	}
 
-	scanner := snpm.New()
-	scanner.Policy = pol
-	scanner.Offline = e.Offline || p.Offline
+	npmScanner := snpm.New()
+	npmScanner.Policy = pol
+	npmScanner.Offline = e.Offline || p.Offline
+	pypiScanner := spypi.New()
+	pypiScanner.Policy = pol
+	pypiScanner.Offline = e.Offline || p.Offline
 
 	var packages []ValidateInstallCommandPackage
 	hasBlock := false
 	hasWarn := false
+	ecosystem := "npm"
 
 	for _, pp := range parsedPkgs {
-		res, err := scanner.ScanPackage(pp.Name, pp.Version)
+		if pp.Ecosystem != "" {
+			ecosystem = pp.Ecosystem
+		}
+		var res types.ScanResult
+		var err error
+		if ecosystem == "pypi" {
+			res, err = pypiScanner.ScanPackage(pp.Name, pp.Version)
+		} else {
+			res, err = npmScanner.ScanPackage(pp.Name, pp.Version)
+		}
 		if err != nil {
-			te := MapScanError(err, "npm", pp.Name, pp.Version)
+			te := MapScanError(err, ecosystem, pp.Name, pp.Version)
 			bErr, _ := json.MarshalIndent(te, "", "  ")
 			return CallToolResult{
 				Content: []ToolContent{{
@@ -143,7 +157,7 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 
 	toolRes := ValidateInstallCommandResult{
 		Command:           p.Command,
-		Ecosystem:         "npm",
+		Ecosystem:         ecosystem,
 		Decision:          overallDecision,
 		InstallAllowed:    installAllowed,
 		Packages:          packages,

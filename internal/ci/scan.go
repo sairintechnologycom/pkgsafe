@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/niyam-ai/pkgsafe/internal/cache"
+	pydeps "github.com/niyam-ai/pkgsafe/internal/deps/python"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
+	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
@@ -46,6 +48,13 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 	}
 	if failOn != "none" && failOn != "warn" && failOn != "block" {
 		return nil, ScanError{Err: fmt.Errorf("invalid fail-on value: %q. Must be one of none, warn, block", failOn), ExitCode: ExitUsageError}
+	}
+	ecosystem := strings.ToLower(strings.TrimSpace(opts.Ecosystem))
+	if ecosystem == "" {
+		ecosystem = detectEcosystem(opts)
+	}
+	if ecosystem == "pypi" {
+		return runPyPIScan(opts, pol, failOn)
 	}
 
 	// 2. Locate and load lockfile
@@ -197,14 +206,14 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		}
 
 		findings = append(findings, Finding{
-			Ecosystem:      "npm",
-			Package:        dep.Name,
-			Version:        dep.Version,
-			Decision:       string(res.Decision),
-			RiskScore:      res.Score,
-			Direct:         isDirect,
-			DependencyType: depType,
-			Reasons:        reasons,
+			Ecosystem:       "npm",
+			Package:         dep.Name,
+			Version:         dep.Version,
+			Decision:        string(res.Decision),
+			RiskScore:       res.Score,
+			Direct:          isDirect,
+			DependencyType:  depType,
+			Reasons:         reasons,
 			Vulnerabilities: vulnerabilities,
 			Sandbox: SandboxSummary{
 				Enabled:               res.Sandbox.Enabled,
@@ -248,11 +257,138 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		FailOn:        failOn,
 		Decision:      overallDecision,
 		Lockfile:      lockfile,
+		Ecosystem:     "npm",
 		ChangedOnly:   isChangedOnlyScan,
 		Baseline:      opts.Baseline,
 		Summary:       summary,
 		Findings:      findings,
 	}, nil
+}
+
+func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResult, error) {
+	files := pythonDependencyFiles(opts)
+	if len(files) == 0 {
+		return nil, ScanError{Err: fmt.Errorf("no Python dependency files found"), ExitCode: ExitLockfileError}
+	}
+	var deps []pydeps.Dependency
+	for _, file := range files {
+		parsed, err := pydeps.ParseFile(file)
+		if err != nil {
+			return nil, ScanError{Err: fmt.Errorf("parse Python dependency file %q: %w", file, err), ExitCode: ExitLockfileError}
+		}
+		deps = append(deps, parsed...)
+	}
+	scanner := spypi.New()
+	scanner.Policy = pol
+	scanner.Offline = opts.Offline
+	scanner.SandboxEnabled = opts.SandboxSpecified && opts.Sandbox
+
+	var findings []Finding
+	summary := Summary{PackagesScanned: len(deps)}
+	for _, dep := range deps {
+		if !dep.Pinned {
+			fmt.Fprintf(os.Stderr, "Warning: %s is unpinned in %s\n", dep.Name, dep.SourceFile)
+		}
+		res, err := scanner.ScanPackage(dep.Name, dep.Version)
+		if err != nil {
+			return nil, ScanError{Err: fmt.Errorf("scan package %s@%s: %w", dep.Name, dep.Version, err), ExitCode: ExitInternalError}
+		}
+		_ = saveResult(res)
+		switch res.Decision {
+		case types.DecisionBlock:
+			summary.Block++
+		case types.DecisionWarn:
+			summary.Warn++
+		default:
+			summary.Allow++
+		}
+		findings = append(findings, Finding{
+			Ecosystem:         "pypi",
+			Package:           res.Package.Name,
+			Version:           res.Package.Version,
+			Decision:          string(res.Decision),
+			RiskScore:         res.Score,
+			Direct:            true,
+			DependencyType:    "python",
+			Reasons:           res.Reasons,
+			Vulnerabilities:   res.Vulnerabilities,
+			Sandbox:           SandboxSummary{Enabled: res.Sandbox.Enabled, Available: res.Sandbox.Available},
+			RecommendedAction: recommendedActionForFinding(res),
+		})
+	}
+	overallDecision := "allow"
+	if summary.Block > 0 {
+		overallDecision = "block"
+	} else if summary.Warn > 0 {
+		overallDecision = "warn"
+	}
+	return &ScanResult{
+		SchemaVersion:   "1.0",
+		Tool:            "pkgsafe",
+		Command:         "ci scan",
+		Mode:            string(pol.Mode),
+		FailOn:          failOn,
+		Decision:        overallDecision,
+		Lockfile:        firstFile(files),
+		DependencyFiles: files,
+		Ecosystem:       "pypi",
+		ChangedOnly:     false,
+		Baseline:        opts.Baseline,
+		Summary:         summary,
+		Findings:        findings,
+	}, nil
+}
+
+func detectEcosystem(opts ScanOptions) string {
+	file := firstNonEmpty(opts.DependencyFile, opts.LockfilePath)
+	base := strings.ToLower(filepath.Base(file))
+	switch base {
+	case "requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock":
+		return "pypi"
+	case "package-lock.json":
+		return "npm"
+	}
+	for _, name := range []string{"package-lock.json", "requirements.txt", "pyproject.toml"} {
+		if _, err := os.Stat(name); err == nil {
+			if name == "package-lock.json" {
+				return "npm"
+			}
+			return "pypi"
+		}
+	}
+	return "npm"
+}
+
+func pythonDependencyFiles(opts ScanOptions) []string {
+	if opts.DependencyFile != "" {
+		return []string{opts.DependencyFile}
+	}
+	if opts.LockfilePath != "" && filepath.Base(opts.LockfilePath) != "package-lock.json" {
+		return []string{opts.LockfilePath}
+	}
+	var files []string
+	for _, name := range []string{"requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock"} {
+		if _, err := os.Stat(name); err == nil {
+			files = append(files, name)
+		}
+	}
+	return files
+}
+
+func firstFile(files []string) string {
+	if len(files) == 0 {
+		return ""
+	}
+	return files[0]
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func loadPackageJSONInfo(lockfilePath string) (map[string]string, bool) {

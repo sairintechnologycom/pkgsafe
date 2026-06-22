@@ -10,6 +10,14 @@ if [ -n "$INPUT_LOCKFILE" ]; then
   ARGS+=("--lockfile" "$INPUT_LOCKFILE")
 fi
 
+if [ -n "$INPUT_DEPENDENCY_FILE" ]; then
+  ARGS+=("--dependency-file" "$INPUT_DEPENDENCY_FILE")
+fi
+
+if [ -n "$INPUT_ECOSYSTEM" ]; then
+  ARGS+=("--ecosystem" "$INPUT_ECOSYSTEM")
+fi
+
 # Only add policy if the file exists
 if [ -n "$INPUT_POLICY" ] && [ -f "$INPUT_POLICY" ]; then
   ARGS+=("--policy" "$INPUT_POLICY")

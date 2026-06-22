@@ -9,9 +9,23 @@ var PopularNPM = []string{
 }
 
 func Check(name string) []string {
+	return CheckEcosystem("npm", name)
+}
+
+var PopularPyPI = []string{
+	"requests", "flask", "django", "fastapi", "numpy", "pandas", "scipy", "scikit-learn",
+	"tensorflow", "torch", "transformers", "langchain", "openai", "anthropic", "pydantic",
+	"sqlalchemy", "pytest", "beautifulsoup4", "boto3", "azure-identity", "google-cloud-storage",
+}
+
+func CheckEcosystem(ecosystem, name string) []string {
 	clean := normalize(name)
 	var alts []string
-	for _, p := range PopularNPM {
+	baseline := PopularNPM
+	if strings.EqualFold(ecosystem, "pypi") {
+		baseline = PopularPyPI
+	}
+	for _, p := range baseline {
 		pp := normalize(p)
 		if clean == pp {
 			continue
