@@ -13,6 +13,7 @@ import (
 
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
+	"github.com/niyam-ai/pkgsafe/internal/ci"
 	"github.com/niyam-ai/pkgsafe/internal/cli"
 	"github.com/niyam-ai/pkgsafe/internal/mcp"
 	"github.com/niyam-ai/pkgsafe/internal/output"
@@ -24,8 +25,26 @@ import (
 var version = "0.1.0"
 var commit = "local"
 
+type exitError struct {
+	code int
+	err  error
+}
+
+func (e exitError) Error() string {
+	if e.err != nil {
+		return e.err.Error()
+	}
+	return fmt.Sprintf("exit status %d", e.code)
+}
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
+		if eErr, ok := err.(exitError); ok {
+			if eErr.err != nil {
+				fmt.Fprintln(os.Stderr, "error:", eErr.err)
+			}
+			os.Exit(eErr.code)
+		}
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -59,6 +78,11 @@ func run(args []string) error {
 			return cmdDBStatus(args[2:])
 		}
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe db status")
+	case "ci":
+		if len(args) > 1 && args[1] == "scan" {
+			return cmdCIScan(args[2:])
+		}
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe ci scan")
 	default:
 		usage()
 		return fmt.Errorf("unknown command %q", args[0])
@@ -74,6 +98,7 @@ Usage:
   pkgsafe scan-lockfile <package-lock.json> [--json]
   pkgsafe explain <name> [--version <version>] [--policy <path>]
   pkgsafe npm-install <name> [--version <version>] [--mode warn|block|audit]
+  pkgsafe ci scan [--lockfile <path>] [--policy <path>] [--mode audit|warn|block] [--fail-on none|warn|block]
   pkgsafe mcp serve
   pkgsafe version
 `)
@@ -550,9 +575,104 @@ func flagNeedsValue(arg string) bool {
 	name := strings.TrimLeft(arg, "-")
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
-	case "version", "mode", "policy", "log-level", "timeout", "network":
+	case "version", "mode", "policy", "log-level", "timeout", "network",
+		"lockfile", "fail-on", "json-output", "sarif-output", "summary-output", "baseline":
 		return true
 	default:
 		return false
 	}
+}
+
+func cmdCIScan(args []string) error {
+	fs := flag.NewFlagSet("ci-scan", flag.ContinueOnError)
+	lockfile := fs.String("lockfile", "package-lock.json", "path to package-lock.json")
+	policyPath := fs.String("policy", "", "path to PkgSafe policy file")
+	mode := fs.String("mode", "", "PkgSafe mode: audit, warn, or block")
+	failOn := fs.String("fail-on", "", "minimum decision that fails the workflow: none, warn, block")
+	jsonOutput := fs.String("json-output", "", "path to write JSON report")
+	sarifOutput := fs.String("sarif-output", "", "path to write SARIF report")
+	summaryOutput := fs.String("summary-output", "", "path to write Markdown summary")
+	changedOnly := fs.Bool("changed-only", false, "only scan changed dependencies")
+	baseline := fs.String("baseline", "main", "baseline branch for diffing")
+	sandbox := fs.Bool("sandbox", false, "enable sandbox execution")
+	offline := fs.Bool("offline", false, "use offline database only")
+	timeout := fs.Duration("timeout", 0, "sandbox timeout")
+
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return exitError{code: ci.ExitUsageError, err: err}
+	}
+
+	isFlagPassed := func(name string) bool {
+		found := false
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name == name {
+				found = true
+			}
+		})
+		return found
+	}
+
+	opts := ci.ScanOptions{
+		LockfilePath:         *lockfile,
+		PolicyPath:           *policyPath,
+		Mode:                 *mode,
+		FailOn:               *failOn,
+		JsonOutput:           *jsonOutput,
+		SarifOutput:          *sarifOutput,
+		SummaryOutput:        *summaryOutput,
+		ChangedOnlySpecified: isFlagPassed("changed-only"),
+		ChangedOnly:          *changedOnly,
+		Baseline:             *baseline,
+		SandboxSpecified:     isFlagPassed("sandbox"),
+		Sandbox:              *sandbox,
+		Offline:              *offline,
+		Timeout:              *timeout,
+	}
+
+	res, err := ci.RunScan(opts)
+	if err != nil {
+		if se, ok := err.(ci.ScanError); ok {
+			return exitError{code: se.ExitCode, err: se.Err}
+		}
+		return exitError{code: ci.ExitInternalError, err: err}
+	}
+
+	// Write human summary to stdout
+	ci.WriteHumanSummary(os.Stdout, res)
+
+	// Write reports if paths are specified
+	if opts.JsonOutput != "" {
+		if err := ci.WriteJSONOutput(opts.JsonOutput, res); err != nil {
+			return exitError{code: ci.ExitInternalError, err: fmt.Errorf("write JSON output: %w", err)}
+		}
+	}
+	if opts.SarifOutput != "" {
+		if err := ci.WriteSarifOutput(opts.SarifOutput, res); err != nil {
+			return exitError{code: ci.ExitInternalError, err: fmt.Errorf("write SARIF output: %w", err)}
+		}
+	}
+	if opts.SummaryOutput != "" {
+		if err := ci.WriteSummaryOutput(opts.SummaryOutput, res); err != nil {
+			return exitError{code: ci.ExitInternalError, err: fmt.Errorf("write Markdown summary output: %w", err)}
+		}
+	}
+
+	// Exit behavior based on fail-on threshold
+	thresholdReached := false
+	switch res.FailOn {
+	case "block":
+		if res.Decision == "block" {
+			thresholdReached = true
+		}
+	case "warn":
+		if res.Decision == "block" || res.Decision == "warn" {
+			thresholdReached = true
+		}
+	}
+
+	if thresholdReached {
+		return exitError{code: ci.ExitFailThreshold, err: nil}
+	}
+
+	return nil
 }

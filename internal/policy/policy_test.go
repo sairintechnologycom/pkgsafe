@@ -14,6 +14,11 @@ thresholds:
   allow_max_score: 10
   warn_max_score: 20
   block_min_score: 30
+ci:
+  fail_on: warn
+  changed_only: false
+  comment_pr: true
+  upload_sarif: false
 protected_paths:
   - "~/.aws"
 trusted_packages:
@@ -30,6 +35,9 @@ rules:
 	pol, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if pol.CI.FailOn != "warn" || pol.CI.ChangedOnly != false || pol.CI.CommentPR != true || pol.CI.UploadSARIF != false {
+		t.Fatalf("policy did not load expected ci settings: %+v", pol.CI)
 	}
 	if pol.Mode != ModeBlock || pol.Thresholds.BlockMinScore != 30 {
 		t.Fatalf("policy did not load expected mode/thresholds: %+v", pol)

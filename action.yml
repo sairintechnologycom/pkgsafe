@@ -1,0 +1,133 @@
+name: "PkgSafe Dependency Gate"
+description: "Detect risky npm dependency changes before they are merged into the repository"
+author: "PkgSafe Team"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  lockfile:
+    description: "Path to package-lock.json"
+    required: false
+    default: "package-lock.json"
+
+  policy:
+    description: "Path to PkgSafe policy file"
+    required: false
+    default: ".pkgsafe/policy.yaml"
+
+  mode:
+    description: "PkgSafe mode: audit, warn, or block"
+    required: false
+    default: "warn"
+
+  fail-on:
+    description: "Minimum decision that fails the workflow: none, warn, block"
+    required: false
+    default: "block"
+
+  changed-only:
+    description: "Only scan dependencies changed in the pull request"
+    required: false
+    default: "true"
+
+  baseline:
+    description: "Baseline branch for changed dependency detection"
+    required: false
+    default: "main"
+
+  sandbox:
+    description: "Enable sandboxed lifecycle behavior analysis"
+    required: false
+    default: "false"
+
+  offline:
+    description: "Use offline local vulnerability database only"
+    required: false
+    default: "false"
+
+  upload-sarif:
+    description: "Upload SARIF results to GitHub Code Scanning"
+    required: false
+    default: "true"
+
+  comment-pr:
+    description: "Post or update pull request summary comment"
+    required: false
+    default: "true"
+
+  pkgsafe-version:
+    description: "PkgSafe version to install"
+    required: false
+    default: "latest"
+
+outputs:
+  decision:
+    description: "Overall PkgSafe decision: allow, warn, block"
+    value: ${{ steps.scan.outputs.decision }}
+
+  risk-score:
+    description: "Highest package risk score"
+    value: ${{ steps.scan.outputs.risk-score }}
+
+  packages-scanned:
+    description: "Number of packages scanned"
+    value: ${{ steps.scan.outputs.packages-scanned }}
+
+  warn-count:
+    description: "Number of warning packages"
+    value: ${{ steps.scan.outputs.warn-count }}
+
+  block-count:
+    description: "Number of blocked packages"
+    value: ${{ steps.scan.outputs.block-count }}
+
+  json-report:
+    description: "Path to JSON report"
+    value: ${{ steps.scan.outputs.json-report }}
+
+  sarif-report:
+    description: "Path to SARIF report"
+    value: ${{ steps.scan.outputs.sarif-report }}
+
+  markdown-summary:
+    description: "Path to Markdown summary"
+    value: ${{ steps.scan.outputs.markdown-summary }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 'stable'
+
+    - name: Build PkgSafe
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        go build -o pkgsafe ./cmd/pkgsafe
+        echo "${{ github.action_path }}" >> $GITHUB_PATH
+
+    - name: Run PkgSafe CI Scan
+      id: scan
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        INPUT_LOCKFILE: ${{ inputs.lockfile }}
+        INPUT_POLICY: ${{ inputs.policy }}
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_CHANGED_ONLY: ${{ inputs.changed-only }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_SANDBOX: ${{ inputs.sandbox }}
+        INPUT_OFFLINE: ${{ inputs.offline }}
+        INPUT_COMMENT_PR: ${{ inputs.comment-pr }}
+      run: |
+        ${{ github.action_path }}/scripts/github-action-entrypoint.sh
+
+    - name: Upload PkgSafe SARIF
+      if: inputs.upload-sarif == 'true' && always() && steps.scan.outputs.sarif-report != ''
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif-report }}

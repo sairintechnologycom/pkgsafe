@@ -1,0 +1,4 @@
+dist/
+pkgsafe
+*.db
+.pkgsafe/

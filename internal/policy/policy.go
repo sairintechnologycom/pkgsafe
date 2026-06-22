@@ -43,6 +43,13 @@ type SandboxSettings struct {
 	FailOpenWhenUnavailable bool
 }
 
+type CISettings struct {
+	FailOn      string
+	ChangedOnly bool
+	CommentPR   bool
+	UploadSARIF bool
+}
+
 type Policy struct {
 	Mode            Mode
 	Thresholds      types.Thresholds
@@ -54,6 +61,7 @@ type Policy struct {
 	WarnPatterns    []string
 	MCP             MCPSettings
 	Sandbox         SandboxSettings
+	CI              CISettings
 }
 
 func Default() Policy {
@@ -125,6 +133,12 @@ func Default() Policy {
 			NetworkMode:             "disabled",
 			KeepSandbox:             false,
 			FailOpenWhenUnavailable: true,
+		},
+		CI: CISettings{
+			FailOn:      "block",
+			ChangedOnly: true,
+			CommentPR:   true,
+			UploadSARIF: true,
 		},
 	}
 }
@@ -259,7 +273,7 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			switch key {
 			case "mode":
 				pol.Mode = ParseMode(unquote(val))
-			case "thresholds", "rules", "mcp", "sandbox":
+			case "thresholds", "rules", "mcp", "sandbox", "ci":
 			case "protected_paths":
 				pol.ProtectedPaths = nil
 				pol.BlockPatterns = nil
@@ -274,6 +288,22 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			continue
 		}
 		switch section {
+		case "ci":
+			if indent != 2 {
+				return fmt.Errorf("line %d: expected ci property", lineNo+1)
+			}
+			switch key {
+			case "fail_on":
+				pol.CI.FailOn = unquote(val)
+			case "changed_only":
+				pol.CI.ChangedOnly = strings.EqualFold(unquote(val), "true")
+			case "comment_pr":
+				pol.CI.CommentPR = strings.EqualFold(unquote(val), "true")
+			case "upload_sarif":
+				pol.CI.UploadSARIF = strings.EqualFold(unquote(val), "true")
+			default:
+				return fmt.Errorf("line %d: unsupported ci property %q", lineNo+1, key)
+			}
 		case "sandbox":
 			if indent != 2 {
 				return fmt.Errorf("line %d: expected sandbox property", lineNo+1)

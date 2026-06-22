@@ -240,6 +240,12 @@ func contains(values []string, needle string) bool {
 }
 
 func TestOfflineScanMissingCache(t *testing.T) {
+	// Setup a clean temp home for caching
+	tempHome := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempHome)
+	defer os.Setenv("HOME", oldHome)
+
 	scanner := Scanner{
 		Policy:  policy.Default(),
 		Offline: true,
