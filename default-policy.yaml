@@ -1,37 +1,81 @@
 mode: warn
 
+thresholds:
+  allow_max_score: 29
+  warn_max_score: 69
+  block_min_score: 70
+
 protected_paths:
-  - ~/.aws
-  - ~/.azure
-  - ~/.gcp
-  - ~/.ssh
-  - ~/.kube
-  - ~/.docker
-  - ~/.npmrc
-  - ~/.pypirc
-  - .env
-  - .env.local
-  - .github
-  - .vault-token
+  - "~/.aws"
+  - "~/.azure"
+  - "~/.gcp"
+  - "~/.ssh"
+  - "~/.kube"
+  - "~/.npmrc"
+  - "~/.pypirc"
+  - ".env"
+  - ".env.local"
+  - ".vault-token"
 
-block_patterns:
-  - ~/.aws
-  - ~/.ssh
-  - ~/.npmrc
-  - .env
-  - AWS_ACCESS_KEY_ID
-  - AWS_SECRET_ACCESS_KEY
-  - VAULT_TOKEN
-  - GITHUB_TOKEN
+trusted_packages:
+  npm:
+    - lodash
+    - axios
+    - react
+    - express
+    - typescript
 
-warn_patterns:
-  - postinstall
-  - preinstall
-  - curl
-  - wget
-  - Invoke-WebRequest
-  - base64
-  - eval
-  - child_process
-  - netcat
-  - nc 
+blocked_packages:
+  npm: []
+
+rules:
+  lifecycle_script_present:
+    enabled: true
+    severity: medium
+    score: 20
+
+  network_command_in_lifecycle:
+    enabled: true
+    severity: high
+    score: 30
+
+  credential_path_reference:
+    enabled: true
+    severity: critical
+    score: 100
+
+  secret_keyword_reference:
+    enabled: true
+    severity: high
+    score: 35
+
+  obfuscated_script:
+    enabled: true
+    severity: high
+    score: 25
+
+  typosquat_candidate:
+    enabled: true
+    severity: high
+    score: 25
+
+  missing_repository:
+    enabled: true
+    severity: low
+    score: 10
+
+  missing_license:
+    enabled: true
+    severity: low
+    score: 5
+
+  new_package:
+    enabled: true
+    severity: medium
+    score: 15
+    max_age_days: 14
+
+  trusted_package_reduction:
+    enabled: true
+    severity: informational
+    score: -20

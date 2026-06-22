@@ -33,6 +33,7 @@ type Metadata struct {
 	Name     string                     `json:"name"`
 	DistTags map[string]string          `json:"dist-tags"`
 	Versions map[string]VersionMetadata `json:"versions"`
+	Time     map[string]time.Time       `json:"time"`
 }
 
 type VersionMetadata struct {
@@ -140,6 +141,9 @@ func ResolveVersion(md Metadata, requested string) (VersionMetadata, error) {
 	vm, ok := md.Versions[version]
 	if !ok {
 		return VersionMetadata{}, fmt.Errorf("version %s not found for %s", version, md.Name)
+	}
+	if md.Time != nil {
+		vm.Time = md.Time[version]
 	}
 	return vm, nil
 }

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
+	"github.com/niyam-ai/pkgsafe/internal/risk"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
@@ -75,9 +77,32 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	if vm.Version != "" {
 		res.Package.Version = vm.Version
 	}
+	if !vm.Time.IsZero() {
+		if rule, ok := policy.RuleFor(pol, "new_package"); ok && rule.MaxAgeDays > 0 {
+			ageDays := int(time.Since(vm.Time).Hours() / 24)
+			if ageDays >= 0 && ageDays <= rule.MaxAgeDays {
+				findings := stripPolicyGeneratedReasons(res.Reasons)
+				findings = append(findings, risk.NewPackageFinding(ageDays))
+				res = risk.Evaluate(res.Package, findings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
+			}
+		}
+	}
 	return res, nil
 }
 
 func ScanPackage(name, version string) (types.ScanResult, error) {
 	return New().ScanPackage(name, version)
+}
+
+func stripPolicyGeneratedReasons(reasons []types.Reason) []types.Reason {
+	out := make([]types.Reason, 0, len(reasons))
+	for _, reason := range reasons {
+		switch reason.ID {
+		case "trusted_package_reduction", "blocked_package":
+			continue
+		default:
+			out = append(out, types.Reason{ID: reason.ID, Description: reason.Description, Evidence: reason.Evidence})
+		}
+	}
+	return out
 }

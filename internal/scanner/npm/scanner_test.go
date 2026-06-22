@@ -110,23 +110,26 @@ func TestJSONOutputIncludesRequiredFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got struct {
-		Package struct {
-			Name      string `json:"name"`
-			Version   string `json:"version"`
-			Ecosystem string `json:"ecosystem"`
-		} `json:"package"`
-		Score    int            `json:"risk_score"`
-		Decision types.Decision `json:"decision"`
-		Reasons  []types.Reason `json:"reasons"`
+		Ecosystem  string           `json:"ecosystem"`
+		Package    string           `json:"package"`
+		Version    string           `json:"version"`
+		Mode       string           `json:"mode"`
+		Score      int              `json:"risk_score"`
+		Decision   types.Decision   `json:"decision"`
+		Thresholds types.Thresholds `json:"thresholds"`
+		Reasons    []types.Reason   `json:"reasons"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Package.Name == "" || got.Package.Version == "" || got.Package.Ecosystem != "npm" {
+	if got.Package == "" || got.Version == "" || got.Ecosystem != "npm" || got.Mode == "" {
 		t.Fatalf("missing package fields in JSON: %s", buf.String())
 	}
-	if got.Score == 0 || got.Decision == "" || len(got.Reasons) == 0 {
+	if got.Score == 0 || got.Decision == "" || len(got.Reasons) == 0 || got.Thresholds.BlockMinScore == 0 {
 		t.Fatalf("missing scan fields in JSON: %s", buf.String())
+	}
+	if got.Reasons[0].ID == "" || got.Reasons[0].Severity == "" || got.Reasons[0].Description == "" {
+		t.Fatalf("missing reason fields in JSON: %s", buf.String())
 	}
 }
 

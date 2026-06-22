@@ -17,6 +17,7 @@ type PackageJSON struct {
 	Name            string            `json:"name"`
 	Version         string            `json:"version"`
 	Description     string            `json:"description"`
+	License         any               `json:"license"`
 	Repository      any               `json:"repository"`
 	Scripts         map[string]string `json:"scripts"`
 	Dependencies    map[string]string `json:"dependencies"`
@@ -41,77 +42,68 @@ func AnalyzePackageJSON(b []byte, pol policy.Policy) (types.ScanResult, error) {
 	}
 
 	pkg := types.PackageIdentity{Ecosystem: "npm", Name: pj.Name, Version: pj.Version}
-	var reasons []types.Reason
+	var findings []types.Reason
 	var lifecycle []string
 	var suspicious []string
 
 	for _, name := range []string{"preinstall", "install", "postinstall", "prepare"} {
 		if script, ok := pj.Scripts[name]; ok {
 			lifecycle = append(lifecycle, name)
-			reasons = append(reasons, types.Reason{
-				ID: "lifecycle_script_present", Severity: "medium",
-				Description: "Package defines an install lifecycle script",
-				Evidence:    name + "=" + script, ScoreImpact: 20,
-			})
+			findings = risk.AddReason(findings, "lifecycle_script_present", fmt.Sprintf("Package defines a %s script", name), name+"="+script)
 			lower := strings.ToLower(script)
-			for _, pat := range pol.BlockPatterns {
-				if containsFold(lower, pat) {
+			for _, pat := range credentialPatterns(pol) {
+				if protectedPatternMatch(lower, pat) {
 					suspicious = append(suspicious, pat)
-					reasons = append(reasons, types.Reason{
-						ID: "credential_or_secret_access", Severity: "critical",
-						Description: "Lifecycle script references credential or secret material",
-						Evidence:    pat, ScoreImpact: 80,
-					})
+					findings = risk.AddReason(findings, "credential_path_reference", "Lifecycle script references a protected credential path", pat)
 				}
 			}
-			for _, pat := range pol.WarnPatterns {
+			for _, pat := range networkPatterns() {
 				if containsFold(lower, pat) {
 					suspicious = append(suspicious, pat)
-					reasons = append(reasons, types.Reason{
-						ID: "suspicious_lifecycle_pattern", Severity: "high",
-						Description: "Lifecycle script contains suspicious command or network pattern",
-						Evidence:    pat, ScoreImpact: 25,
-					})
+					findings = risk.AddReason(findings, "network_command_in_lifecycle", fmt.Sprintf("Lifecycle script uses %s", strings.TrimSpace(pat)), pat)
+					break
+				}
+			}
+			for _, pat := range secretPatterns() {
+				if containsFold(lower, pat) {
+					suspicious = append(suspicious, pat)
+					findings = risk.AddReason(findings, "secret_keyword_reference", "Lifecycle script references secret-related keywords", pat)
+				}
+			}
+			for _, pat := range obfuscationPatterns() {
+				if containsFold(lower, pat) {
+					suspicious = append(suspicious, pat)
+					findings = risk.AddReason(findings, "obfuscated_script", "Lifecycle script contains obfuscation indicators", pat)
 				}
 			}
 		}
 	}
-	if len(lifecycle) == 0 {
-		reasons = append(reasons, types.Reason{
-			ID: "no_lifecycle_scripts", Severity: "info",
-			Description: "No install lifecycle scripts detected",
-			ScoreImpact: 0,
-		})
-	}
 
 	alts := typosquat.Check(pj.Name)
 	if len(alts) > 0 {
-		reasons = append(reasons, types.Reason{
-			ID: "possible_typosquat", Severity: "high",
-			Description: "Package name resembles a popular package",
-			Evidence:    strings.Join(alts, ", "), ScoreImpact: 35,
-		})
+		findings = risk.AddReason(findings, "typosquat_candidate", "Package name resembles a popular package", strings.Join(alts, ", "))
 	}
 
 	if pj.Repository == nil || fmt.Sprint(pj.Repository) == "" {
-		reasons = append(reasons, types.Reason{
-			ID: "missing_repository", Severity: "low",
-			Description: "Package metadata does not include a source repository",
-			ScoreImpact: 10,
-		})
-	} else {
-		reasons = append(reasons, types.Reason{
-			ID: "repository_metadata_present", Severity: "info",
-			Description: "Package metadata includes a source repository",
-			ScoreImpact: 0,
-		})
+		findings = risk.AddReason(findings, "missing_repository", "Package metadata does not include a source repository", "")
+	}
+	if pj.License == nil || fmt.Sprint(pj.License) == "" {
+		findings = risk.AddReason(findings, "missing_license", "Package metadata does not include a license", "")
 	}
 
-	return risk.Evaluate(pkg, dedupeReasons(reasons), unique(lifecycle), unique(suspicious), alts), nil
+	return risk.Evaluate(pkg, dedupeReasons(findings), unique(lifecycle), unique(suspicious), alts, pol), nil
 }
 
 func containsFold(haystack, needle string) bool {
 	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
+}
+
+func protectedPatternMatch(haystack, pattern string) bool {
+	pat := strings.ToLower(pattern)
+	if pat == ".env" {
+		return strings.Contains(haystack, ".env") && !strings.Contains(haystack, "process.env")
+	}
+	return strings.Contains(haystack, pat)
 }
 
 func unique(in []string) []string {
@@ -137,4 +129,22 @@ func dedupeReasons(in []types.Reason) []types.Reason {
 		}
 	}
 	return out
+}
+
+func credentialPatterns(pol policy.Policy) []string {
+	patterns := append([]string{}, pol.ProtectedPaths...)
+	patterns = append(patterns, pol.BlockPatterns...)
+	return patterns
+}
+
+func networkPatterns() []string {
+	return []string{"curl", "wget", "invoke-webrequest", "http://", "https://"}
+}
+
+func secretPatterns() []string {
+	return []string{"aws_access_key_id", "aws_secret_access_key", "github_token", "vault_token", "token", "secret"}
+}
+
+func obfuscationPatterns() []string {
+	return []string{"base64", "eval", "child_process", "powershell", "bash -c", "sh -c", "netcat", " nc "}
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,9 +64,9 @@ func usage() {
 
 Usage:
   pkgsafe scan-local-npm <dir> [--json]
-  pkgsafe scan-npm-package <name> [--version <version>] [--json]
+  pkgsafe scan-npm-package <name> [--version <version>] [--policy <path>] [--mode warn|block|audit] [--json]
   pkgsafe scan-lockfile <package-lock.json> [--json]
-  pkgsafe explain <name> [--version <version>]
+  pkgsafe explain <name> [--version <version>] [--policy <path>]
   pkgsafe npm-install <name> [--version <version>] [--mode warn|block|audit]
   pkgsafe mcp serve
   pkgsafe version
@@ -75,13 +76,19 @@ Usage:
 func cmdScanLocalNPM(args []string) error {
 	fs := flag.NewFlagSet("scan-local-npm", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		return errors.New("directory is required")
 	}
-	res, err := anpm.AnalyzePackageDir(fs.Arg(0), policy.Default())
+	pol, err := loadPolicy(*policyPath, *mode)
+	if err != nil {
+		return err
+	}
+	res, err := anpm.AnalyzePackageDir(fs.Arg(0), pol)
 	if err != nil {
 		return err
 	}
@@ -93,13 +100,19 @@ func cmdScanNPMPackage(args []string) error {
 	fs := flag.NewFlagSet("scan-npm-package", flag.ContinueOnError)
 	ver := fs.String("version", "", "package version")
 	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		return errors.New("package name is required")
 	}
-	res, err := scanRemoteNPM(fs.Arg(0), *ver)
+	pol, err := loadPolicy(*policyPath, *mode)
+	if err != nil {
+		return err
+	}
+	res, err := scanRemoteNPM(fs.Arg(0), *ver, pol)
 	if err != nil {
 		return err
 	}
@@ -110,13 +123,19 @@ func cmdScanNPMPackage(args []string) error {
 func cmdScanLockfile(args []string) error {
 	fs := flag.NewFlagSet("scan-lockfile", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		return errors.New("lockfile path is required")
 	}
-	res, err := anpm.AnalyzeLockfile(fs.Arg(0), policy.Default())
+	pol, err := loadPolicy(*policyPath, *mode)
+	if err != nil {
+		return err
+	}
+	res, err := anpm.AnalyzeLockfile(fs.Arg(0), pol)
 	if err != nil {
 		return err
 	}
@@ -127,29 +146,8 @@ func cmdExplain(args []string) error {
 	fs := flag.NewFlagSet("explain", flag.ContinueOnError)
 	ver := fs.String("version", "", "package version")
 	asJSON := fs.Bool("json", false, "write JSON output")
-	if err := fs.Parse(reorderFlags(args)); err != nil {
-		return err
-	}
-	if fs.NArg() != 1 {
-		return errors.New("package name is required")
-	}
-	store, _ := cache.Load("")
-	if res, ok := store.Get("npm", fs.Arg(0), *ver); ok {
-		return output.Write(os.Stdout, res, *asJSON)
-	}
-	res, err := scanRemoteNPM(fs.Arg(0), *ver)
-	if err != nil {
-		return err
-	}
-	_ = saveResult(res)
-	return output.Write(os.Stdout, res, *asJSON)
-}
-
-func cmdNPMInstall(args []string) error {
-	fs := flag.NewFlagSet("npm-install", flag.ContinueOnError)
-	ver := fs.String("version", "", "package version")
-	mode := fs.String("mode", "warn", "warn, block, or audit")
-	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -157,7 +155,45 @@ func cmdNPMInstall(args []string) error {
 		return errors.New("package name is required")
 	}
 	pkgName := fs.Arg(0)
-	res, err := scanRemoteNPM(pkgName, *ver)
+	pol, err := loadPolicy(*policyPath, *mode)
+	if err != nil {
+		return err
+	}
+	store, _ := cache.Load("")
+	cached, hasCached := store.Get("npm", pkgName, *ver)
+	res, err := scanRemoteNPM(pkgName, *ver, pol)
+	if err != nil {
+		if hasCached {
+			return output.Write(os.Stdout, cached, *asJSON)
+		}
+		return err
+	}
+	_ = saveResult(res)
+	if *asJSON {
+		return output.Write(os.Stdout, res, true)
+	}
+	writeExplain(os.Stdout, res, cached, hasCached, pol)
+	return nil
+}
+
+func cmdNPMInstall(args []string) error {
+	fs := flag.NewFlagSet("npm-install", flag.ContinueOnError)
+	ver := fs.String("version", "", "package version")
+	mode := fs.String("mode", "warn", "warn, block, or audit")
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("package name is required")
+	}
+	pkgName := fs.Arg(0)
+	pol, err := loadPolicy(*policyPath, *mode)
+	if err != nil {
+		return err
+	}
+	res, err := scanRemoteNPM(pkgName, *ver, pol)
 	if err != nil {
 		return err
 	}
@@ -166,12 +202,12 @@ func cmdNPMInstall(args []string) error {
 		return err
 	}
 
-	m := policy.ParseMode(*mode)
+	m := pol.Mode
 	if m == policy.ModeAudit {
 		fmt.Println("Audit mode: npm install skipped.")
 		return nil
 	}
-	if res.Decision == types.DecisionBlock || (m == policy.ModeBlock && res.Decision == types.DecisionWarn) {
+	if res.Decision == types.DecisionBlock {
 		return fmt.Errorf("install blocked by policy: decision=%s score=%d", res.Decision, res.Score)
 	}
 	if m == policy.ModeWarn && res.Decision == types.DecisionWarn {
@@ -195,8 +231,79 @@ func cmdMCP(args []string) error {
 	return mcp.Serve(os.Stdin, os.Stdout)
 }
 
-func scanRemoteNPM(name, version string) (types.ScanResult, error) {
-	return snpm.ScanPackage(name, version)
+func scanRemoteNPM(name, version string, pol policy.Policy) (types.ScanResult, error) {
+	scanner := snpm.New()
+	scanner.Policy = pol
+	return scanner.ScanPackage(name, version)
+}
+
+func loadPolicy(path, mode string) (policy.Policy, error) {
+	pol, err := policy.Load(path)
+	if err != nil {
+		return policy.Policy{}, err
+	}
+	return policy.ApplyMode(pol, mode)
+}
+
+func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, hasCached bool, pol policy.Policy) {
+	fmt.Fprintf(w, "Package: %s/%s\n", res.Package.Ecosystem, res.Package.Name)
+	fmt.Fprintf(w, "Latest Version: %s\n", emptyLatest(res.Package.Version))
+	fmt.Fprintf(w, "Policy Status: %s\n", policyStatus(pol, res.Package))
+	if hasCached {
+		fmt.Fprintf(w, "Last Decision: %s\n", strings.ToUpper(string(cached.Decision)))
+		fmt.Fprintf(w, "Risk Score: %d/100\n", cached.Score)
+	} else {
+		fmt.Fprintln(w, "Last Decision: none cached")
+		fmt.Fprintf(w, "Risk Score: %d/100\n", res.Score)
+	}
+	fmt.Fprintln(w, "\nWhy:")
+	if policy.IsTrusted(pol, res.Package.Ecosystem, res.Package.Name) {
+		fmt.Fprintln(w, "- Package is listed as trusted by policy")
+	}
+	if policy.IsBlocked(pol, res.Package.Ecosystem, res.Package.Name) {
+		fmt.Fprintln(w, "- Package is listed as blocked by policy")
+	}
+	if len(res.Lifecycle) == 0 {
+		fmt.Fprintln(w, "- No install lifecycle scripts detected")
+	} else {
+		fmt.Fprintf(w, "- Lifecycle scripts detected: %s\n", strings.Join(res.Lifecycle, ", "))
+	}
+	if !hasReason(res.Reasons, "missing_repository") {
+		fmt.Fprintln(w, "- Repository metadata exists")
+	}
+	for _, reason := range res.Reasons {
+		if reason.ScoreImpact == 0 || reason.ID == "trusted_package_reduction" {
+			continue
+		}
+		fmt.Fprintf(w, "- %s\n", reason.Description)
+	}
+}
+
+func policyStatus(pol policy.Policy, pkg types.PackageIdentity) string {
+	switch {
+	case policy.IsBlocked(pol, pkg.Ecosystem, pkg.Name):
+		return "blocked"
+	case policy.IsTrusted(pol, pkg.Ecosystem, pkg.Name):
+		return "trusted"
+	default:
+		return "unlisted"
+	}
+}
+
+func hasReason(reasons []types.Reason, id string) bool {
+	for _, reason := range reasons {
+		if reason.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func emptyLatest(v string) string {
+	if v == "" {
+		return "latest"
+	}
+	return v
 }
 
 func saveResult(res types.ScanResult) error {
@@ -255,7 +362,7 @@ func flagNeedsValue(arg string) bool {
 	name := strings.TrimLeft(arg, "-")
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
-	case "version", "mode":
+	case "version", "mode", "policy":
 		return true
 	default:
 		return false

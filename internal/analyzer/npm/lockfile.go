@@ -27,7 +27,7 @@ type packageLock struct {
 	} `json:"dependencies"`
 }
 
-func AnalyzeLockfile(path string, _ policy.Policy) (types.ScanResult, error) {
+func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return types.ScanResult{}, err
@@ -58,19 +58,20 @@ func AnalyzeLockfile(path string, _ policy.Policy) (types.ScanResult, error) {
 	sort.Strings(names)
 
 	if len(names) == 0 {
-		reasons = append(reasons, types.Reason{ID: "empty_lockfile", Severity: "low", Description: "No dependencies found in lockfile", ScoreImpact: 0})
+		reasons = append(reasons, types.Reason{ID: "empty_lockfile", Description: "No dependencies found in lockfile"})
 	}
 	if len(names) > 500 {
-		reasons = append(reasons, types.Reason{ID: "large_dependency_graph", Severity: "medium", Description: "Large dependency graph increases transitive supply-chain exposure", Evidence: fmt.Sprintf("%d packages", len(names)), ScoreImpact: 15})
+		reasons = append(reasons, types.Reason{ID: "large_dependency_graph", Description: "Large dependency graph increases transitive supply-chain exposure", Evidence: fmt.Sprintf("%d packages", len(names))})
 	}
 	for _, name := range names {
 		matches := typosquat.Check(name)
 		if len(matches) > 0 {
 			alts = append(alts, matches...)
-			reasons = append(reasons, types.Reason{ID: "possible_typosquat_in_lockfile", Severity: "high", Description: "Lockfile contains dependency resembling a popular package", Evidence: name, ScoreImpact: 35})
+			reasons = append(reasons, types.Reason{ID: "typosquat_candidate", Description: "Lockfile contains dependency resembling a popular package", Evidence: name})
+			reasons = append(reasons, types.Reason{ID: "missing_repository", Description: "Lockfile dependency metadata does not include a source repository", Evidence: name})
 		}
 	}
-	return risk.Evaluate(pkg, reasons, nil, nil, unique(alts)), nil
+	return risk.Evaluate(pkg, reasons, nil, nil, unique(alts), pol), nil
 }
 
 func extractModuleName(path string) string {
