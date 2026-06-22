@@ -24,19 +24,29 @@ type PackageIdentity struct {
 	Version   string `json:"version,omitempty"`
 }
 
+type Vulnerability struct {
+	ID            string   `json:"id"`
+	Aliases       []string `json:"aliases,omitempty"`
+	Severity      string   `json:"severity"`
+	Summary       string   `json:"summary"`
+	FixedVersions []string `json:"fixed_versions,omitempty"`
+	References    []string `json:"references,omitempty"`
+}
+
 type ScanResult struct {
-	Package        PackageIdentity `json:"package"`
-	Mode           string          `json:"mode,omitempty"`
-	Score          int             `json:"risk_score"`
-	Decision       Decision        `json:"decision"`
-	Thresholds     Thresholds      `json:"thresholds,omitempty"`
-	Reasons        []Reason        `json:"reasons"`
-	Lifecycle      []string        `json:"lifecycle_scripts,omitempty"`
-	Suspicious     []string        `json:"suspicious_patterns,omitempty"`
-	SafeAlternates []string        `json:"safe_alternatives,omitempty"`
-	Enforcement    string          `json:"enforcement,omitempty"`
-	Recommended    string          `json:"recommended_action,omitempty"`
-	ScannedAt      time.Time       `json:"scanned_at"`
+	Package         PackageIdentity `json:"package"`
+	Mode            string          `json:"mode,omitempty"`
+	Score           int             `json:"risk_score"`
+	Decision        Decision        `json:"decision"`
+	Thresholds      Thresholds      `json:"thresholds,omitempty"`
+	Reasons         []Reason        `json:"reasons"`
+	Vulnerabilities []Vulnerability `json:"vulnerabilities,omitempty"`
+	Lifecycle       []string        `json:"lifecycle_scripts,omitempty"`
+	Suspicious      []string        `json:"suspicious_patterns,omitempty"`
+	SafeAlternates  []string        `json:"safe_alternatives,omitempty"`
+	Enforcement     string          `json:"enforcement,omitempty"`
+	Recommended     string          `json:"recommended_action,omitempty"`
+	ScannedAt       time.Time       `json:"scanned_at"`
 }
 
 type Thresholds struct {

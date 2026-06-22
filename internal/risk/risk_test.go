@@ -126,3 +126,46 @@ func hasReason(reasons []types.Reason, id string) bool {
 	}
 	return false
 }
+
+func TestVulnerabilityRiskScoring(t *testing.T) {
+	pol := policy.Default()
+
+	// 1. Critical vulnerability score adds 70 and blocks
+	res := Evaluate(pkg("foo"), []types.Reason{{ID: "known_vulnerability_critical"}}, nil, nil, nil, pol)
+	if res.Score != 70 {
+		t.Errorf("expected score 70 for critical vulnerability, got %d", res.Score)
+	}
+	if res.Decision != types.DecisionBlock {
+		t.Errorf("expected decision block, got %s", res.Decision)
+	}
+
+	// 2. High vulnerability adds 50 (should Warn under default thresholds since warn_max_score is 69)
+	res = Evaluate(pkg("foo"), []types.Reason{{ID: "known_vulnerability_high"}}, nil, nil, nil, pol)
+	if res.Score != 50 {
+		t.Errorf("expected score 50 for high vulnerability, got %d", res.Score)
+	}
+	if res.Decision != types.DecisionWarn {
+		t.Errorf("expected decision warn, got %s", res.Decision)
+	}
+
+	// 3. Known malware indicator always blocks (score 100)
+	res = Evaluate(pkg("foo"), []types.Reason{{ID: "known_malware_indicator"}}, nil, nil, nil, pol)
+	if res.Score != 100 {
+		t.Errorf("expected score 100 for malware, got %d", res.Score)
+	}
+	if res.Decision != types.DecisionBlock {
+		t.Errorf("expected decision block, got %s", res.Decision)
+	}
+
+	// 4. Trusted package reduction is NOT applied if malware or critical CVE is present
+	pol.TrustedPackages.NPM = []string{"foo"}
+	res = Evaluate(pkg("foo"), []types.Reason{{ID: "known_malware_indicator"}}, nil, nil, nil, pol)
+	if hasReason(res.Reasons, "trusted_package_reduction") {
+		t.Errorf("trusted package reduction should not be applied to malware")
+	}
+
+	res = Evaluate(pkg("foo"), []types.Reason{{ID: "known_vulnerability_critical"}}, nil, nil, nil, pol)
+	if hasReason(res.Reasons, "trusted_package_reduction") {
+		t.Errorf("trusted package reduction should not be applied to critical CVE")
+	}
+}

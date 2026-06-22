@@ -79,3 +79,28 @@ rules:
     enabled: true
     severity: informational
     score: -20
+
+  known_vulnerability_critical:
+    enabled: true
+    severity: critical
+    score: 70
+
+  known_vulnerability_high:
+    enabled: true
+    severity: high
+    score: 50
+
+  known_vulnerability_medium:
+    enabled: true
+    severity: medium
+    score: 25
+
+  known_vulnerability_low:
+    enabled: true
+    severity: low
+    score: 10
+
+  known_malware_indicator:
+    enabled: true
+    severity: critical
+    score: 100

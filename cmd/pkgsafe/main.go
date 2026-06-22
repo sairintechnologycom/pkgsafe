@@ -12,6 +12,7 @@ import (
 
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
+	"github.com/niyam-ai/pkgsafe/internal/cli"
 	"github.com/niyam-ai/pkgsafe/internal/mcp"
 	"github.com/niyam-ai/pkgsafe/internal/output"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
@@ -51,8 +52,12 @@ func run(args []string) error {
 	case "mcp":
 		return cmdMCP(args[1:])
 	case "update-db":
-		fmt.Println("Local DB update placeholder: OSV/malware feed ingestion will be added in Phase 2.")
-		return nil
+		return cmdUpdateDB(args[1:])
+	case "db":
+		if len(args) > 1 && args[1] == "status" {
+			return cmdDBStatus(args[2:])
+		}
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe db status")
 	default:
 		usage()
 		return fmt.Errorf("unknown command %q", args[0])
@@ -102,6 +107,7 @@ func cmdScanNPMPackage(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -112,7 +118,11 @@ func cmdScanNPMPackage(args []string) error {
 	if err != nil {
 		return err
 	}
-	res, err := scanRemoteNPM(fs.Arg(0), *ver, pol)
+	
+	scanner := snpm.New()
+	scanner.Policy = pol
+	scanner.Offline = *offline
+	res, err := scanner.ScanPackage(fs.Arg(0), *ver)
 	if err != nil {
 		return err
 	}
@@ -125,6 +135,7 @@ func cmdScanLockfile(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	_ = fs.Bool("offline", false, "run scan offline using cached database")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -148,6 +159,7 @@ func cmdExplain(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run explain offline using cached database")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -161,7 +173,11 @@ func cmdExplain(args []string) error {
 	}
 	store, _ := cache.Load("")
 	cached, hasCached := store.Get("npm", pkgName, *ver)
-	res, err := scanRemoteNPM(pkgName, *ver, pol)
+
+	scanner := snpm.New()
+	scanner.Policy = pol
+	scanner.Offline = *offline
+	res, err := scanner.ScanPackage(pkgName, *ver)
 	if err != nil {
 		if hasCached {
 			return output.Write(os.Stdout, cached, *asJSON)
@@ -247,36 +263,90 @@ func loadPolicy(path, mode string) (policy.Policy, error) {
 
 func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, hasCached bool, pol policy.Policy) {
 	fmt.Fprintf(w, "Package: %s/%s\n", res.Package.Ecosystem, res.Package.Name)
-	fmt.Fprintf(w, "Latest Version: %s\n", emptyLatest(res.Package.Version))
-	fmt.Fprintf(w, "Policy Status: %s\n", policyStatus(pol, res.Package))
+	fmt.Fprintf(w, "Latest Known Version: %s\n", emptyLatest(res.Package.Version))
+
+	lastScannedVer := "none"
+	lastDecision := "none"
+	riskScore := res.Score
+
 	if hasCached {
-		fmt.Fprintf(w, "Last Decision: %s\n", strings.ToUpper(string(cached.Decision)))
-		fmt.Fprintf(w, "Risk Score: %d/100\n", cached.Score)
+		lastScannedVer = cached.Package.Version
+		lastDecision = strings.ToUpper(string(cached.Decision))
+		riskScore = cached.Score
 	} else {
-		fmt.Fprintln(w, "Last Decision: none cached")
-		fmt.Fprintf(w, "Risk Score: %d/100\n", res.Score)
+		lastScannedVer = res.Package.Version
+		lastDecision = strings.ToUpper(string(res.Decision))
 	}
-	fmt.Fprintln(w, "\nWhy:")
-	if policy.IsTrusted(pol, res.Package.Ecosystem, res.Package.Name) {
-		fmt.Fprintln(w, "- Package is listed as trusted by policy")
-	}
-	if policy.IsBlocked(pol, res.Package.Ecosystem, res.Package.Name) {
-		fmt.Fprintln(w, "- Package is listed as blocked by policy")
-	}
-	if len(res.Lifecycle) == 0 {
-		fmt.Fprintln(w, "- No install lifecycle scripts detected")
-	} else {
-		fmt.Fprintf(w, "- Lifecycle scripts detected: %s\n", strings.Join(res.Lifecycle, ", "))
-	}
-	if !hasReason(res.Reasons, "missing_repository") {
-		fmt.Fprintln(w, "- Repository metadata exists")
-	}
-	for _, reason := range res.Reasons {
-		if reason.ScoreImpact == 0 || reason.ID == "trusted_package_reduction" {
-			continue
+
+	fmt.Fprintf(w, "Last Scanned Version: %s\n", emptyLatest(lastScannedVer))
+	fmt.Fprintf(w, "Last Decision: %s\n", lastDecision)
+	fmt.Fprintf(w, "Risk Score: %d/100\n\n", riskScore)
+
+	fmt.Fprintln(w, "Vulnerability Summary:")
+	if len(res.Vulnerabilities) > 0 {
+		counts := make(map[string]int)
+		var fixedVersions []string
+		for _, v := range res.Vulnerabilities {
+			counts[v.Severity]++
+			if len(v.FixedVersions) > 0 {
+				fixedVersions = append(fixedVersions, v.FixedVersions...)
+			}
 		}
-		fmt.Fprintf(w, "- %s\n", reason.Description)
+		for _, sev := range []string{"critical", "high", "medium", "low"} {
+			if count, ok := counts[sev]; ok && count > 0 {
+				suffix := "advisory"
+				if count > 1 {
+					suffix = "advisories"
+				}
+				fmt.Fprintf(w, "- %d %s %s found\n", count, sev, suffix)
+			}
+		}
+		if len(fixedVersions) > 0 {
+			fixedVersions = uniqueStrings(fixedVersions)
+			fmt.Fprintf(w, "- Fixed in: %s\n", strings.Join(fixedVersions, ", "))
+		}
+	} else {
+		fmt.Fprintln(w, "- No known advisories found")
 	}
+	fmt.Fprintln(w)
+
+	if len(res.Reasons) > 0 {
+		fmt.Fprintln(w, "Top Risk Reasons:")
+		for _, r := range res.Reasons {
+			if r.ScoreImpact > 0 || r.ID == "trusted_package_reduction" {
+				fmt.Fprintf(w, "- [%s %+d] %s: %s\n", r.Severity, r.ScoreImpact, r.ID, r.Description)
+			}
+		}
+		fmt.Fprintln(w)
+	}
+
+	fmt.Fprintf(w, "Recommended Action:\n%s\n", output.RecommendedAction(res))
+}
+
+func uniqueStrings(in []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, v := range in {
+		if !seen[v] {
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func cmdUpdateDB(args []string) error {
+	fs := flag.NewFlagSet("update-db", flag.ContinueOnError)
+	eco := fs.String("ecosystem", "npm", "package ecosystem")
+	src := fs.String("source", "osv", "threat database source")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	return cli.UpdateDB("", *eco, *src)
+}
+
+func cmdDBStatus(args []string) error {
+	return cli.DBStatus("")
 }
 
 func policyStatus(pol policy.Policy, pkg types.PackageIdentity) string {

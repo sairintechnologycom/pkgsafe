@@ -18,6 +18,7 @@ type JSONResult struct {
 	RiskScore        int                   `json:"risk_score"`
 	Thresholds       types.Thresholds      `json:"thresholds"`
 	Reasons          []types.Reason        `json:"reasons"`
+	Vulnerabilities  []types.Vulnerability `json:"vulnerabilities,omitempty"`
 	Recommended      string                `json:"recommended_action"`
 	Enforcement      string                `json:"enforcement,omitempty"`
 	PackageIdentity  types.PackageIdentity `json:"package_identity,omitempty"`
@@ -38,7 +39,8 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 			RiskScore:        result.Score,
 			Thresholds:       result.Thresholds,
 			Reasons:          result.Reasons,
-			Recommended:      recommendedAction(result),
+			Vulnerabilities:  result.Vulnerabilities,
+			Recommended:      RecommendedAction(result),
 			Enforcement:      result.Enforcement,
 			PackageIdentity:  result.Package,
 			LifecycleScripts: result.Lifecycle,
@@ -68,10 +70,33 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 			fmt.Fprintln(w)
 		}
 	}
+	if len(result.Vulnerabilities) > 0 {
+		fmt.Fprintln(w, "\nVulnerabilities:")
+		for _, v := range result.Vulnerabilities {
+			header := v.ID
+			var alts []string
+			for _, a := range v.Aliases {
+				if a != v.ID {
+					alts = append(alts, a)
+				}
+			}
+			if len(alts) > 0 {
+				header = header + " / " + strings.Join(alts, " / ")
+			}
+			fmt.Fprintf(w, "- %s\n", header)
+			fmt.Fprintf(w, "  Severity: %s\n", v.Severity)
+			fmt.Fprintf(w, "  Summary: %s\n", v.Summary)
+			fixedStr := "None"
+			if len(v.FixedVersions) > 0 {
+				fixedStr = strings.Join(v.FixedVersions, ", ")
+			}
+			fmt.Fprintf(w, "  Fixed Version: %s\n", fixedStr)
+		}
+	}
 	if len(result.SafeAlternates) > 0 {
 		fmt.Fprintf(w, "\nPossible safe alternatives: %s\n", strings.Join(result.SafeAlternates, ", "))
 	}
-	fmt.Fprintf(w, "\nRecommended Action:\n%s\n", recommendedAction(result))
+	fmt.Fprintf(w, "\nRecommended Action:\n%s\n", RecommendedAction(result))
 	return nil
 }
 
@@ -82,10 +107,22 @@ func emptyLatest(v string) string {
 	return v
 }
 
-func recommendedAction(result types.ScanResult) string {
+func RecommendedAction(result types.ScanResult) string {
 	if result.Recommended != "" {
 		return result.Recommended
 	}
+
+	var fixedVersions []string
+	for _, v := range result.Vulnerabilities {
+		if len(v.FixedVersions) > 0 {
+			fixedVersions = append(fixedVersions, v.FixedVersions...)
+		}
+	}
+	if len(fixedVersions) > 0 {
+		fixedVersions = unique(fixedVersions)
+		return fmt.Sprintf("Upgrade to %s@%s or later.", result.Package.Name, strings.Join(fixedVersions, ", "))
+	}
+
 	switch result.Decision {
 	case types.DecisionBlock:
 		return "Do not install this package."
@@ -94,4 +131,16 @@ func recommendedAction(result types.ScanResult) string {
 	default:
 		return "Package appears safe to install based on current checks."
 	}
+}
+
+func unique(in []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, v := range in {
+		if !seen[v] {
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	return out
 }

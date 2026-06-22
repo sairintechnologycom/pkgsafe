@@ -1,11 +1,14 @@
 package npm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 
+	"github.com/niyam-ai/pkgsafe/internal/db"
+	"github.com/niyam-ai/pkgsafe/internal/intel"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
 	"github.com/niyam-ai/pkgsafe/internal/types"
@@ -42,17 +45,25 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 	var alts []string
 
 	var names []string
-	for path := range lf.Packages {
+	deps := make(map[string]string)
+
+	for path, pkg := range lf.Packages {
 		if path == "" || path == "node_modules" {
 			continue
 		}
 		name := extractModuleName(path)
 		if name != "" {
 			names = append(names, name)
+			if pkg.Version != "" {
+				deps[name] = pkg.Version
+			}
 		}
 	}
-	for name := range lf.Dependencies {
+	for name, dep := range lf.Dependencies {
 		names = append(names, name)
+		if dep.Version != "" {
+			deps[name] = dep.Version
+		}
 	}
 	names = unique(names)
 	sort.Strings(names)
@@ -64,6 +75,13 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 		reasons = append(reasons, types.Reason{ID: "large_dependency_graph", Description: "Large dependency graph increases transitive supply-chain exposure", Evidence: fmt.Sprintf("%d packages", len(names))})
 	}
 	for _, name := range names {
+		if policy.IsBlocked(pol, "npm", name) {
+			reasons = append(reasons, types.Reason{
+				ID:          "blocked_package",
+				Description: fmt.Sprintf("Lockfile contains blocked dependency %q", name),
+				Evidence:    name,
+			})
+		}
 		matches := typosquat.Check(name)
 		if len(matches) > 0 {
 			alts = append(alts, matches...)
@@ -71,7 +89,50 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 			reasons = append(reasons, types.Reason{ID: "missing_repository", Description: "Lockfile dependency metadata does not include a source repository", Evidence: name})
 		}
 	}
-	return risk.Evaluate(pkg, reasons, nil, nil, unique(alts), pol), nil
+
+	// Fetch vulnerabilities from local DB for each dependency
+	d, err := db.Open("")
+	var resultVulns []types.Vulnerability
+	if err == nil {
+		defer d.Close()
+		ctx := context.Background()
+		for name, ver := range deps {
+			vulns, err := d.GetVulnerabilitiesForPackage(ctx, "npm", name)
+			if err != nil {
+				continue
+			}
+			for _, v := range vulns {
+				if intel.IsVersionAffected(ver, v) {
+					resultVulns = append(resultVulns, types.Vulnerability{
+						ID:            v.ID,
+						Aliases:       v.Aliases,
+						Severity:      v.Severity,
+						Summary:       v.Summary,
+						FixedVersions: v.FixedVersions,
+						References:    v.References,
+					})
+
+					if intel.IsMalware(v) {
+						reasons = append(reasons, types.Reason{
+							ID:          "known_malware_indicator",
+							Description: fmt.Sprintf("Lockfile contains dependency %q with malware", name),
+							Evidence:    name + "@" + ver,
+						})
+					} else {
+						reasons = append(reasons, types.Reason{
+							ID:          "known_vulnerability_" + v.Severity,
+							Description: fmt.Sprintf("Lockfile contains dependency %q with a %s severity advisory", name, v.Severity),
+							Evidence:    name + "@" + ver,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	evalRes := risk.Evaluate(pkg, reasons, nil, nil, unique(alts), pol)
+	evalRes.Vulnerabilities = dedupeVulnerabilities(resultVulns)
+	return evalRes, nil
 }
 
 func extractModuleName(path string) string {
@@ -114,6 +175,20 @@ func splitN(s string, sep byte, n int) []string {
 			start = i + 1
 		}
 	}
-	out = append(out, s[start:])
+	if start <= len(s) {
+		out = append(out, s[start:])
+	}
+	return out
+}
+
+func dedupeVulnerabilities(in []types.Vulnerability) []types.Vulnerability {
+	seen := make(map[string]bool)
+	var out []types.Vulnerability
+	for _, v := range in {
+		if !seen[v.ID] {
+			seen[v.ID] = true
+			out = append(out, v)
+		}
+	}
 	return out
 }

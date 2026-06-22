@@ -40,6 +40,33 @@ rules:
 	if rule, ok := RuleFor(pol, "lifecycle_script_present"); !ok || rule.Score != 7 || rule.Severity != "low" {
 		t.Fatalf("rule did not load: %+v ok=%v", rule, ok)
 	}
+	// Verify dynamic BlockPatterns derivation:
+	// We defined protected_paths containing only "~/.aws".
+	// The derived BlockPatterns should contain "~/.aws", ".aws", and "credentials",
+	// but should NOT contain "~/.ssh" or "id_rsa".
+	foundAWS := false
+	foundCredentials := false
+	foundSSH := false
+	for _, pat := range pol.BlockPatterns {
+		if pat == "~/.aws" || pat == ".aws" {
+			foundAWS = true
+		}
+		if pat == "credentials" {
+			foundCredentials = true
+		}
+		if strings.Contains(pat, "ssh") || pat == "id_rsa" {
+			foundSSH = true
+		}
+	}
+	if !foundAWS {
+		t.Errorf("expected BlockPatterns to contain ~/.aws or .aws")
+	}
+	if !foundCredentials {
+		t.Errorf("expected BlockPatterns to contain credentials")
+	}
+	if foundSSH {
+		t.Errorf("expected BlockPatterns to NOT contain ssh or id_rsa when ssh is not in protected_paths")
+	}
 }
 
 func TestDefaultPolicyFallback(t *testing.T) {

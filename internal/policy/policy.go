@@ -65,6 +65,11 @@ func Default() Policy {
 			"new_package":                  {Enabled: true, Severity: "medium", Score: 15, MaxAgeDays: 14},
 			"trusted_package_reduction":    {Enabled: true, Severity: "informational", Score: -20},
 			"blocked_package":              {Enabled: true, Severity: "critical", Score: 100},
+			"known_vulnerability_critical": {Enabled: true, Severity: "critical", Score: 70},
+			"known_vulnerability_high":     {Enabled: true, Severity: "high", Score: 50},
+			"known_vulnerability_medium":   {Enabled: true, Severity: "medium", Score: 25},
+			"known_vulnerability_low":      {Enabled: true, Severity: "low", Score: 10},
+			"known_malware_indicator":      {Enabled: true, Severity: "critical", Score: 100},
 		},
 		BlockPatterns: []string{
 			"~/.aws", "~/.azure", "~/.gcp", "~/.ssh", "~/.kube", "~/.npmrc", "~/.pypirc",
@@ -176,6 +181,7 @@ func containsPackage(packages []string, name string) bool {
 
 func parseYAMLPolicy(raw string, pol *Policy) error {
 	var section, subsection, ruleID string
+	var hasProtectedPaths bool
 	for lineNo, rawLine := range strings.Split(raw, "\n") {
 		line := strings.TrimRight(rawLine, " \t\r")
 		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
@@ -211,6 +217,8 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			case "thresholds", "rules":
 			case "protected_paths":
 				pol.ProtectedPaths = nil
+				pol.BlockPatterns = nil
+				hasProtectedPaths = true
 			case "trusted_packages":
 				pol.TrustedPackages = PackageLists{}
 			case "blocked_packages":
@@ -284,7 +292,44 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			return fmt.Errorf("line %d: unsupported section %q", lineNo+1, section)
 		}
 	}
+	if hasProtectedPaths {
+		pol.BlockPatterns = deriveBlockPatterns(pol.ProtectedPaths)
+	}
 	return nil
+}
+
+func deriveBlockPatterns(paths []string) []string {
+	seen := make(map[string]bool)
+	var bp []string
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		if !seen[path] {
+			seen[path] = true
+			bp = append(bp, path)
+		}
+		if strings.HasPrefix(path, "~/") {
+			unprefixed := strings.TrimPrefix(path, "~/")
+			if unprefixed != "" && !seen[unprefixed] {
+				seen[unprefixed] = true
+				bp = append(bp, unprefixed)
+			}
+		}
+		if strings.Contains(path, ".ssh") {
+			if !seen["id_rsa"] {
+				seen["id_rsa"] = true
+				bp = append(bp, "id_rsa")
+			}
+		}
+		if strings.Contains(path, ".aws") {
+			if !seen["credentials"] {
+				seen["credentials"] = true
+				bp = append(bp, "credentials")
+			}
+		}
+	}
+	return bp
 }
 
 func unquote(s string) string {

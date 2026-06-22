@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
@@ -13,7 +14,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/niyam-ai/pkgsafe/internal/cache"
+	"github.com/niyam-ai/pkgsafe/internal/db"
 	"github.com/niyam-ai/pkgsafe/internal/output"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
@@ -233,4 +237,85 @@ func contains(values []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+func TestOfflineScanMissingCache(t *testing.T) {
+	scanner := Scanner{
+		Policy:  policy.Default(),
+		Offline: true,
+		DBPath:  filepath.Join(t.TempDir(), "pkgsafe.db"),
+	}
+	_, err := scanner.ScanPackage("axios", "1.6.0")
+	if err == nil {
+		t.Fatal("expected offline scan to fail when cache is missing")
+	}
+	if !strings.Contains(err.Error(), "offline scan failed") {
+		t.Errorf("expected offline scan failed message, got: %v", err)
+	}
+}
+
+func TestOfflineScanUsesCachedDataAndDB(t *testing.T) {
+	// Setup a clean temp home for caching
+	tempHome := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempHome)
+	defer os.Setenv("HOME", oldHome)
+
+	store, err := cache.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mockRes := types.ScanResult{
+		Package:  types.PackageIdentity{Ecosystem: "npm", Name: "axios", Version: "1.6.0"},
+		Decision: types.DecisionAllow,
+	}
+	_ = store.Put(mockRes)
+
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "pkgsafe.db")
+	d, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	vuln := db.Vulnerability{
+		ID:          "GHSA-axios-1",
+		Ecosystem:   "npm",
+		PackageName: "axios",
+		Summary:     "Mock Axios Vulnerability",
+		Severity:    "high",
+		AffectedRanges: []db.Range{
+			{
+				Type: "SEMVER",
+				Events: []db.Event{
+					{Introduced: "0", Fixed: "1.7.0"},
+				},
+			},
+		},
+		FixedVersions: []string{"1.7.0"},
+		Source:        "OSV",
+		FetchedAt:     time.Now(),
+	}
+	_ = d.SaveVulnerabilities(ctx, []db.Vulnerability{vuln})
+	d.Close()
+
+	scanner := Scanner{
+		Policy:  policy.Default(),
+		Offline: true,
+		DBPath:  dbPath,
+	}
+
+	res, err := scanner.ScanPackage("axios", "1.6.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res.Decision != types.DecisionWarn {
+		t.Errorf("expected decision to be warn due to high severity vulnerability, got: %s", res.Decision)
+	}
+
+	if len(res.Vulnerabilities) != 1 || res.Vulnerabilities[0].ID != "GHSA-axios-1" {
+		t.Errorf("expected cached vulnerability in scan result, got: %+v", res.Vulnerabilities)
+	}
 }

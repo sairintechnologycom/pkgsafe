@@ -30,7 +30,7 @@ func Evaluate(pkg types.PackageIdentity, findings []types.Reason, lifecycle []st
 		}
 		reasons = append(reasons, reason)
 		score += reason.ScoreImpact
-		if reason.ID == "credential_path_reference" || reason.ID == "blocked_package" || reason.Severity == "critical" {
+		if reason.ID == "credential_path_reference" || reason.ID == "blocked_package" || reason.ID == "known_malware_indicator" || reason.ID == "known_vulnerability_critical" || reason.Severity == "critical" {
 			forcedBlock = true
 		}
 	}
@@ -165,6 +165,16 @@ func defaultMessage(id string) string {
 		return "Package metadata does not include a license"
 	case "new_package":
 		return "Package version was published recently"
+	case "known_vulnerability_critical":
+		return "Package version has a critical severity advisory"
+	case "known_vulnerability_high":
+		return "Package version has a high severity advisory"
+	case "known_vulnerability_medium":
+		return "Package version has a medium severity advisory"
+	case "known_vulnerability_low":
+		return "Package version has a low severity advisory"
+	case "known_malware_indicator":
+		return "Package contains malware or malicious code"
 	default:
 		return id
 	}

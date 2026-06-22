@@ -64,3 +64,25 @@ func TestLockfileTyposquat(t *testing.T) {
 		t.Fatalf("expected lockfile warning, got allow")
 	}
 }
+
+func TestLockfileBlockedPackage(t *testing.T) {
+	pol := policy.Default()
+	pol.BlockedPackages.NPM = []string{"axios"}
+	res, err := AnalyzeLockfile(filepath.Join("..", "..", "..", "testdata", "npm", "package-lock.json"), pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Decision != types.DecisionBlock {
+		t.Fatalf("expected lockfile block for blocked package, got %s", res.Decision)
+	}
+	found := false
+	for _, r := range res.Reasons {
+		if r.ID == "blocked_package" && r.Evidence == "axios" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected blocked_package reason for axios, got reasons: %+v", res.Reasons)
+	}
+}
