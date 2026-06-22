@@ -2,6 +2,7 @@ package npm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,15 +17,20 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
+	"github.com/niyam-ai/pkgsafe/internal/sandbox"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
 type Scanner struct {
-	Registry rnpm.Client
-	Policy   policy.Policy
-	CacheDir string
-	Offline  bool
-	DBPath   string
+	Registry       rnpm.Client
+	Policy         policy.Policy
+	CacheDir       string
+	Offline        bool
+	DBPath         string
+	SandboxEnabled bool
+	SandboxTimeout time.Duration
+	NetworkMode    string
+	KeepSandbox    bool
 }
 
 func New() Scanner {
@@ -101,6 +107,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 		evalRes := risk.Evaluate(res.Package, findings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 		evalRes.Vulnerabilities = affectedVulns
+		evalRes.Sandbox = res.Sandbox
 		return evalRes, nil
 	}
 
@@ -140,6 +147,83 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	if err != nil {
 		return types.ScanResult{}, err
 	}
+
+	pkgJSONData, err := os.ReadFile(pkgJSON)
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+	var pj struct {
+		Scripts map[string]string `json:"scripts"`
+	}
+	_ = json.Unmarshal(pkgJSONData, &pj)
+
+	sandboxAvailable := sandbox.IsAvailable(ctx)
+	res.Sandbox = types.SandboxSummary{
+		Enabled:        s.SandboxEnabled,
+		Available:      sandboxAvailable,
+		Runner:         "fake-home-process",
+		NetworkMode:    s.NetworkMode,
+		TimeoutSeconds: int(s.SandboxTimeout.Seconds()),
+	}
+
+	var sandboxFindings []types.Reason
+	if s.SandboxEnabled {
+		if !sandboxAvailable {
+			res.Sandbox.NotPerformed = true
+			res.Sandbox.NotPerfReason = "No supported sandbox runner available on this platform"
+		} else {
+			runner := &sandbox.ProcessRunner{}
+			var scriptsExecuted []types.SandboxScriptResult
+			for _, scriptName := range []string{"preinstall", "install", "postinstall", "prepare"} {
+				scriptCmd, ok := pj.Scripts[scriptName]
+				if !ok {
+					continue
+				}
+				req := sandbox.SandboxRequest{
+					Ecosystem:     "npm",
+					PackageName:   res.Package.Name,
+					Version:       res.Package.Version,
+					PackagePath:   filepath.Dir(pkgJSON),
+					ScriptName:    scriptName,
+					ScriptCommand: scriptCmd,
+					Timeout:       s.SandboxTimeout,
+					NetworkMode:   s.NetworkMode,
+					KeepSandbox:   s.KeepSandbox,
+					Policy:        pol,
+				}
+				sres, err := runner.RunLifecycleScript(ctx, req)
+				if err != nil {
+					continue
+				}
+
+				var typesFindings []types.SandboxFinding
+				for _, f := range sres.Findings {
+					typesFindings = append(typesFindings, types.SandboxFinding{
+						RuleID:      f.RuleID,
+						Severity:    f.Severity,
+						Score:       f.Score,
+						Description: f.Description,
+					})
+					sandboxFindings = append(sandboxFindings, types.Reason{
+						ID:          f.RuleID,
+						Description: f.Description,
+						Evidence:    fmt.Sprintf("Script: %s", scriptName),
+						ScoreImpact: f.Score,
+					})
+				}
+
+				scriptsExecuted = append(scriptsExecuted, types.SandboxScriptResult{
+					Name:       sres.ScriptName,
+					ExitCode:   sres.ExitCode,
+					TimedOut:   sres.TimedOut,
+					DurationMs: sres.DurationMs,
+					Findings:   typesFindings,
+				})
+			}
+			res.Sandbox.ScriptsExecuted = scriptsExecuted
+		}
+	}
+
 	if res.Package.Name == "" || res.Package.Name == "unknown" {
 		res.Package.Name = name
 	}
@@ -149,6 +233,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 	var baseFindings []types.Reason
 	baseFindings = append(baseFindings, res.Reasons...)
+	baseFindings = append(baseFindings, sandboxFindings...)
 	ageDays := -1
 	if !vm.Time.IsZero() {
 		ageDays = int(time.Since(vm.Time).Hours() / 24)
@@ -224,11 +309,109 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 	finalRes := risk.Evaluate(res.Package, allFindings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 	finalRes.Vulnerabilities = typesVulns
+	finalRes.Sandbox = res.Sandbox
 	return finalRes, nil
 }
 
 func ScanPackage(name, version string) (types.ScanResult, error) {
 	return New().ScanPackage(name, version)
+}
+
+func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
+	pol := s.Policy
+	if pol.Mode == "" {
+		pol = policy.Default()
+	}
+	ctx := context.Background()
+
+	res, err := anpm.AnalyzePackageDir(dir, pol)
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+
+	pkgJSON := filepath.Join(dir, "package.json")
+	pkgJSONData, err := os.ReadFile(pkgJSON)
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+	var pj struct {
+		Scripts map[string]string `json:"scripts"`
+	}
+	_ = json.Unmarshal(pkgJSONData, &pj)
+
+	sandboxAvailable := sandbox.IsAvailable(ctx)
+	res.Sandbox = types.SandboxSummary{
+		Enabled:        s.SandboxEnabled,
+		Available:      sandboxAvailable,
+		Runner:         "fake-home-process",
+		NetworkMode:    s.NetworkMode,
+		TimeoutSeconds: int(s.SandboxTimeout.Seconds()),
+	}
+
+	var sandboxFindings []types.Reason
+	var scriptsExecuted []types.SandboxScriptResult
+	if s.SandboxEnabled {
+		if !sandboxAvailable {
+			res.Sandbox.NotPerformed = true
+			res.Sandbox.NotPerfReason = "No supported sandbox runner available on this platform"
+		} else {
+			runner := &sandbox.ProcessRunner{}
+			for _, scriptName := range []string{"preinstall", "install", "postinstall", "prepare"} {
+				scriptCmd, ok := pj.Scripts[scriptName]
+				if !ok {
+					continue
+				}
+				req := sandbox.SandboxRequest{
+					Ecosystem:     "npm",
+					PackageName:   res.Package.Name,
+					Version:       res.Package.Version,
+					PackagePath:   dir,
+					ScriptName:    scriptName,
+					ScriptCommand: scriptCmd,
+					Timeout:       s.SandboxTimeout,
+					NetworkMode:   s.NetworkMode,
+					KeepSandbox:   s.KeepSandbox,
+					Policy:        pol,
+				}
+				sres, err := runner.RunLifecycleScript(ctx, req)
+				if err != nil {
+					continue
+				}
+
+				var typesFindings []types.SandboxFinding
+				for _, f := range sres.Findings {
+					typesFindings = append(typesFindings, types.SandboxFinding{
+						RuleID:      f.RuleID,
+						Severity:    f.Severity,
+						Score:       f.Score,
+						Description: f.Description,
+					})
+					sandboxFindings = append(sandboxFindings, types.Reason{
+						ID:          f.RuleID,
+						Description: f.Description,
+						Evidence:    fmt.Sprintf("Script: %s", scriptName),
+						ScoreImpact: f.Score,
+					})
+				}
+
+				scriptsExecuted = append(scriptsExecuted, types.SandboxScriptResult{
+					Name:       sres.ScriptName,
+					ExitCode:   sres.ExitCode,
+					TimedOut:   sres.TimedOut,
+					DurationMs: sres.DurationMs,
+					Findings:   typesFindings,
+				})
+			}
+			res.Sandbox.ScriptsExecuted = scriptsExecuted
+		}
+	}
+
+	baseFindings := stripPolicyGeneratedReasons(res.Reasons)
+	allFindings := append(baseFindings, sandboxFindings...)
+
+	finalRes := risk.Evaluate(res.Package, allFindings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
+	finalRes.Sandbox = res.Sandbox
+	return finalRes, nil
 }
 
 func stripPolicyGeneratedReasons(reasons []types.Reason) []types.Reason {

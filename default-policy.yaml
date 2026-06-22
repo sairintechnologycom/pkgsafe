@@ -5,6 +5,13 @@ thresholds:
   warn_max_score: 69
   block_min_score: 70
 
+sandbox:
+  enabled: false
+  default_timeout_seconds: 10
+  network_mode: disabled
+  keep_sandbox: false
+  fail_open_when_unavailable: true
+
 protected_paths:
   - "~/.aws"
   - "~/.azure"
@@ -114,6 +121,71 @@ rules:
     enabled: true
     severity: high
     score: 15
+
+  credential_canary_read:
+    enabled: true
+    severity: critical
+    score: 100
+
+  credential_canary_exfiltration_attempt:
+    enabled: true
+    severity: critical
+    score: 100
+
+  cloud_metadata_access:
+    enabled: true
+    severity: critical
+    score: 100
+
+  npm_token_access:
+    enabled: true
+    severity: critical
+    score: 100
+
+  ssh_key_access:
+    enabled: true
+    severity: critical
+    score: 100
+
+  env_secret_access:
+    enabled: true
+    severity: critical
+    score: 100
+
+  network_call_from_lifecycle:
+    enabled: true
+    severity: high
+    score: 40
+
+  shell_download_execute:
+    enabled: true
+    severity: critical
+    score: 100
+
+  encoded_payload_execution:
+    enabled: true
+    severity: high
+    score: 40
+
+  unexpected_binary_write:
+    enabled: true
+    severity: high
+    score: 30
+
+  child_process_spawn:
+    enabled: true
+    severity: medium
+    score: 20
+
+  home_directory_enumeration:
+    enabled: true
+    severity: medium
+    score: 20
+
+  environment_variable_enumeration:
+    enabled: true
+    severity: medium
+    score: 20
 
 mcp:
   enabled: true

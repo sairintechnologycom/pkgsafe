@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/agent"
 	"github.com/niyam-ai/pkgsafe/internal/output"
@@ -13,13 +14,23 @@ import (
 
 // ValidatePackageInstallParams defines params for validating package installation.
 type ValidatePackageInstallParams struct {
-	Ecosystem   string `json:"ecosystem"`
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	RequestedBy string `json:"requested_by"`
-	ProjectPath string `json:"project_path"`
-	Mode        string `json:"mode"`
-	Offline     bool   `json:"offline"`
+	Ecosystem             string `json:"ecosystem"`
+	Name                  string `json:"name"`
+	Version               string `json:"version"`
+	RequestedBy           string `json:"requested_by"`
+	ProjectPath           string `json:"project_path"`
+	Mode                  string `json:"mode"`
+	Offline               bool   `json:"offline"`
+	Sandbox               bool   `json:"sandbox,omitempty"`
+	SandboxTimeoutSeconds int    `json:"sandbox_timeout_seconds,omitempty"`
+	NetworkMode           string `json:"network_mode,omitempty"`
+}
+
+type MCPSandboxResult struct {
+	Enabled               bool `json:"enabled"`
+	Available             bool `json:"available"`
+	FindingsCount         int  `json:"findings_count"`
+	CriticalFindingsCount int  `json:"critical_findings_count"`
 }
 
 // ValidatePackageInstallResult defines the structured tool response.
@@ -36,6 +47,7 @@ type ValidatePackageInstallResult struct {
 	Vulnerabilities   []types.Vulnerability `json:"vulnerabilities"`
 	SafeAlternatives  []string              `json:"safe_alternatives"`
 	RecommendedAction string                `json:"recommended_action"`
+	Sandbox           *MCPSandboxResult     `json:"sandbox,omitempty"`
 }
 
 // ValidatePackageInstall evaluates if a package install should proceed.
@@ -103,9 +115,34 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 	}
 	pol.Mode = activeMode
 
+	// Sandbox logic in MCP
+	sandboxEnabled := p.Sandbox
+	if !sandboxEnabled {
+		sandboxEnabled = pol.Sandbox.Enabled
+	}
+
+	timeoutSecs := p.SandboxTimeoutSeconds
+	if timeoutSecs == 0 {
+		timeoutSecs = pol.Sandbox.DefaultTimeoutSeconds
+	}
+	if timeoutSecs == 0 {
+		timeoutSecs = 10
+	}
+
+	netMode := p.NetworkMode
+	if netMode == "" {
+		netMode = pol.Sandbox.NetworkMode
+	}
+	if netMode == "" {
+		netMode = "disabled"
+	}
+
 	scanner := snpm.New()
 	scanner.Policy = pol
 	scanner.Offline = e.Offline || p.Offline
+	scanner.SandboxEnabled = sandboxEnabled
+	scanner.SandboxTimeout = time.Duration(timeoutSecs) * time.Second
+	scanner.NetworkMode = netMode
 
 	res, err := scanner.ScanPackage(p.Name, p.Version)
 	if err != nil {
@@ -117,6 +154,21 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 				Text: string(b),
 			}},
 			IsError: true,
+		}
+	}
+
+	hasCriticalSandboxFinding := false
+	criticalSandboxFindingsCount := 0
+	sandboxFindingsCount := 0
+	if res.Sandbox.Enabled && res.Sandbox.Available {
+		for _, script := range res.Sandbox.ScriptsExecuted {
+			for _, f := range script.Findings {
+				sandboxFindingsCount++
+				if f.Severity == "critical" {
+					hasCriticalSandboxFinding = true
+					criticalSandboxFindingsCount++
+				}
+			}
 		}
 	}
 
@@ -136,7 +188,9 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 					Description: "AI agent requested suspicious package installation",
 					Evidence:    res.Package.Name,
 				})
+				oldSandbox := res.Sandbox
 				res = risk.Evaluate(res.Package, findings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
+				res.Sandbox = oldSandbox
 			}
 		}
 	}
@@ -157,11 +211,29 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 			}
 		}
 	}
+	if p.RequestedBy == "ai_agent" && hasCriticalSandboxFinding {
+		installAllowed = false
+	}
 
 	var safeAlts []string
 	alts := agent.GetSafeAlternatives(p.Name)
 	for _, alt := range alts {
 		safeAlts = append(safeAlts, alt.Name)
+	}
+
+	recAction := output.RecommendedAction(res)
+	if sandboxEnabled && !res.Sandbox.Available {
+		recAction = "Sandbox requested but unavailable. Behavioral analysis was not performed. " + recAction
+	}
+
+	var mcpSandbox *MCPSandboxResult
+	if sandboxEnabled {
+		mcpSandbox = &MCPSandboxResult{
+			Enabled:               res.Sandbox.Enabled,
+			Available:             res.Sandbox.Available,
+			FindingsCount:         sandboxFindingsCount,
+			CriticalFindingsCount: criticalSandboxFindingsCount,
+		}
 	}
 
 	toolRes := ValidatePackageInstallResult{
@@ -176,7 +248,8 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		Reasons:           res.Reasons,
 		Vulnerabilities:   res.Vulnerabilities,
 		SafeAlternatives:  safeAlts,
-		RecommendedAction: output.RecommendedAction(res),
+		RecommendedAction: recAction,
+		Sandbox:           mcpSandbox,
 	}
 
 	b, _ := json.MarshalIndent(toolRes, "", "  ")

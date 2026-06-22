@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
@@ -83,6 +84,11 @@ func cmdScanLocalNPM(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	sandbox := fs.Bool("sandbox", false, "run lifecycle scripts in a sandbox")
+	timeout := fs.Duration("timeout", 10*time.Second, "sandbox execution timeout")
+	network := fs.String("network", "disabled", "network mode (disabled, limited, host)")
+	keepSandbox := fs.Bool("keep-sandbox", false, "keep sandbox directory after execution")
+
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -93,7 +99,53 @@ func cmdScanLocalNPM(args []string) error {
 	if err != nil {
 		return err
 	}
-	res, err := anpm.AnalyzePackageDir(fs.Arg(0), pol)
+
+	isFlagPassed := func(name string) bool {
+		found := false
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name == name {
+				found = true
+			}
+		})
+		return found
+	}
+
+	sandboxEnabled := *sandbox
+	if !isFlagPassed("sandbox") {
+		sandboxEnabled = pol.Sandbox.Enabled
+	}
+
+	sandboxTimeout := *timeout
+	if !isFlagPassed("timeout") {
+		if pol.Sandbox.DefaultTimeoutSeconds > 0 {
+			sandboxTimeout = time.Duration(pol.Sandbox.DefaultTimeoutSeconds) * time.Second
+		} else {
+			sandboxTimeout = 10 * time.Second
+		}
+	}
+
+	networkMode := *network
+	if !isFlagPassed("network") {
+		if pol.Sandbox.NetworkMode != "" {
+			networkMode = pol.Sandbox.NetworkMode
+		} else {
+			networkMode = "disabled"
+		}
+	}
+
+	keepSandboxVal := *keepSandbox
+	if !isFlagPassed("keep-sandbox") {
+		keepSandboxVal = pol.Sandbox.KeepSandbox
+	}
+
+	scanner := snpm.New()
+	scanner.Policy = pol
+	scanner.SandboxEnabled = sandboxEnabled
+	scanner.SandboxTimeout = sandboxTimeout
+	scanner.NetworkMode = networkMode
+	scanner.KeepSandbox = keepSandboxVal
+
+	res, err := scanner.ScanLocalPackage(fs.Arg(0))
 	if err != nil {
 		return err
 	}
@@ -108,6 +160,11 @@ func cmdScanNPMPackage(args []string) error {
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
+	sandbox := fs.Bool("sandbox", false, "run lifecycle scripts in a sandbox")
+	timeout := fs.Duration("timeout", 10*time.Second, "sandbox execution timeout")
+	network := fs.String("network", "disabled", "network mode (disabled, limited, host)")
+	keepSandbox := fs.Bool("keep-sandbox", false, "keep sandbox directory after execution")
+
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -118,10 +175,53 @@ func cmdScanNPMPackage(args []string) error {
 	if err != nil {
 		return err
 	}
-	
+
+	isFlagPassed := func(name string) bool {
+		found := false
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name == name {
+				found = true
+			}
+		})
+		return found
+	}
+
+	sandboxEnabled := *sandbox
+	if !isFlagPassed("sandbox") {
+		sandboxEnabled = pol.Sandbox.Enabled
+	}
+
+	sandboxTimeout := *timeout
+	if !isFlagPassed("timeout") {
+		if pol.Sandbox.DefaultTimeoutSeconds > 0 {
+			sandboxTimeout = time.Duration(pol.Sandbox.DefaultTimeoutSeconds) * time.Second
+		} else {
+			sandboxTimeout = 10 * time.Second
+		}
+	}
+
+	networkMode := *network
+	if !isFlagPassed("network") {
+		if pol.Sandbox.NetworkMode != "" {
+			networkMode = pol.Sandbox.NetworkMode
+		} else {
+			networkMode = "disabled"
+		}
+	}
+
+	keepSandboxVal := *keepSandbox
+	if !isFlagPassed("keep-sandbox") {
+		keepSandboxVal = pol.Sandbox.KeepSandbox
+	}
+
 	scanner := snpm.New()
 	scanner.Policy = pol
 	scanner.Offline = *offline
+	scanner.SandboxEnabled = sandboxEnabled
+	scanner.SandboxTimeout = sandboxTimeout
+	scanner.NetworkMode = networkMode
+	scanner.KeepSandbox = keepSandboxVal
+
 	res, err := scanner.ScanPackage(fs.Arg(0), *ver)
 	if err != nil {
 		return err
@@ -450,7 +550,7 @@ func flagNeedsValue(arg string) bool {
 	name := strings.TrimLeft(arg, "-")
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
-	case "version", "mode", "policy", "log-level":
+	case "version", "mode", "policy", "log-level", "timeout", "network":
 		return true
 	default:
 		return false

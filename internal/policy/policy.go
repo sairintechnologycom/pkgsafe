@@ -35,6 +35,14 @@ type MCPSettings struct {
 	HumanDefaultInstallAllowedOnWarn   bool
 }
 
+type SandboxSettings struct {
+	Enabled                 bool
+	DefaultTimeoutSeconds   int
+	NetworkMode             string
+	KeepSandbox             bool
+	FailOpenWhenUnavailable bool
+}
+
 type Policy struct {
 	Mode            Mode
 	Thresholds      types.Thresholds
@@ -45,6 +53,7 @@ type Policy struct {
 	BlockPatterns   []string
 	WarnPatterns    []string
 	MCP             MCPSettings
+	Sandbox         SandboxSettings
 }
 
 func Default() Policy {
@@ -80,6 +89,19 @@ func Default() Policy {
 			"known_malware_indicator":               {Enabled: true, Severity: "critical", Score: 100},
 			"ai_package_squatting_candidate":        {Enabled: true, Severity: "high", Score: 25},
 			"ai_agent_requested_suspicious_package": {Enabled: true, Severity: "high", Score: 15},
+			"credential_canary_read":                 {Enabled: true, Severity: "critical", Score: 100},
+			"credential_canary_exfiltration_attempt": {Enabled: true, Severity: "critical", Score: 100},
+			"cloud_metadata_access":                  {Enabled: true, Severity: "critical", Score: 100},
+			"npm_token_access":                       {Enabled: true, Severity: "critical", Score: 100},
+			"ssh_key_access":                         {Enabled: true, Severity: "critical", Score: 100},
+			"env_secret_access":                      {Enabled: true, Severity: "critical", Score: 100},
+			"network_call_from_lifecycle":            {Enabled: true, Severity: "high", Score: 40},
+			"shell_download_execute":                 {Enabled: true, Severity: "critical", Score: 100},
+			"encoded_payload_execution":              {Enabled: true, Severity: "high", Score: 40},
+			"unexpected_binary_write":                {Enabled: true, Severity: "high", Score: 30},
+			"child_process_spawn":                    {Enabled: true, Severity: "medium", Score: 20},
+			"home_directory_enumeration":              {Enabled: true, Severity: "medium", Score: 20},
+			"environment_variable_enumeration":       {Enabled: true, Severity: "medium", Score: 20},
 		},
 		BlockPatterns: []string{
 			"~/.aws", "~/.azure", "~/.gcp", "~/.ssh", "~/.kube", "~/.npmrc", "~/.pypirc",
@@ -96,6 +118,13 @@ func Default() Policy {
 			DefaultMode:                        "warn",
 			AIAgentDefaultInstallAllowedOnWarn: false,
 			HumanDefaultInstallAllowedOnWarn:   true,
+		},
+		Sandbox: SandboxSettings{
+			Enabled:                 false,
+			DefaultTimeoutSeconds:   10,
+			NetworkMode:             "disabled",
+			KeepSandbox:             false,
+			FailOpenWhenUnavailable: true,
 		},
 	}
 }
@@ -230,7 +259,7 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			switch key {
 			case "mode":
 				pol.Mode = ParseMode(unquote(val))
-			case "thresholds", "rules", "mcp":
+			case "thresholds", "rules", "mcp", "sandbox":
 			case "protected_paths":
 				pol.ProtectedPaths = nil
 				pol.BlockPatterns = nil
@@ -245,6 +274,28 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			continue
 		}
 		switch section {
+		case "sandbox":
+			if indent != 2 {
+				return fmt.Errorf("line %d: expected sandbox property", lineNo+1)
+			}
+			switch key {
+			case "enabled":
+				pol.Sandbox.Enabled = strings.EqualFold(unquote(val), "true")
+			case "default_timeout_seconds":
+				n, err := strconv.Atoi(unquote(val))
+				if err != nil {
+					return fmt.Errorf("line %d: default_timeout_seconds must be an integer", lineNo+1)
+				}
+				pol.Sandbox.DefaultTimeoutSeconds = n
+			case "network_mode":
+				pol.Sandbox.NetworkMode = unquote(val)
+			case "keep_sandbox":
+				pol.Sandbox.KeepSandbox = strings.EqualFold(unquote(val), "true")
+			case "fail_open_when_unavailable":
+				pol.Sandbox.FailOpenWhenUnavailable = strings.EqualFold(unquote(val), "true")
+			default:
+				return fmt.Errorf("line %d: unsupported sandbox property %q", lineNo+1, key)
+			}
 		case "mcp":
 			if indent != 2 {
 				return fmt.Errorf("line %d: expected mcp property", lineNo+1)

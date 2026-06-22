@@ -24,6 +24,29 @@ type JSONResult struct {
 	PackageIdentity  types.PackageIdentity `json:"package_identity,omitempty"`
 	LifecycleScripts []string              `json:"lifecycle_scripts,omitempty"`
 	Suspicious       []string              `json:"suspicious_patterns,omitempty"`
+	Sandbox          types.SandboxSummary  `json:"sandbox,omitempty"`
+}
+
+func isSandboxReason(id string) bool {
+	switch id {
+	case "credential_canary_read",
+		"credential_canary_exfiltration_attempt",
+		"cloud_metadata_access",
+		"npm_token_access",
+		"ssh_key_access",
+		"env_secret_access",
+		"network_call_from_lifecycle",
+		"shell_download_execute",
+		"encoded_payload_execution",
+		"unexpected_binary_write",
+		"child_process_spawn",
+		"home_directory_enumeration",
+		"environment_variable_enumeration",
+		"lifecycle_script_nonzero_exit":
+		return true
+	default:
+		return false
+	}
 }
 
 func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
@@ -45,7 +68,63 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 			PackageIdentity:  result.Package,
 			LifecycleScripts: result.Lifecycle,
 			Suspicious:       result.Suspicious,
+			Sandbox:          result.Sandbox,
 		})
+	}
+
+	if result.Sandbox.Enabled {
+		fmt.Fprintf(w, "Decision: %s\n", strings.ToUpper(string(result.Decision)))
+		if result.Mode != "" {
+			fmt.Fprintf(w, "Mode: %s\n", strings.ToUpper(result.Mode))
+		}
+		fmt.Fprintf(w, "Package: %s/%s@%s\n", result.Package.Ecosystem, result.Package.Name, emptyLatest(result.Package.Version))
+		fmt.Fprintf(w, "Risk Score: %d/100\n\n", result.Score)
+
+		fmt.Fprintln(w, "Static Analysis:")
+		staticCount := 0
+		for _, r := range result.Reasons {
+			if !isSandboxReason(r.ID) && r.ID != "trusted_package_reduction" {
+				fmt.Fprintf(w, "- %s\n", r.Description)
+				staticCount++
+			}
+		}
+		if staticCount == 0 {
+			fmt.Fprintln(w, "- No risks detected during static analysis")
+		}
+		fmt.Fprintln(w)
+
+		fmt.Fprintln(w, "Sandbox Analysis:")
+		if result.Sandbox.NotPerformed {
+			fmt.Fprintln(w, "- Not performed")
+			fmt.Fprintf(w, "- Reason: %s\n", result.Sandbox.NotPerfReason)
+		} else {
+			for _, run := range result.Sandbox.ScriptsExecuted {
+				fmt.Fprintf(w, "- Script: %s\n", run.Name)
+				fmt.Fprintf(w, "- Duration: %d ms\n", run.DurationMs)
+				fmt.Fprintf(w, "- Exit Code: %d\n", run.ExitCode)
+				fmt.Fprintf(w, "- Network Mode: %s\n", result.Sandbox.NetworkMode)
+			}
+			if len(result.Sandbox.ScriptsExecuted) == 0 {
+				fmt.Fprintln(w, "- No lifecycle scripts defined to run")
+			}
+		}
+		fmt.Fprintln(w)
+
+		fmt.Fprintln(w, "Behavior Findings:")
+		sandboxCount := 0
+		for _, r := range result.Reasons {
+			if isSandboxReason(r.ID) {
+				fmt.Fprintf(w, "- [%s %+d] %s: %s\n", r.Severity, r.ScoreImpact, r.ID, r.Description)
+				sandboxCount++
+			}
+		}
+		if sandboxCount == 0 {
+			fmt.Fprintln(w, "- No findings detected in sandbox")
+		}
+		fmt.Fprintln(w)
+
+		fmt.Fprintf(w, "Recommended Action:\n%s\n", RecommendedAction(result))
+		return nil
 	}
 
 	fmt.Fprintf(w, "Decision: %s\n", strings.ToUpper(string(result.Decision)))
@@ -108,6 +187,9 @@ func emptyLatest(v string) string {
 }
 
 func RecommendedAction(result types.ScanResult) string {
+	if result.Sandbox.Enabled && result.Sandbox.NotPerformed {
+		return "Review package before installing. Run sandbox analysis on a supported Linux or Docker-enabled environment."
+	}
 	if result.Recommended != "" {
 		return result.Recommended
 	}

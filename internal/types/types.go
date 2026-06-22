@@ -47,6 +47,33 @@ type ScanResult struct {
 	Enforcement     string          `json:"enforcement,omitempty"`
 	Recommended     string          `json:"recommended_action,omitempty"`
 	ScannedAt       time.Time       `json:"scanned_at"`
+	Sandbox         SandboxSummary  `json:"sandbox,omitempty"`
+}
+
+type SandboxSummary struct {
+	Enabled         bool                  `json:"enabled"`
+	Available       bool                  `json:"available"`
+	Runner          string                `json:"runner,omitempty"`
+	NetworkMode     string                `json:"network_mode,omitempty"`
+	TimeoutSeconds  int                   `json:"timeout_seconds,omitempty"`
+	ScriptsExecuted []SandboxScriptResult `json:"scripts_executed,omitempty"`
+	NotPerformed    bool                  `json:"-"`
+	NotPerfReason   string                `json:"-"`
+}
+
+type SandboxScriptResult struct {
+	Name       string           `json:"name"`
+	ExitCode   int              `json:"exit_code"`
+	TimedOut   bool             `json:"timed_out"`
+	DurationMs int64            `json:"duration_ms"`
+	Findings   []SandboxFinding `json:"findings,omitempty"`
+}
+
+type SandboxFinding struct {
+	RuleID      string `json:"rule_id"`
+	Severity    string `json:"severity"`
+	Score       int    `json:"score"`
+	Description string `json:"message"`
 }
 
 type Thresholds struct {

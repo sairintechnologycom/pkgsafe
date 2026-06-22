@@ -538,7 +538,48 @@ func TestMCPServer(t *testing.T) {
 		}
 	})
 
-	// 15. MCP server starts without printing non-JSON text to stdout
+	// 15. MCP validate_package_install sandbox check
+	t.Run("validate_package_install with sandbox", func(t *testing.T) {
+		res, err := callTool(t, "validate_package_install", map[string]any{
+			"ecosystem":    "npm",
+			"name":         "fixture",
+			"version":      "3.0.0",
+			"requested_by": "ai_agent",
+			"sandbox":      true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("tool execution error: %s", res.Content[0].Text)
+		}
+
+		var valRes ValidatePackageInstallResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &valRes); err != nil {
+			t.Fatal(err)
+		}
+
+		if valRes.Sandbox == nil {
+			t.Fatal("expected Sandbox result metadata to be populated, got nil")
+		}
+		if !valRes.Sandbox.Enabled {
+			t.Error("expected sandbox.enabled to be true")
+		}
+		if !valRes.Sandbox.Available {
+			t.Error("expected sandbox.available to be true")
+		}
+		if valRes.Sandbox.FindingsCount == 0 {
+			t.Error("expected sandbox.findings_count to be > 0")
+		}
+		if valRes.Sandbox.CriticalFindingsCount == 0 {
+			t.Error("expected sandbox.critical_findings_count to be > 0")
+		}
+		if valRes.InstallAllowed {
+			t.Error("expected install_allowed to be false for AI agent with critical findings")
+		}
+	})
+
+	// 16. MCP server starts without printing non-JSON text to stdout
 	t.Run("starts clean", func(t *testing.T) {
 		inReader := strings.NewReader("")
 		var outBuf bytes.Buffer

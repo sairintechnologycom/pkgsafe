@@ -319,3 +319,57 @@ func TestOfflineScanUsesCachedDataAndDB(t *testing.T) {
 		t.Errorf("expected cached vulnerability in scan result, got: %+v", res.Vulnerabilities)
 	}
 }
+
+func TestSandboxScannerIntegration(t *testing.T) {
+	srv := registryServer(t, map[string]string{
+		"1.0.0": `{
+			"name": "fixture",
+			"version": "1.0.0",
+			"scripts": {
+				"postinstall": "cat $HOME/.aws/credentials"
+			}
+		}`,
+	}, "1.0.0")
+	defer srv.Close()
+
+	pol := policy.Default()
+	pol.Sandbox.Enabled = true
+
+	scanner := Scanner{
+		Registry:       rnpm.NewClient(srv.URL),
+		Policy:         pol,
+		CacheDir:       t.TempDir(),
+		SandboxEnabled: true,
+		SandboxTimeout: 5 * time.Second,
+		NetworkMode:    "disabled",
+	}
+
+	res, err := scanner.ScanPackage("fixture", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hasCanaryReadReason := false
+	for _, r := range res.Reasons {
+		if r.ID == "credential_canary_read" {
+			hasCanaryReadReason = true
+		}
+	}
+	if !hasCanaryReadReason {
+		t.Errorf("expected credential_canary_read in reasons, got: %+v", res.Reasons)
+	}
+
+	if res.Decision != types.DecisionBlock {
+		t.Errorf("expected BLOCK decision for critical finding, got: %s", res.Decision)
+	}
+
+	pol.TrustedPackages.NPM = append(pol.TrustedPackages.NPM, "fixture")
+	scanner.Policy = pol
+	resTrusted, err := scanner.ScanPackage("fixture", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resTrusted.Decision != types.DecisionBlock {
+		t.Errorf("expected trusted package to still be blocked if there is a critical sandbox finding, got: %s", resTrusted.Decision)
+	}
+}

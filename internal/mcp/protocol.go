@@ -132,6 +132,22 @@ func GetToolsList() ToolListResult {
 							"description": "Run the validation offline using cached database and metadata",
 							"default":     false,
 						},
+						"sandbox": map[string]any{
+							"type":        "boolean",
+							"description": "Run the installation scripts in a sandbox to analyze behaviors",
+							"default":     false,
+						},
+						"sandbox_timeout_seconds": map[string]any{
+							"type":        "integer",
+							"description": "Custom timeout duration for sandbox script execution",
+							"default":     10,
+						},
+						"network_mode": map[string]any{
+							"type":        "string",
+							"enum":        []string{"disabled", "limited", "host"},
+							"description": "Sandbox network isolation level",
+							"default":     "disabled",
+						},
 					},
 					"required": []string{"name"},
 				},
