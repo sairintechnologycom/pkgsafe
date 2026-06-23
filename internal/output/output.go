@@ -74,7 +74,7 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 		})
 	}
 
-	if result.Sandbox.Enabled {
+	if result.Sandbox.Enabled && result.Package.Ecosystem != "pypi" {
 		fmt.Fprintf(w, "Decision: %s\n", strings.ToUpper(string(result.Decision)))
 		if result.Mode != "" {
 			fmt.Fprintf(w, "Mode: %s\n", strings.ToUpper(result.Mode))
@@ -138,6 +138,9 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 	}
 	fmt.Fprintf(w, "Package: %s/%s@%s\n", result.Package.Ecosystem, result.Package.Name, emptyLatest(result.Package.Version))
 	fmt.Fprintf(w, "Risk Score: %d/100\n", result.Score)
+	if result.Package.Ecosystem == "pypi" && result.Sandbox.Enabled {
+		fmt.Fprintln(w, "\nPyPI sandbox execution is not implemented yet. Static analysis completed only.")
+	}
 	if len(result.Lifecycle) > 0 {
 		fmt.Fprintf(w, "Lifecycle Scripts: %s\n", strings.Join(result.Lifecycle, ", "))
 	}
@@ -202,7 +205,7 @@ func emptyLatest(v string) string {
 }
 
 func RecommendedAction(result types.ScanResult) string {
-	if result.Sandbox.Enabled && result.Sandbox.NotPerformed {
+	if result.Sandbox.Enabled && result.Sandbox.NotPerformed && result.Package.Ecosystem != "pypi" {
 		return "Review package before installing. Run sandbox analysis on a supported Linux or Docker-enabled environment."
 	}
 	if result.Recommended != "" {

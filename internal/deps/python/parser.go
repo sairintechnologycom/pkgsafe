@@ -20,6 +20,16 @@ func ParseFile(path string) ([]Dependency, error) {
 		return ParseRequirementsFile(path)
 	case "pyproject.toml":
 		return ParsePyprojectFile(path)
+	case "poetry.lock":
+		return ParsePoetryLockFile(path)
+	case "uv.lock":
+		return ParseUVLockFile(path)
+	case "pipfile":
+		return ParsePipfile(path)
+	case "pipfile.lock":
+		return ParsePipfileLock(path)
+	case "environment.yml", "environment.yaml":
+		return ParseCondaEnvFile(path)
 	default:
 		ext := strings.ToLower(filepath.Ext(path))
 		if ext == ".txt" {
