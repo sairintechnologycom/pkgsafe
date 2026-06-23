@@ -173,6 +173,15 @@ func Validate(ctx context.Context, cmd *InstallCommand, sf SafetyFlags, pol poli
 	var scannerNPM snpm.Scanner
 	var scannerPyPI spypi.Scanner
 
+	reqBy := sf.RequestedBy
+	if reqBy == "" {
+		reqBy = "human"
+	}
+	env := sf.Environment
+	if env == "" {
+		env = "developer"
+	}
+
 	if cmd.Ecosystem == "npm" {
 		scannerNPM = snpm.New()
 		scannerNPM.Policy = pol
@@ -183,11 +192,15 @@ func Validate(ctx context.Context, cmd *InstallCommand, sf SafetyFlags, pol poli
 		}
 		scannerNPM.NetworkMode = pol.Sandbox.NetworkMode
 		scannerNPM.KeepSandbox = pol.Sandbox.KeepSandbox
+		scannerNPM.RequestedBy = reqBy
+		scannerNPM.Environment = env
 	} else {
 		scannerPyPI = spypi.New()
 		scannerPyPI.Policy = pol
 		scannerPyPI.Offline = sf.Offline
 		scannerPyPI.SandboxEnabled = sf.Sandbox || pol.Sandbox.Enabled
+		scannerPyPI.RequestedBy = reqBy
+		scannerPyPI.Environment = env
 	}
 
 	// 3. Scan each resolved package

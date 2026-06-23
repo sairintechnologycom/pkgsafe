@@ -31,7 +31,7 @@ func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor Pac
 	cleanArgs, sf := ExtractSafetyFlags(rawArgs)
 
 	// 3. Load policy configuration
-	pol, err := loadPolicy(sf.PolicyPath, sf.Mode)
+	pol, err := policy.ResolvePolicy(sf.PolicyPack, "", sf.PolicyPath, sf.Mode)
 	if err != nil {
 		return InterceptError{Code: ExitPolicyError, Err: err}
 	}

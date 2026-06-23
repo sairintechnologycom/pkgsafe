@@ -44,11 +44,42 @@ type ScanResult struct {
 	Lifecycle       []string        `json:"lifecycle_scripts,omitempty"`
 	Suspicious      []string        `json:"suspicious_patterns,omitempty"`
 	SafeAlternates  []string        `json:"safe_alternatives,omitempty"`
-	Enforcement     string          `json:"enforcement,omitempty"`
-	Recommended     string          `json:"recommended_action,omitempty"`
-	ScannedAt       time.Time       `json:"scanned_at"`
-	Sandbox         SandboxSummary  `json:"sandbox,omitempty"`
-	Artifact        ArtifactSummary `json:"artifact_analysis,omitempty"`
+	Enforcement     string           `json:"enforcement,omitempty"`
+	Recommended     string           `json:"recommended_action,omitempty"`
+	ScannedAt       time.Time        `json:"scanned_at"`
+	Sandbox         SandboxSummary   `json:"sandbox,omitempty"`
+	Artifact        ArtifactSummary  `json:"artifact_analysis,omitempty"`
+	PolicyInfo      *PolicyEvidence  `json:"policy,omitempty"`
+	RegistryInfo    *RegistryEvidence`json:"registry,omitempty"`
+	TrustInfo       *TrustEvidence   `json:"trust,omitempty"`
+	ExceptionInfo   *ExceptionEvidence`json:"exception,omitempty"`
+}
+
+type PolicyEvidence struct {
+	Source  string `json:"source"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Owner   string `json:"owner"`
+}
+
+type RegistryEvidence struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	URL        string `json:"url"`
+	AuthMethod string `json:"auth_method"`
+}
+
+type TrustEvidence struct {
+	Matched bool   `json:"matched"`
+	RuleID  string `json:"rule_id,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+type ExceptionEvidence struct {
+	Matched    bool   `json:"matched"`
+	RuleID     string `json:"rule_id,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+	ValidUntil string `json:"valid_until,omitempty"`
 }
 
 type ArtifactSummary struct {

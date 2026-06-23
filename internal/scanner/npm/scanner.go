@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
@@ -16,6 +17,7 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
 	"github.com/niyam-ai/pkgsafe/internal/sandbox"
 	"github.com/niyam-ai/pkgsafe/internal/types"
@@ -31,12 +33,17 @@ type Scanner struct {
 	SandboxTimeout time.Duration
 	NetworkMode    string
 	KeepSandbox    bool
+	RequestedBy    string
+	Environment    string
+	RegistryName   string
 }
 
 func New() Scanner {
 	return Scanner{
-		Registry: rnpm.NewClient(""),
-		Policy:   policy.Default(),
+		Registry:    rnpm.NewClient(""),
+		Policy:      policy.Default(),
+		RequestedBy: "human",
+		Environment: "developer",
 	}
 }
 
@@ -49,6 +56,37 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		pol = policy.Default()
 	}
 	ctx := context.Background()
+
+	var regName string
+	var regCfg policy.RegistryConfig
+	if s.RegistryName != "" {
+		if cfg, ok := pol.Registries.Registries["npm"][s.RegistryName]; ok {
+			regName = s.RegistryName
+			regCfg = cfg
+		} else {
+			regName = ""
+			regCfg = policy.RegistryConfig{
+				URL:     "",
+				Type:    "unknown",
+				Enabled: false,
+			}
+		}
+	} else {
+		regName, regCfg = registry.ResolveRegistry("npm", name, pol)
+	}
+
+	// Block private scope resolving to public
+	if regCfg.Type == "public" && registry.GetNPMScope(name) != "" {
+		for otherName, otherCfg := range pol.Registries.Registries["npm"] {
+			if otherCfg.Type == "private" {
+				for _, sc := range otherCfg.Scopes {
+					if strings.EqualFold(sc, registry.GetNPMScope(name)) {
+						return types.ScanResult{}, fmt.Errorf("private scope %s must resolve from approved private registry %s, but resolved to public registry", registry.GetNPMScope(name), otherName)
+					}
+				}
+			}
+		}
+	}
 
 	if s.Offline {
 		store, err := cache.Load("")
@@ -63,13 +101,13 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		d, err := db.Open(s.DBPath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Warning: vulnerability DB is stale or missing")
-			return res, nil
+			return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 		}
 		defer d.Close()
 
 		vulns, err := d.GetVulnerabilitiesForPackage(ctx, "npm", res.Package.Name)
 		if err != nil {
-			return res, nil
+			return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 		}
 
 		var affectedVulns []types.Vulnerability
@@ -108,10 +146,21 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		evalRes := risk.Evaluate(res.Package, findings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 		evalRes.Vulnerabilities = affectedVulns
 		evalRes.Sandbox = res.Sandbox
-		return evalRes, nil
+		return risk.ApplyEnterpriseControls(evalRes, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 	}
 
-	md, err := s.Registry.FetchMetadata(name)
+	regURL := regCfg.URL
+	if regURL == "" || regURL == "https://registry.npmjs.org/" || regURL == "https://registry.npmjs.org" {
+		if s.Registry.BaseURL != "" && s.Registry.BaseURL != "https://registry.npmjs.org" && s.Registry.BaseURL != "https://registry.npmjs.org/" {
+			regURL = s.Registry.BaseURL
+		}
+	}
+	regClient := rnpm.NewClient(regURL)
+	if regCfg.Auth.Method != "" && regCfg.Auth.Method != "none" {
+		regClient.HTTPClient = registry.NewAuthenticatedHTTPClient(regCfg)
+	}
+
+	md, err := regClient.FetchMetadata(name)
 	if err != nil {
 		return types.ScanResult{}, err
 	}
@@ -123,7 +172,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		return types.ScanResult{}, fmt.Errorf("missing tarball URL for %s@%s", name, vm.Version)
 	}
 
-	tarballPath, err := s.Registry.DownloadTarball(vm.Dist.Tarball, s.CacheDir)
+	tarballPath, err := regClient.DownloadTarball(vm.Dist.Tarball, s.CacheDir)
 	if err != nil {
 		return types.ScanResult{}, err
 	}
@@ -310,7 +359,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	finalRes := risk.Evaluate(res.Package, allFindings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 	finalRes.Vulnerabilities = typesVulns
 	finalRes.Sandbox = res.Sandbox
-	return finalRes, nil
+	return risk.ApplyEnterpriseControls(finalRes, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 }
 
 func ScanPackage(name, version string) (types.ScanResult, error) {
@@ -411,7 +460,7 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 
 	finalRes := risk.Evaluate(res.Package, allFindings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 	finalRes.Sandbox = res.Sandbox
-	return finalRes, nil
+	return risk.ApplyEnterpriseControls(finalRes, pol, "local", policy.RegistryConfig{}, s.RequestedBy, s.Environment), nil
 }
 
 func stripPolicyGeneratedReasons(reasons []types.Reason) []types.Reason {

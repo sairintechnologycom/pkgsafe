@@ -2,11 +2,13 @@ package mcp
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/agent"
 	"github.com/niyam-ai/pkgsafe/internal/output"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
 	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
@@ -25,6 +27,8 @@ type ValidatePackageInstallParams struct {
 	Sandbox               bool   `json:"sandbox,omitempty"`
 	SandboxTimeoutSeconds int    `json:"sandbox_timeout_seconds,omitempty"`
 	NetworkMode           string `json:"network_mode,omitempty"`
+	PolicyPack            string `json:"policy_pack"`
+	Registry              string `json:"registry"`
 }
 
 type MCPSandboxResult struct {
@@ -36,19 +40,23 @@ type MCPSandboxResult struct {
 
 // ValidatePackageInstallResult defines the structured tool response.
 type ValidatePackageInstallResult struct {
-	Ecosystem         string                `json:"ecosystem"`
-	Package           string                `json:"package"`
-	Version           string                `json:"version"`
-	RequestedBy       string                `json:"requested_by"`
-	Decision          string                `json:"decision"`
-	RiskScore         int                   `json:"risk_score"`
-	InstallAllowed    bool                  `json:"install_allowed"`
-	Mode              string                `json:"mode"`
-	Reasons           []types.Reason        `json:"reasons"`
-	Vulnerabilities   []types.Vulnerability `json:"vulnerabilities"`
-	SafeAlternatives  []string              `json:"safe_alternatives"`
-	RecommendedAction string                `json:"recommended_action"`
-	Sandbox           *MCPSandboxResult     `json:"sandbox,omitempty"`
+	Ecosystem         string                     `json:"ecosystem"`
+	Package           string                     `json:"package"`
+	Version           string                     `json:"version"`
+	RequestedBy       string                     `json:"requested_by"`
+	Decision          string                     `json:"decision"`
+	RiskScore         int                        `json:"risk_score"`
+	InstallAllowed    bool                       `json:"install_allowed"`
+	Mode              string                     `json:"mode"`
+	Reasons           []types.Reason             `json:"reasons"`
+	Vulnerabilities   []types.Vulnerability      `json:"vulnerabilities"`
+	SafeAlternatives  []string                   `json:"safe_alternatives"`
+	RecommendedAction string                     `json:"recommended_action"`
+	Sandbox           *MCPSandboxResult          `json:"sandbox,omitempty"`
+	Policy            *types.PolicyEvidence      `json:"policy,omitempty"`
+	Registry          *types.RegistryEvidence    `json:"registry,omitempty"`
+	Trust             *types.TrustEvidence       `json:"trust,omitempty"`
+	Exception         *types.ExceptionEvidence   `json:"exception,omitempty"`
 }
 
 // ValidatePackageInstall evaluates if a package install should proceed.
@@ -95,7 +103,11 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		p.RequestedBy = "human"
 	}
 
-	pol, err := policy.Load(e.PolicyPath)
+	repoPath := ""
+	if p.ProjectPath != "" {
+		repoPath = filepath.Join(p.ProjectPath, ".pkgsafe/policy.yaml")
+	}
+	pol, err := policy.ResolvePolicy(p.PolicyPack, repoPath, e.PolicyPath, p.Mode)
 	if err != nil {
 		return CallToolResult{
 			Content: []ToolContent{{
@@ -138,6 +150,29 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		netMode = "disabled"
 	}
 
+	env := "developer"
+	if p.RequestedBy == "ai_agent" {
+		env = "ai_agent"
+	}
+
+	var regName string
+	var regCfg policy.RegistryConfig
+	if p.Registry != "" {
+		if cfg, ok := pol.Registries.Registries[p.Ecosystem][p.Registry]; ok {
+			regName = p.Registry
+			regCfg = cfg
+		} else {
+			regName = ""
+			regCfg = policy.RegistryConfig{
+				URL:     "",
+				Type:    "unknown",
+				Enabled: false,
+			}
+		}
+	} else {
+		regName, regCfg = registry.ResolveRegistry(p.Ecosystem, p.Name, pol)
+	}
+
 	var res types.ScanResult
 	var scanErr error
 	if p.Ecosystem == "pypi" {
@@ -145,6 +180,9 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		scanner.Policy = pol
 		scanner.Offline = e.Offline || p.Offline
 		scanner.SandboxEnabled = sandboxEnabled
+		scanner.RequestedBy = p.RequestedBy
+		scanner.Environment = env
+		scanner.RegistryName = p.Registry
 		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
 	} else {
 		scanner := snpm.New()
@@ -153,6 +191,9 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		scanner.SandboxEnabled = sandboxEnabled
 		scanner.SandboxTimeout = time.Duration(timeoutSecs) * time.Second
 		scanner.NetworkMode = netMode
+		scanner.RequestedBy = p.RequestedBy
+		scanner.Environment = env
+		scanner.RegistryName = p.Registry
 		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
 	}
 	if scanErr != nil {
@@ -201,6 +242,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 				oldSandbox := res.Sandbox
 				res = risk.Evaluate(res.Package, findings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 				res.Sandbox = oldSandbox
+				res = risk.ApplyEnterpriseControls(res, pol, regName, regCfg, p.RequestedBy, env)
 			}
 		}
 	}
@@ -260,6 +302,10 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		SafeAlternatives:  safeAlts,
 		RecommendedAction: recAction,
 		Sandbox:           mcpSandbox,
+		Policy:            res.PolicyInfo,
+		Registry:          res.RegistryInfo,
+		Trust:             res.TrustInfo,
+		Exception:         res.ExceptionInfo,
 	}
 
 	b, _ := json.MarshalIndent(toolRes, "", "  ")

@@ -19,4 +19,5 @@ type ScanOptions struct {
 	Sandbox              bool
 	Offline              bool
 	Timeout              time.Duration
+	PolicyPack           string
 }

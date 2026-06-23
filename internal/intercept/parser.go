@@ -15,6 +15,9 @@ type SafetyFlags struct {
 	JSON             bool
 	ForceRiskAccept  bool
 	Reason           string
+	PolicyPack       string
+	RequestedBy      string
+	Environment      string
 }
 
 func ExtractSafetyFlags(args []string) ([]string, SafetyFlags) {
@@ -52,6 +55,24 @@ func ExtractSafetyFlags(args []string) ([]string, SafetyFlags) {
 			i += 2
 		} else if strings.HasPrefix(arg, "--policy=") {
 			sf.PolicyPath = strings.TrimPrefix(arg, "--policy=")
+			i++
+		} else if arg == "--policy-pack" && i+1 < len(args) {
+			sf.PolicyPack = args[i+1]
+			i += 2
+		} else if strings.HasPrefix(arg, "--policy-pack=") {
+			sf.PolicyPack = strings.TrimPrefix(arg, "--policy-pack=")
+			i++
+		} else if arg == "--requested-by" && i+1 < len(args) {
+			sf.RequestedBy = args[i+1]
+			i += 2
+		} else if strings.HasPrefix(arg, "--requested-by=") {
+			sf.RequestedBy = strings.TrimPrefix(arg, "--requested-by=")
+			i++
+		} else if arg == "--environment" && i+1 < len(args) {
+			sf.Environment = args[i+1]
+			i += 2
+		} else if strings.HasPrefix(arg, "--environment=") {
+			sf.Environment = strings.TrimPrefix(arg, "--environment=")
 			i++
 		} else if arg == "--reason" && i+1 < len(args) {
 			sf.Reason = args[i+1]

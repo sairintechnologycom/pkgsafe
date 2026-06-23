@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/agent"
@@ -15,6 +16,7 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 	"github.com/niyam-ai/pkgsafe/internal/typosquat"
@@ -27,12 +29,17 @@ type Scanner struct {
 	Offline        bool
 	DBPath         string
 	SandboxEnabled bool
+	RequestedBy    string
+	Environment    string
+	RegistryName   string
 }
 
 func New() Scanner {
 	return Scanner{
-		Registry: rpypi.NewClient(""),
-		Policy:   policy.Default(),
+		Registry:    rpypi.NewClient(""),
+		Policy:      policy.Default(),
+		RequestedBy: "human",
+		Environment: "developer",
 	}
 }
 
@@ -45,11 +52,58 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		pol = policy.Default()
 	}
 	ctx := context.Background()
-	if s.Offline {
-		return s.scanOffline(ctx, name, version, pol)
+
+	var regName string
+	var regCfg policy.RegistryConfig
+	if s.RegistryName != "" {
+		if cfg, ok := pol.Registries.Registries["pypi"][s.RegistryName]; ok {
+			regName = s.RegistryName
+			regCfg = cfg
+		} else {
+			regName = ""
+			regCfg = policy.RegistryConfig{
+				URL:     "",
+				Type:    "unknown",
+				Enabled: false,
+			}
+		}
+	} else {
+		regName, regCfg = registry.ResolveRegistry("pypi", name, pol)
 	}
 
-	md, err := s.Registry.FetchMetadata(name)
+	// Block private scope/prefix resolving to public
+	if regCfg.Type == "public" {
+		for otherName, otherCfg := range pol.Registries.Registries["pypi"] {
+			if otherCfg.Type == "private" {
+				for _, pref := range otherCfg.PackagePrefixes {
+					if strings.HasPrefix(name, pref) {
+						return types.ScanResult{}, fmt.Errorf("private package prefix %s must resolve from approved private registry %s, but resolved to public registry", pref, otherName)
+					}
+				}
+			}
+		}
+	}
+
+	if s.Offline {
+		res, err := s.scanOffline(ctx, name, version, pol)
+		if err != nil {
+			return types.ScanResult{}, err
+		}
+		return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+	}
+
+	regURL := regCfg.URL
+	if regURL == "" || regURL == "https://pypi.org/pypi/" || regURL == "https://pypi.org/pypi" || regURL == "https://pypi.org/simple/" || regURL == "https://pypi.org/simple" {
+		if s.Registry.BaseURL != "" && s.Registry.BaseURL != "https://pypi.org/pypi" && s.Registry.BaseURL != "https://pypi.org/pypi/" {
+			regURL = s.Registry.BaseURL
+		}
+	}
+	regClient := rpypi.NewClient(regURL)
+	if regCfg.Auth.Method != "" && regCfg.Auth.Method != "none" {
+		regClient.HTTPClient = registry.NewAuthenticatedHTTPClient(regCfg)
+	}
+
+	md, err := regClient.FetchMetadata(name)
 	if err != nil {
 		return types.ScanResult{}, err
 	}
@@ -66,7 +120,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 	filesToAnalyze := selectArtifacts(vm)
 	for i, file := range filesToAnalyze {
-		artifactPath, err := s.Registry.DownloadArtifact(file.URL, s.CacheDir)
+		artifactPath, err := regClient.DownloadArtifact(file.URL, s.CacheDir)
 		if err != nil {
 			return types.ScanResult{}, err
 		}
@@ -127,7 +181,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		}
 		res.Artifact.SandboxNote = res.Sandbox.NotPerfReason
 	}
-	return res, nil
+	return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 }
 
 func (s Scanner) scanOffline(ctx context.Context, name, version string, pol policy.Policy) (types.ScanResult, error) {

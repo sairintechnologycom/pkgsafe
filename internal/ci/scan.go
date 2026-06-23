@@ -27,18 +27,9 @@ func (e ScanError) Error() string {
 
 func RunScan(opts ScanOptions) (*ScanResult, error) {
 	// 1. Load Policy
-	pol, err := policy.Load(opts.PolicyPath)
+	pol, err := policy.ResolvePolicy(opts.PolicyPack, "", opts.PolicyPath, opts.Mode)
 	if err != nil {
 		return nil, ScanError{Err: fmt.Errorf("load policy: %w", err), ExitCode: ExitPolicyError}
-	}
-
-	// Override policy settings with CLI arguments if specified
-	if opts.Mode != "" {
-		pMode, err := policy.ApplyMode(pol, opts.Mode)
-		if err != nil {
-			return nil, ScanError{Err: fmt.Errorf("invalid mode: %w", err), ExitCode: ExitUsageError}
-		}
-		pol = pMode
 	}
 
 	// Determine active fail-on setting
@@ -127,6 +118,8 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 	scanner := snpm.New()
 	scanner.Policy = pol
 	scanner.Offline = opts.Offline
+	scanner.RequestedBy = "human"
+	scanner.Environment = "ci"
 	sandboxEnabled := pol.Sandbox.Enabled
 	if opts.SandboxSpecified {
 		sandboxEnabled = opts.Sandbox
@@ -282,6 +275,8 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 	scanner.Policy = pol
 	scanner.Offline = opts.Offline
 	scanner.SandboxEnabled = opts.SandboxSpecified && opts.Sandbox
+	scanner.RequestedBy = "human"
+	scanner.Environment = "ci"
 
 	var findings []Finding
 	summary := Summary{PackagesScanned: len(deps)}

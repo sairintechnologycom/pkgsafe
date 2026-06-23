@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/niyam-ai/pkgsafe/internal/types"
+	"gopkg.in/yaml.v3"
 )
 
 type Mode string
@@ -104,6 +105,17 @@ type Policy struct {
 	CI                  CISettings
 	InstallInterception InstallInterceptionSettings
 	PackageManagers     PackageManagersSettings
+
+	// Enterprise fields
+	PolicyPackName      string
+	PolicyPackVersion   string
+	PolicyPackOwner     string
+	PolicyPackSource    string
+	Registries          RegistriesConfig
+	TrustedPackageRules []TrustedPackageRule
+	BlockedPackageRules []BlockedPackageRule
+	Exceptions          []Exception
+	ScopedRules         []ScopedRule
 }
 
 func Default() Policy {
@@ -240,6 +252,33 @@ func Load(path string) (Policy, error) {
 	if err := parseYAMLPolicy(string(b), &pol); err != nil {
 		return Policy{}, fmt.Errorf("parse policy %q: %w", path, err)
 	}
+
+	// Unmarshal enterprise fields using gopkg.in/yaml.v3
+	var ent struct {
+		Registries          map[string]map[string]RegistryConfig   `yaml:"registries"`
+		TrustedPackageRules []TrustedPackageRule                   `yaml:"trusted_package_rules"`
+		BlockedPackageRules []BlockedPackageRule                   `yaml:"blocked_package_rules"`
+		Exceptions          []Exception                            `yaml:"exceptions"`
+		ScopedRules         []ScopedRule                           `yaml:"scoped_rules"`
+	}
+	if err := yaml.Unmarshal(b, &ent); err == nil {
+		if len(ent.Registries) > 0 {
+			pol.Registries.Registries = ent.Registries
+		}
+		if len(ent.TrustedPackageRules) > 0 {
+			pol.TrustedPackageRules = ent.TrustedPackageRules
+		}
+		if len(ent.BlockedPackageRules) > 0 {
+			pol.BlockedPackageRules = ent.BlockedPackageRules
+		}
+		if len(ent.Exceptions) > 0 {
+			pol.Exceptions = ent.Exceptions
+		}
+		if len(ent.ScopedRules) > 0 {
+			pol.ScopedRules = ent.ScopedRules
+		}
+	}
+
 	if err := Validate(pol); err != nil {
 		return Policy{}, fmt.Errorf("invalid policy %q: %w", path, err)
 	}
@@ -266,6 +305,40 @@ func Validate(pol Policy) error {
 			return fmt.Errorf("rule %s severity is required", id)
 		}
 	}
+
+	// 1. Conflicting trust/block rules
+	trustedMap := make(map[string]bool)
+	blockedMap := make(map[string]bool)
+	for _, rule := range pol.TrustedPackageRules {
+		key := rule.Name + ":" + rule.VersionRange
+		trustedMap[key] = true
+	}
+	for _, rule := range pol.BlockedPackageRules {
+		key := rule.Name + ":" + rule.VersionRange
+		blockedMap[key] = true
+	}
+	for key := range trustedMap {
+		if blockedMap[key] {
+			return fmt.Errorf("conflicting entry found in both trusted and blocked lists: %s", key)
+		}
+	}
+
+	// 2. Expired exceptions
+	for _, exc := range pol.Exceptions {
+		if exc.IsExpired() {
+			return fmt.Errorf("exception %s is expired", exc.ID)
+		}
+	}
+
+	// 3. Invalid wildcard patterns
+	for _, rule := range pol.ScopedRules {
+		if rule.Match.Package != "" {
+			if strings.Contains(rule.Match.Package, "*") && !strings.HasSuffix(rule.Match.Package, "*") {
+				return fmt.Errorf("invalid wildcard scope in match: %s", rule.Match.Package)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -349,6 +422,8 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 				pol.BlockedPackages.NPM = append(pol.BlockedPackages.NPM, item)
 			case section == "blocked_packages" && subsection == "pypi":
 				pol.BlockedPackages.PyPI = append(pol.BlockedPackages.PyPI, item)
+			case section == "registries" || section == "scoped_rules" || section == "exceptions" || section == "trusted_package_rules" || section == "blocked_package_rules":
+				// Skip list items for these sections in custom parser
 			default:
 				return fmt.Errorf("line %d: list item is not under a supported list", lineNo+1)
 			}
@@ -365,7 +440,7 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			switch key {
 			case "mode":
 				pol.Mode = ParseMode(unquote(val))
-			case "thresholds", "rules", "mcp", "sandbox", "ci", "ecosystems", "install_interception", "package_managers":
+			case "thresholds", "rules", "mcp", "sandbox", "ci", "ecosystems", "install_interception", "package_managers", "registries", "scoped_rules", "exceptions", "trusted_package_rules", "blocked_package_rules":
 			case "protected_paths":
 				pol.ProtectedPaths = nil
 				pol.BlockPatterns = nil
@@ -588,6 +663,8 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			default:
 				return fmt.Errorf("line %d: unsupported package manager %q", lineNo+1, subsection)
 			}
+		case "registries", "scoped_rules", "exceptions", "trusted_package_rules", "blocked_package_rules":
+			continue
 		default:
 			return fmt.Errorf("line %d: unsupported section %q", lineNo+1, section)
 		}
