@@ -267,6 +267,63 @@ func GetToolsList() ToolListResult {
 					"required": []string{"command"},
 				},
 			},
+			{
+				Name:        "generate_governance_report",
+				Description: "Generate a structured PkgSafe governance evidence report for a repository.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"repo_path": map[string]any{
+							"type":        "string",
+							"description": "Path to the repository root directory",
+							"default":     ".",
+						},
+						"format": map[string]any{
+							"type":        "string",
+							"enum":        []string{"json", "markdown", "html", "all"},
+							"description": "Output format of the report",
+							"default":     "json",
+						},
+						"include_audit_log": map[string]any{
+							"type":        "boolean",
+							"description": "Include override details from the developer audit log",
+							"default":     true,
+						},
+					},
+				},
+			},
+			{
+				Name:        "get_recent_package_decisions",
+				Description: "Retrieve recent dependency safety decisions from PkgSafe's audit logs.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"limit": map[string]any{
+							"type":        "integer",
+							"description": "Maximum number of decisions to return",
+							"default":     10,
+						},
+						"ecosystem": map[string]any{
+							"type":        "string",
+							"enum":        []string{"npm", "pypi"},
+							"description": "Filter decisions by package ecosystem",
+						},
+					},
+				},
+			},
+			{
+				Name:        "get_policy_evidence",
+				Description: "Get evidence of active security policies, rules, and control settings.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"policy_pack": map[string]any{
+							"type":        "string",
+							"description": "Optional policy pack name to check",
+						},
+					},
+				},
+			},
 		},
 	}
 }

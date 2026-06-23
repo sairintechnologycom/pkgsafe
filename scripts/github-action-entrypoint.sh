@@ -93,6 +93,18 @@ if [ -f "$JSON_REPORT" ]; then
   echo "json-report=$JSON_REPORT" >> "$GITHUB_OUTPUT"
   echo "sarif-report=$SARIF_REPORT" >> "$GITHUB_OUTPUT"
   echo "markdown-summary=$MD_SUMMARY" >> "$GITHUB_OUTPUT"
+
+  if [ "$INPUT_GENERATE_EVIDENCE_PACK" = "true" ]; then
+    echo "Generating PkgSafe governance evidence..."
+    pkgsafe report generate --repo . --output pkgsafe-report --format all
+    pkgsafe report evidence-pack --repo . --output "$INPUT_EVIDENCE_PACK_OUTPUT"
+    if [ -f "$INPUT_EVIDENCE_PACK_OUTPUT" ]; then
+      echo "evidence-pack=$INPUT_EVIDENCE_PACK_OUTPUT" >> "$GITHUB_OUTPUT"
+      if [ -f "$MD_SUMMARY" ]; then
+        echo -e "\n### Governance Evidence\n- Evidence pack generated: **$INPUT_EVIDENCE_PACK_OUTPUT**" >> "$MD_SUMMARY"
+      fi
+    fi
+  fi
 fi
 
 # Prepend the PR comment marker to markdown summary if comment-pr is enabled

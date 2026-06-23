@@ -116,6 +116,12 @@ func (e *Executor) Handle(req Request) Response {
 			res = e.SuggestSafeAlternative(p.Arguments)
 		case "validate_install_command":
 			res = e.ValidateInstallCommand(p.Arguments)
+		case "generate_governance_report":
+			res = e.GenerateGovernanceReport(p.Arguments)
+		case "get_recent_package_decisions":
+			res = e.GetRecentPackageDecisions(p.Arguments)
+		case "get_policy_evidence":
+			res = e.GetPolicyEvidence(p.Arguments)
 		default:
 			return errResp(req.ID, -32601, "Tool not found: "+p.Name)
 		}

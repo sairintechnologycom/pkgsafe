@@ -81,6 +81,21 @@ inputs:
     required: false
     default: "true"
 
+  generate-evidence-pack:
+    description: "Generate PkgSafe governance evidence pack"
+    required: false
+    default: "true"
+
+  evidence-pack-output:
+    description: "Path to generated evidence pack"
+    required: false
+    default: "pkgsafe-evidence-pack.zip"
+
+  upload-evidence-artifact:
+    description: "Upload evidence pack as workflow artifact"
+    required: false
+    default: "true"
+
   pkgsafe-version:
     description: "PkgSafe version to install"
     required: false
@@ -119,6 +134,10 @@ outputs:
     description: "Path to Markdown summary"
     value: ${{ steps.scan.outputs.markdown-summary }}
 
+  evidence-pack:
+    description: "Path to generated evidence pack ZIP"
+    value: ${{ steps.scan.outputs.evidence-pack }}
+
 runs:
   using: "composite"
   steps:
@@ -153,6 +172,9 @@ runs:
         INPUT_POLICY_PACK: ${{ inputs.policy-pack }}
         INPUT_REGISTRY_CONFIG: ${{ inputs.registry-config }}
         INPUT_ENTERPRISE_MODE: ${{ inputs.enterprise-mode }}
+        INPUT_GENERATE_EVIDENCE_PACK: ${{ inputs.generate-evidence-pack }}
+        INPUT_EVIDENCE_PACK_OUTPUT: ${{ inputs.evidence-pack-output }}
+        INPUT_UPLOAD_EVIDENCE_ARTIFACT: ${{ inputs.upload-evidence-artifact }}
       run: |
         ${{ github.action_path }}/scripts/github-action-entrypoint.sh
 
@@ -161,3 +183,10 @@ runs:
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: ${{ steps.scan.outputs.sarif-report }}
+
+    - name: Upload PkgSafe Evidence Pack
+      if: inputs.generate-evidence-pack == 'true' && inputs.upload-evidence-artifact == 'true' && always() && steps.scan.outputs.evidence-pack != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: pkgsafe-evidence-pack
+        path: ${{ inputs.evidence-pack-output }}

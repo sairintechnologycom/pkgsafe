@@ -83,6 +83,8 @@ func run(args []string) error {
 		return cmdPolicy(args[1:])
 	case "registry":
 		return cmdRegistry(args[1:])
+	case "report":
+		return cmdReport(args[1:])
 	case "mcp":
 		return cmdMCP(args[1:])
 	case "update-db":
@@ -139,6 +141,15 @@ Usage:
   pkgsafe registry list
   pkgsafe registry test <name>
   pkgsafe registry auth status
+  pkgsafe report generate [--repo <path>] [--output <path>] [--format <format>] [--type <type>]
+  pkgsafe report evidence-pack [--repo <path>] [--output <path>]
+  pkgsafe report exceptions [--output <path>]
+  pkgsafe report overrides [--output <path>]
+  pkgsafe report policy [--policy-pack <name>] [--output <path>]
+  pkgsafe report ci [--input <path>] [--output <path>]
+  pkgsafe report siem-export [--output <path>]
+  pkgsafe report servicenow-export [--output <path>]
+  pkgsafe report azure-devops-export [--output <path>]
   pkgsafe mcp serve
   pkgsafe npm <npm-args...>
   pkgsafe pip <pip-args...>
