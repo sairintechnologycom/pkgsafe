@@ -179,6 +179,10 @@ func Default() Policy {
 			"pypi_setup_py_credential_access":        {Enabled: true, Severity: "critical", Score: 100},
 			"pypi_unknown_build_backend":             {Enabled: true, Severity: "medium", Score: 20},
 			"pypi_ai_package_squatting_candidate":    {Enabled: true, Severity: "high", Score: 25},
+			"dependency_confusion_candidate":         {Enabled: true, Severity: "critical", Score: 100},
+			"private_scope_public_registry":          {Enabled: true, Severity: "critical", Score: 100},
+			"http_registry_warning":                  {Enabled: true, Severity: "high", Score: 40},
+			"unapproved_registry_url":                {Enabled: true, Severity: "critical", Score: 100},
 		},
 		BlockPatterns: []string{
 			"~/.aws", "~/.azure", "~/.gcp", "~/.ssh", "~/.kube", "~/.npmrc", "~/.pypirc",
@@ -297,12 +301,22 @@ func Validate(pol Policy) error {
 	if !(t.AllowMaxScore < t.WarnMaxScore && t.WarnMaxScore < t.BlockMinScore) {
 		return fmt.Errorf("thresholds must satisfy allow_max_score < warn_max_score < block_min_score")
 	}
+	defaultPol := Default()
 	for id, rule := range pol.Rules {
 		if strings.TrimSpace(id) == "" {
 			return fmt.Errorf("rule id cannot be empty")
 		}
 		if strings.TrimSpace(rule.Severity) == "" {
 			return fmt.Errorf("rule %s severity is required", id)
+		}
+		if _, exists := defaultPol.Rules[id]; !exists {
+			return fmt.Errorf("unknown rule ID: %s", id)
+		}
+		if rule.Severity != "low" && rule.Severity != "medium" && rule.Severity != "high" && rule.Severity != "critical" && rule.Severity != "informational" {
+			return fmt.Errorf("invalid severity for rule %s: %s", id, rule.Severity)
+		}
+		if rule.Score < -100 || rule.Score > 100 {
+			return fmt.Errorf("invalid score for rule %s: %d", id, rule.Score)
 		}
 	}
 

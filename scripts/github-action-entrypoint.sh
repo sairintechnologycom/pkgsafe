@@ -47,6 +47,20 @@ if [ "$INPUT_OFFLINE" = "true" ]; then
   ARGS+=("--offline")
 fi
 
+if [ -n "$INPUT_POLICY_PACK" ]; then
+  ARGS+=("--policy-pack" "$INPUT_POLICY_PACK")
+fi
+
+if [ -n "$INPUT_REGISTRY_CONFIG" ]; then
+  ARGS+=("--registry-config" "$INPUT_REGISTRY_CONFIG")
+fi
+
+if [ "$INPUT_ENTERPRISE_MODE" = "true" ]; then
+  ARGS+=("--enterprise-mode")
+else
+  ARGS+=("--enterprise-mode=false")
+fi
+
 JSON_REPORT="${RUNNER_TEMP:-/tmp}/pkgsafe-results.json"
 SARIF_REPORT="${RUNNER_TEMP:-/tmp}/pkgsafe-results.sarif"
 MD_SUMMARY="${RUNNER_TEMP:-/tmp}/pkgsafe-summary.md"

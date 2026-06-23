@@ -24,6 +24,12 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 		fmt.Fprintf(w, "Lockfile: %s\n", result.Lockfile)
 	}
 	fmt.Fprintf(w, "Changed Only: %v\n", result.ChangedOnly)
+	if result.PolicyPack != "" {
+		fmt.Fprintf(w, "Policy Pack: %s@%s\n", result.PolicyPack, result.PolicyPackVersion)
+	}
+	if len(result.ExceptionsUsed) > 0 {
+		fmt.Fprintf(w, "Exceptions Used: %s\n", strings.Join(result.ExceptionsUsed, ", "))
+	}
 	fmt.Fprintf(w, "Packages Scanned: %d\n", result.Summary.PackagesScanned)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Summary:")
@@ -60,6 +66,34 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 			fmt.Fprintf(w, "   Reason: %s\n", topReason)
 			fmt.Fprintln(w)
 		}
+	}
+
+	var registryMismatches []string
+	var dependencyConfusions []string
+	for _, f := range result.Findings {
+		for _, r := range f.Reasons {
+			if r.ID == "private_scope_public_registry" || r.ID == "unapproved_registry_url" {
+				registryMismatches = append(registryMismatches, fmt.Sprintf("%s@%s (%s)", f.Package, f.Version, r.Description))
+			}
+			if r.ID == "dependency_confusion_candidate" {
+				dependencyConfusions = append(dependencyConfusions, fmt.Sprintf("%s@%s (%s)", f.Package, f.Version, r.Description))
+			}
+		}
+	}
+
+	if len(registryMismatches) > 0 {
+		fmt.Fprintln(w, "Private Registry Mismatches:")
+		for _, m := range uniqueStrings(registryMismatches) {
+			fmt.Fprintf(w, "- %s\n", m)
+		}
+		fmt.Fprintln(w)
+	}
+	if len(dependencyConfusions) > 0 {
+		fmt.Fprintln(w, "Dependency Confusion Candidates:")
+		for _, c := range uniqueStrings(dependencyConfusions) {
+			fmt.Fprintf(w, "- %s\n", c)
+		}
+		fmt.Fprintln(w)
 	}
 
 	fmt.Fprintln(w, "Recommended Action:")
@@ -268,6 +302,12 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 	fmt.Fprintf(&sb, "**Decision:** %s  \n", strings.ToUpper(result.Decision))
 	fmt.Fprintf(&sb, "**Mode:** %s  \n", strings.ToUpper(result.Mode))
 	fmt.Fprintf(&sb, "**Fail On:** %s  \n", strings.ToUpper(result.FailOn))
+	if result.PolicyPack != "" {
+		fmt.Fprintf(&sb, "**Policy Pack:** %s@%s  \n", result.PolicyPack, result.PolicyPackVersion)
+	}
+	if len(result.ExceptionsUsed) > 0 {
+		fmt.Fprintf(&sb, "**Exceptions Used:** %s  \n", strings.Join(result.ExceptionsUsed, ", "))
+	}
 	fmt.Fprintf(&sb, "**Packages Scanned:** %d  \n\n", result.Summary.PackagesScanned)
 
 	var issues []Finding
@@ -307,6 +347,35 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 		sb.WriteString("Review warning dependencies before merging.\n")
 	} else {
 		sb.WriteString("All packages are allowed by policy.\n")
+	}
+	sb.WriteString("\n")
+
+	var registryMismatches []string
+	var dependencyConfusions []string
+	for _, f := range result.Findings {
+		for _, r := range f.Reasons {
+			if r.ID == "private_scope_public_registry" || r.ID == "unapproved_registry_url" {
+				registryMismatches = append(registryMismatches, fmt.Sprintf("%s@%s (%s)", f.Package, f.Version, r.Description))
+			}
+			if r.ID == "dependency_confusion_candidate" {
+				dependencyConfusions = append(dependencyConfusions, fmt.Sprintf("%s@%s (%s)", f.Package, f.Version, r.Description))
+			}
+		}
+	}
+
+	if len(registryMismatches) > 0 {
+		sb.WriteString("### Private Registry Mismatches\n\n")
+		for _, m := range uniqueStrings(registryMismatches) {
+			fmt.Fprintf(&sb, "- %s\n", m)
+		}
+		sb.WriteString("\n")
+	}
+	if len(dependencyConfusions) > 0 {
+		sb.WriteString("### Dependency Confusion Candidates\n\n")
+		for _, c := range uniqueStrings(dependencyConfusions) {
+			fmt.Fprintf(&sb, "- %s\n", c)
+		}
+		sb.WriteString("\n")
 	}
 
 	return os.WriteFile(path, []byte(sb.String()), 0o644)

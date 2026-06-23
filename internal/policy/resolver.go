@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func ResolvePolicy(packName string, repoPolicyPath string, cliPolicyPath string, cliMode string) (Policy, error) {
+func ResolvePolicy(packName string, repoPolicyPath string, cliPolicyPath string, cliMode string, registryConfigPath string) (Policy, error) {
 	pol := Default()
 
 	// 1. Load installed policy pack if specified
@@ -53,6 +53,19 @@ func ResolvePolicy(packName string, repoPolicyPath string, cliPolicyPath string,
 		if err != nil {
 			return Policy{}, err
 		}
+	}
+
+	// 5. CLI registry config override
+	if registryConfigPath != "" {
+		regBytes, err := os.ReadFile(registryConfigPath)
+		if err != nil {
+			return Policy{}, fmt.Errorf("read registry config %q: %w", registryConfigPath, err)
+		}
+		var regCfg RegistriesConfig
+		if err := yaml.Unmarshal(regBytes, &regCfg); err != nil {
+			return Policy{}, fmt.Errorf("parse registry config %q: %w", registryConfigPath, err)
+		}
+		pol.Registries = regCfg
 	}
 
 	return pol, nil

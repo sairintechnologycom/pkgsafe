@@ -20,4 +20,6 @@ type ScanOptions struct {
 	Offline              bool
 	Timeout              time.Duration
 	PolicyPack           string
+	RegistryConfigPath   string
+	EnterpriseMode       bool
 }

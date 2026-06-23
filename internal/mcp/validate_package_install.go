@@ -107,7 +107,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 	if p.ProjectPath != "" {
 		repoPath = filepath.Join(p.ProjectPath, ".pkgsafe/policy.yaml")
 	}
-	pol, err := policy.ResolvePolicy(p.PolicyPack, repoPath, e.PolicyPath, p.Mode)
+	pol, err := policy.ResolvePolicy(p.PolicyPack, repoPath, e.PolicyPath, p.Mode, "")
 	if err != nil {
 		return CallToolResult{
 			Content: []ToolContent{{

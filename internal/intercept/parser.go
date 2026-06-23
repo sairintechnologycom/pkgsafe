@@ -18,11 +18,15 @@ type SafetyFlags struct {
 	PolicyPack       string
 	RequestedBy      string
 	Environment      string
+	RegistryConfig   string
+	EnterpriseMode   bool
 }
 
 func ExtractSafetyFlags(args []string) ([]string, SafetyFlags) {
 	var cleanArgs []string
-	var sf SafetyFlags
+	sf := SafetyFlags{
+		EnterpriseMode: true,
+	}
 	i := 0
 	for i < len(args) {
 		arg := args[i]
@@ -79,6 +83,18 @@ func ExtractSafetyFlags(args []string) ([]string, SafetyFlags) {
 			i += 2
 		} else if strings.HasPrefix(arg, "--reason=") {
 			sf.Reason = strings.TrimPrefix(arg, "--reason=")
+			i++
+		} else if arg == "--registry-config" && i+1 < len(args) {
+			sf.RegistryConfig = args[i+1]
+			i += 2
+		} else if strings.HasPrefix(arg, "--registry-config=") {
+			sf.RegistryConfig = strings.TrimPrefix(arg, "--registry-config=")
+			i++
+		} else if arg == "--enterprise-mode" {
+			sf.EnterpriseMode = true
+			i++
+		} else if arg == "--no-enterprise-mode" || arg == "--enterprise-mode=false" {
+			sf.EnterpriseMode = false
 			i++
 		} else {
 			cleanArgs = append(cleanArgs, arg)

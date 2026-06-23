@@ -66,6 +66,21 @@ inputs:
     required: false
     default: "true"
 
+  policy-pack:
+    description: "Installed or bundled PkgSafe policy pack name/path"
+    required: false
+    default: ""
+
+  registry-config:
+    description: "Path to registries.yaml"
+    required: false
+    default: ""
+
+  enterprise-mode:
+    description: "Enable enterprise evidence output"
+    required: false
+    default: "true"
+
   pkgsafe-version:
     description: "PkgSafe version to install"
     required: false
@@ -135,6 +150,9 @@ runs:
         INPUT_SANDBOX: ${{ inputs.sandbox }}
         INPUT_OFFLINE: ${{ inputs.offline }}
         INPUT_COMMENT_PR: ${{ inputs.comment-pr }}
+        INPUT_POLICY_PACK: ${{ inputs.policy-pack }}
+        INPUT_REGISTRY_CONFIG: ${{ inputs.registry-config }}
+        INPUT_ENTERPRISE_MODE: ${{ inputs.enterprise-mode }}
       run: |
         ${{ github.action_path }}/scripts/github-action-entrypoint.sh
 

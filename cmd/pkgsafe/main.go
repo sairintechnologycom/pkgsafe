@@ -158,13 +158,15 @@ func cmdScanPyPIPackage(args []string) error {
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	sandbox := fs.Bool("sandbox", false, "return PyPI sandbox unsupported note")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		return errors.New("package name is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack)
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -178,6 +180,7 @@ func cmdScanPyPIPackage(args []string) error {
 	if err != nil {
 		return err
 	}
+	res = stripEnterprise(res, *enterpriseMode)
 	_ = saveResult(res)
 	return output.Write(os.Stdout, res, *asJSON)
 }
@@ -189,13 +192,15 @@ func cmdScanPythonDeps(args []string) error {
 	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		return errors.New("dependency file path is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack)
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -215,6 +220,7 @@ func cmdScanPythonDeps(args []string) error {
 		if err != nil {
 			return fmt.Errorf("scan dependency %s: %w", dep.Name, err)
 		}
+		res = stripEnterprise(res, *enterpriseMode)
 		_ = saveResult(res)
 		results = append(results, res)
 	}
@@ -244,6 +250,8 @@ func cmdScanLocalNPM(args []string) error {
 	timeout := fs.Duration("timeout", 10*time.Second, "sandbox execution timeout")
 	network := fs.String("network", "disabled", "network mode (disabled, limited, host)")
 	keepSandbox := fs.Bool("keep-sandbox", false, "keep sandbox directory after execution")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
@@ -251,7 +259,7 @@ func cmdScanLocalNPM(args []string) error {
 	if fs.NArg() != 1 {
 		return errors.New("directory is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack)
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -305,6 +313,7 @@ func cmdScanLocalNPM(args []string) error {
 	if err != nil {
 		return err
 	}
+	res = stripEnterprise(res, *enterpriseMode)
 	_ = saveResult(res)
 	return output.Write(os.Stdout, res, *asJSON)
 }
@@ -321,6 +330,8 @@ func cmdScanNPMPackage(args []string) error {
 	timeout := fs.Duration("timeout", 10*time.Second, "sandbox execution timeout")
 	network := fs.String("network", "disabled", "network mode (disabled, limited, host)")
 	keepSandbox := fs.Bool("keep-sandbox", false, "keep sandbox directory after execution")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
@@ -328,7 +339,7 @@ func cmdScanNPMPackage(args []string) error {
 	if fs.NArg() != 1 {
 		return errors.New("package name is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack)
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -385,6 +396,7 @@ func cmdScanNPMPackage(args []string) error {
 	if err != nil {
 		return err
 	}
+	res = stripEnterprise(res, *enterpriseMode)
 	_ = saveResult(res)
 	return output.Write(os.Stdout, res, *asJSON)
 }
@@ -396,13 +408,15 @@ func cmdScanLockfile(args []string) error {
 	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	_ = fs.Bool("offline", false, "run scan offline using cached database")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		return errors.New("lockfile path is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack)
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -410,6 +424,7 @@ func cmdScanLockfile(args []string) error {
 	if err != nil {
 		return err
 	}
+	res = stripEnterprise(res, *enterpriseMode)
 	return output.Write(os.Stdout, res, *asJSON)
 }
 
@@ -421,6 +436,8 @@ func cmdExplain(args []string) error {
 	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run explain offline using cached database")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -428,7 +445,7 @@ func cmdExplain(args []string) error {
 		return errors.New("package name is required")
 	}
 	pkgName := fs.Arg(0)
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack)
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -443,10 +460,12 @@ func cmdExplain(args []string) error {
 	res, err := scanner.ScanPackage(pkgName, *ver)
 	if err != nil {
 		if hasCached {
+			cached = stripEnterprise(cached, *enterpriseMode)
 			return output.Write(os.Stdout, cached, *asJSON)
 		}
 		return err
 	}
+	res = stripEnterprise(res, *enterpriseMode)
 	_ = saveResult(res)
 	if *asJSON {
 		return output.Write(os.Stdout, res, true)
@@ -463,6 +482,8 @@ func cmdExplainPyPI(args []string) error {
 	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run explain offline using cached database")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -470,7 +491,7 @@ func cmdExplainPyPI(args []string) error {
 		return errors.New("package name is required")
 	}
 	pkgName := fs.Arg(0)
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack)
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -485,10 +506,12 @@ func cmdExplainPyPI(args []string) error {
 	res, err := scanner.ScanPackage(pkgName, *ver)
 	if err != nil {
 		if hasCached {
+			cached = stripEnterprise(cached, *enterpriseMode)
 			return output.Write(os.Stdout, cached, *asJSON)
 		}
 		return err
 	}
+	res = stripEnterprise(res, *enterpriseMode)
 	_ = saveResult(res)
 	if *asJSON {
 		return output.Write(os.Stdout, res, true)
@@ -504,6 +527,8 @@ func cmdNPMInstall(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	policyPack := fs.String("policy-pack", "", "policy pack name")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -511,7 +536,7 @@ func cmdNPMInstall(args []string) error {
 		return errors.New("package name is required")
 	}
 	pkgName := fs.Arg(0)
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack)
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -519,6 +544,7 @@ func cmdNPMInstall(args []string) error {
 	if err != nil {
 		return err
 	}
+	res = stripEnterprise(res, *enterpriseMode)
 	_ = saveResult(res)
 	if err := output.Write(os.Stdout, res, *asJSON); err != nil {
 		return err
@@ -577,12 +603,22 @@ func scanRemoteNPM(name, version string, pol policy.Policy) (types.ScanResult, e
 	return scanner.ScanPackage(name, version)
 }
 
-func loadPolicy(path, mode, policyPack string) (policy.Policy, error) {
-	pol, err := policy.ResolvePolicy(policyPack, "", path, mode)
+func loadPolicy(path, mode, policyPack, registryConfig string) (policy.Policy, error) {
+	pol, err := policy.ResolvePolicy(policyPack, "", path, mode, registryConfig)
 	if err != nil {
 		return policy.Policy{}, err
 	}
 	return pol, nil
+}
+
+func stripEnterprise(res types.ScanResult, enabled bool) types.ScanResult {
+	if !enabled {
+		res.PolicyInfo = nil
+		res.RegistryInfo = nil
+		res.TrustInfo = nil
+		res.ExceptionInfo = nil
+	}
+	return res
 }
 
 func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, hasCached bool, pol policy.Policy) {
@@ -757,7 +793,7 @@ func flagNeedsValue(arg string) bool {
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network",
-		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack":
+		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config":
 		return true
 	default:
 		return false
@@ -781,6 +817,8 @@ func cmdCIScan(args []string) error {
 	sandbox := fs.Bool("sandbox", false, "enable sandbox execution")
 	offline := fs.Bool("offline", false, "use offline database only")
 	timeout := fs.Duration("timeout", 0, "sandbox timeout")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return exitError{code: ci.ExitUsageError, err: err}
@@ -814,6 +852,8 @@ func cmdCIScan(args []string) error {
 		Offline:              *offline,
 		Timeout:              *timeout,
 		PolicyPack:           *policyPack,
+		RegistryConfigPath:   *registryConfig,
+		EnterpriseMode:       *enterpriseMode,
 	}
 
 	res, err := ci.RunScan(opts)

@@ -19,6 +19,7 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/registry"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
 	"github.com/niyam-ai/pkgsafe/internal/types"
+	"gopkg.in/yaml.v3"
 )
 
 func createTestTarGz(t *testing.T, files map[string][]byte) string {
@@ -462,3 +463,216 @@ func TestOfflineBundles(t *testing.T) {
 		t.Fatalf("installing from bundle failed: %v", reinstallErr)
 	}
 }
+
+func TestPolicyValidationInvalidRule(t *testing.T) {
+	// Unknown rule ID validation check
+	pol1 := policy.Default()
+	pol1.Rules["unknown-rule-xyz"] = policy.Rule{
+		Enabled:  true,
+		Severity: "high",
+		Score:    50,
+	}
+	err1 := policy.Validate(pol1)
+	if err1 == nil {
+		t.Fatal("expected policy validation to fail for unknown rule ID")
+	}
+
+	// Invalid severity validation check
+	pol2 := policy.Default()
+	pol2.Rules["known_malware_indicator"] = policy.Rule{
+		Enabled:  true,
+		Severity: "invalid-severity",
+		Score:    100,
+	}
+	err2 := policy.Validate(pol2)
+	if err2 == nil {
+		t.Fatal("expected policy validation to fail for invalid severity")
+	}
+
+	// Invalid score validation check
+	pol3 := policy.Default()
+	pol3.Rules["known_malware_indicator"] = policy.Rule{
+		Enabled:  true,
+		Severity: "critical",
+		Score:    999,
+	}
+	err3 := policy.Validate(pol3)
+	if err3 == nil {
+		t.Fatal("expected policy validation to fail for invalid score")
+	}
+}
+
+func TestTrustedPyPIPackageByPrefix(t *testing.T) {
+	pol := policy.Default()
+	pol.TrustedPackageRules = []policy.TrustedPackageRule{
+		{
+			Name:         "company-*",
+			Registry:     "company",
+			Reason:       "Approved company package prefix",
+			VersionRange: "*",
+		},
+	}
+
+	rule, matched := policy.FindTrustedPackageRule(pol, "pypi", "company-core", "1.0.0", "company")
+	if !matched || rule.Name != "company-*" {
+		t.Errorf("expected PyPI prefix matching rule to match 'company-core'")
+	}
+}
+
+func TestExpiredExceptionDoesNotApply(t *testing.T) {
+	pol := policy.Default()
+	pol.Exceptions = []policy.Exception{
+		{
+			ID:                 "EXC-EXPIRED",
+			Ecosystem:          "npm",
+			Package:            "expired-package",
+			VersionRange:       "*",
+			AllowedUntil:       time.Now().Add(-24 * time.Hour), // Expired!
+			Reason:             "Should not apply",
+			MaxDecisionAllowed: "warn",
+			ApprovedBy:         "security@company.com",
+		},
+	}
+
+	pkg := types.PackageIdentity{Ecosystem: "npm", Name: "expired-package", Version: "1.0.0"}
+	_, matched := policy.FindActiveException(pol, pkg, "developer")
+	if matched {
+		t.Fatalf("expected expired exception to not match active list")
+	}
+
+	res := types.ScanResult{
+		Package:  pkg,
+		Score:    85,
+		Decision: types.DecisionBlock,
+	}
+	res = risk.ApplyEnterpriseControls(res, pol, "default", policy.RegistryConfig{Type: "public"}, "human", "developer")
+
+	if res.Decision != types.DecisionBlock {
+		t.Errorf("expected ScanResult to remain blocked since the exception is expired, got %s", res.Decision)
+	}
+}
+
+func TestExceptionCannotOverrideKnownMalware(t *testing.T) {
+	pol := policy.Default()
+	pol.Exceptions = []policy.Exception{
+		{
+			ID:                 "EXC-ALLOW-ALL",
+			Ecosystem:          "npm",
+			Package:            "malicious-pkg",
+			VersionRange:       "*",
+			AllowedUntil:       time.Now().Add(24 * time.Hour),
+			Reason:             "Try to override malware",
+			MaxDecisionAllowed: "warn",
+			ApprovedBy:         "security@company.com",
+		},
+	}
+
+	pkg := types.PackageIdentity{Ecosystem: "npm", Name: "malicious-pkg", Version: "1.0.0"}
+	res := types.ScanResult{
+		Package:  pkg,
+		Score:    100,
+		Decision: types.DecisionBlock,
+		Reasons: []types.Reason{
+			{
+				ID:          "known_malware_indicator",
+				Severity:    "critical",
+				Description: "Contains known malware",
+				ScoreImpact: 100,
+			},
+		},
+	}
+
+	res = risk.ApplyEnterpriseControls(res, pol, "default", policy.RegistryConfig{Type: "public"}, "human", "developer")
+	if res.Decision != types.DecisionBlock {
+		t.Errorf("expected exception to NOT downgrade block to warn when known malware is present, got %s", res.Decision)
+	}
+}
+
+func TestRegistryConfigParsing(t *testing.T) {
+	// Parse registries.yaml content
+	registriesYAML := `
+registries:
+  npm:
+    company:
+      url: "https://npm.company.com/"
+      type: private
+      enabled: true
+      scopes:
+        - "@company"
+      auth:
+        method: env_token
+        token_env: "COMPANY_NPM_TOKEN"
+`
+	var regMap map[string]map[string]interface{}
+	err := yaml.Unmarshal([]byte(registriesYAML), &regMap)
+	if err != nil {
+		t.Fatalf("failed to parse registries YAML: %v", err)
+	}
+
+	regs, exists := regMap["registries"]
+	if !exists {
+		t.Fatal("missing registries section")
+	}
+
+	npmRegs := regs["npm"].(map[string]interface{})
+	companyReg := npmRegs["company"].(map[string]interface{})
+	if companyReg["url"] != "https://npm.company.com/" {
+		t.Errorf("unexpected registry url: %v", companyReg["url"])
+	}
+}
+
+func TestHTTPRegistryWarning(t *testing.T) {
+	pol := policy.Default()
+	pkg := types.PackageIdentity{Ecosystem: "npm", Name: "test-pkg", Version: "1.0.0"}
+	
+	// Unsecure HTTP registry URL
+	res := types.ScanResult{
+		Package:  pkg,
+		Score:    0,
+		Decision: types.DecisionAllow,
+	}
+
+	res = risk.ApplyEnterpriseControls(res, pol, "custom-http", policy.RegistryConfig{Type: "private", URL: "http://npm.insecure.com/"}, "human", "developer")
+	
+	hasHTTPWarning := false
+	for _, r := range res.Reasons {
+		if r.ID == "http_registry_warning" {
+			hasHTTPWarning = true
+			break
+		}
+	}
+	if !hasHTTPWarning {
+		t.Errorf("expected http_registry_warning reason for insecure URL")
+	}
+}
+
+func TestUnapprovedRegistryURLBlocked(t *testing.T) {
+	pol := policy.Default()
+	pkg := types.PackageIdentity{Ecosystem: "npm", Name: "test-pkg", Version: "1.0.0"}
+	res := types.ScanResult{
+		Package:  pkg,
+		Score:    0,
+		Decision: types.DecisionAllow,
+	}
+
+	// Passing empty registry name signifies unapproved URL
+	res = risk.ApplyEnterpriseControls(res, pol, "", policy.RegistryConfig{Type: "unknown", URL: "https://npm.unapproved.com/"}, "human", "developer")
+	if res.Decision != types.DecisionBlock {
+		t.Errorf("expected package from unapproved registry to be blocked, got %s", res.Decision)
+	}
+}
+
+func TestTokensRedacted(t *testing.T) {
+	secretURL := "https://myusername:mypassword@npm.company.com/path"
+	redactedURL := registry.RedactURL(secretURL)
+	if strings.Contains(redactedURL, "myusername") || strings.Contains(redactedURL, "mypassword") {
+		t.Errorf("expected URL secrets to be redacted: %s", redactedURL)
+	}
+
+	secretOutput := "Bearer abc123def456xyz"
+	redactedOutput := registry.RedactSecrets(secretOutput)
+	if strings.Contains(redactedOutput, "abc123def456xyz") {
+		t.Errorf("expected bearer token to be redacted: %s", redactedOutput)
+	}
+}
+

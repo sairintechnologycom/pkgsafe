@@ -27,7 +27,7 @@ func (e ScanError) Error() string {
 
 func RunScan(opts ScanOptions) (*ScanResult, error) {
 	// 1. Load Policy
-	pol, err := policy.ResolvePolicy(opts.PolicyPack, "", opts.PolicyPath, opts.Mode)
+	pol, err := policy.ResolvePolicy(opts.PolicyPack, "", opts.PolicyPath, opts.Mode, opts.RegistryConfigPath)
 	if err != nil {
 		return nil, ScanError{Err: fmt.Errorf("load policy: %w", err), ExitCode: ExitPolicyError}
 	}
@@ -198,6 +198,17 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 			})
 		}
 
+		var fPolicy *types.PolicyEvidence
+		var fRegistry *types.RegistryEvidence
+		var fTrust *types.TrustEvidence
+		var fException *types.ExceptionEvidence
+		if opts.EnterpriseMode {
+			fPolicy = res.PolicyInfo
+			fRegistry = res.RegistryInfo
+			fTrust = res.TrustInfo
+			fException = res.ExceptionInfo
+		}
+
 		findings = append(findings, Finding{
 			Ecosystem:       "npm",
 			Package:         dep.Name,
@@ -214,6 +225,10 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 				CriticalFindingsCount: critSandboxFindings,
 			},
 			RecommendedAction: recommendedActionForFinding(res),
+			Policy:            fPolicy,
+			Registry:          fRegistry,
+			Trust:             fTrust,
+			Exception:         fException,
 		})
 	}
 
@@ -242,19 +257,35 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		}
 	}
 
+	var policyPack, policyPackVersion string
+	var exceptionsUsed []string
+	if opts.EnterpriseMode {
+		policyPack = pol.PolicyPackName
+		policyPackVersion = pol.PolicyPackVersion
+		for _, f := range findings {
+			if f.Exception != nil && f.Exception.Matched {
+				exceptionsUsed = append(exceptionsUsed, f.Exception.RuleID)
+			}
+		}
+		exceptionsUsed = uniqueStrings(exceptionsUsed)
+	}
+
 	return &ScanResult{
-		SchemaVersion: "1.0",
-		Tool:          "pkgsafe",
-		Command:       "ci scan",
-		Mode:          string(pol.Mode),
-		FailOn:        failOn,
-		Decision:      overallDecision,
-		Lockfile:      lockfile,
-		Ecosystem:     "npm",
-		ChangedOnly:   isChangedOnlyScan,
-		Baseline:      opts.Baseline,
-		Summary:       summary,
-		Findings:      findings,
+		SchemaVersion:     "1.0",
+		Tool:              "pkgsafe",
+		Command:           "ci scan",
+		Mode:              string(pol.Mode),
+		FailOn:            failOn,
+		Decision:          overallDecision,
+		Lockfile:          lockfile,
+		Ecosystem:         "npm",
+		ChangedOnly:       isChangedOnlyScan,
+		Baseline:          opts.Baseline,
+		Summary:           summary,
+		Findings:          findings,
+		PolicyPack:        policyPack,
+		PolicyPackVersion: policyPackVersion,
+		ExceptionsUsed:    exceptionsUsed,
 	}, nil
 }
 
@@ -297,6 +328,17 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 		default:
 			summary.Allow++
 		}
+		var fPolicy *types.PolicyEvidence
+		var fRegistry *types.RegistryEvidence
+		var fTrust *types.TrustEvidence
+		var fException *types.ExceptionEvidence
+		if opts.EnterpriseMode {
+			fPolicy = res.PolicyInfo
+			fRegistry = res.RegistryInfo
+			fTrust = res.TrustInfo
+			fException = res.ExceptionInfo
+		}
+
 		findings = append(findings, Finding{
 			Ecosystem:         "pypi",
 			Package:           res.Package.Name,
@@ -309,6 +351,10 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 			Vulnerabilities:   res.Vulnerabilities,
 			Sandbox:           SandboxSummary{Enabled: res.Sandbox.Enabled, Available: res.Sandbox.Available},
 			RecommendedAction: recommendedActionForFinding(res),
+			Policy:            fPolicy,
+			Registry:          fRegistry,
+			Trust:             fTrust,
+			Exception:         fException,
 		})
 	}
 	overallDecision := "allow"
@@ -317,20 +363,36 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 	} else if summary.Warn > 0 {
 		overallDecision = "warn"
 	}
+	var policyPack, policyPackVersion string
+	var exceptionsUsed []string
+	if opts.EnterpriseMode {
+		policyPack = pol.PolicyPackName
+		policyPackVersion = pol.PolicyPackVersion
+		for _, f := range findings {
+			if f.Exception != nil && f.Exception.Matched {
+				exceptionsUsed = append(exceptionsUsed, f.Exception.RuleID)
+			}
+		}
+		exceptionsUsed = uniqueStrings(exceptionsUsed)
+	}
+
 	return &ScanResult{
-		SchemaVersion:   "1.0",
-		Tool:            "pkgsafe",
-		Command:         "ci scan",
-		Mode:            string(pol.Mode),
-		FailOn:          failOn,
-		Decision:        overallDecision,
-		Lockfile:        firstFile(files),
-		DependencyFiles: files,
-		Ecosystem:       "pypi",
-		ChangedOnly:     false,
-		Baseline:        opts.Baseline,
-		Summary:         summary,
-		Findings:        findings,
+		SchemaVersion:     "1.0",
+		Tool:              "pkgsafe",
+		Command:           "ci scan",
+		Mode:              string(pol.Mode),
+		FailOn:            failOn,
+		Decision:          overallDecision,
+		Lockfile:          firstFile(files),
+		DependencyFiles:   files,
+		Ecosystem:         "pypi",
+		ChangedOnly:       false,
+		Baseline:          opts.Baseline,
+		Summary:           summary,
+		Findings:          findings,
+		PolicyPack:        policyPack,
+		PolicyPackVersion: policyPackVersion,
+		ExceptionsUsed:    exceptionsUsed,
 	}, nil
 }
 
