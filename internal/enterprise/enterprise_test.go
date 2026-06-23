@@ -170,6 +170,69 @@ func TestPolicyPackVerifyChecksumFailure(t *testing.T) {
 	}
 }
 
+func TestPolicyPackPathTraversal(t *testing.T) {
+	metaJSON := `{
+		"schema_version": "1.0",
+		"name": "enterprise-standard",
+		"version": "2026.06.01"
+	}`
+
+	checksumsText := ""
+	h := sha256.New()
+	h.Write([]byte(metaJSON))
+	checksumsText += fmt.Sprintf("%s  metadata.json\n", hex.EncodeToString(h.Sum(nil)))
+
+	packFiles := map[string][]byte{
+		"metadata.json":           []byte(metaJSON),
+		"checksums.txt":           []byte(checksumsText),
+		"../../evil-file.txt":     []byte("malicious content"),
+	}
+
+	tarGzPath := createTestTarGz(t, packFiles)
+
+	_, err := enterprise.VerifyPolicyPack(tarGzPath)
+	if err == nil {
+		t.Fatalf("expected verification failure due to path traversal entry")
+	}
+	if !strings.Contains(err.Error(), "unsafe file path in policy pack") {
+		t.Errorf("expected unsafe path error, got %v", err)
+	}
+}
+
+func TestPolicyPackExtractedSizeLimit(t *testing.T) {
+	metaJSON := `{
+		"schema_version": "1.0",
+		"name": "enterprise-standard",
+		"version": "2026.06.01"
+	}`
+
+	largeFileContent := make([]byte, 51*1024*1024) // 51 MB, exceeding 50 MB limit
+
+	checksumsText := ""
+	h := sha256.New()
+	h.Write([]byte(metaJSON))
+	checksumsText += fmt.Sprintf("%s  metadata.json\n", hex.EncodeToString(h.Sum(nil)))
+	h2 := sha256.New()
+	h2.Write(largeFileContent)
+	checksumsText += fmt.Sprintf("%s  large.db\n", hex.EncodeToString(h2.Sum(nil)))
+
+	packFiles := map[string][]byte{
+		"metadata.json": []byte(metaJSON),
+		"checksums.txt": []byte(checksumsText),
+		"large.db":      largeFileContent,
+	}
+
+	tarGzPath := createTestTarGz(t, packFiles)
+
+	_, err := enterprise.VerifyPolicyPack(tarGzPath)
+	if err == nil {
+		t.Fatalf("expected verification failure due to size limit exceeded")
+	}
+	if !strings.Contains(err.Error(), "policy pack extracted size exceeds limit") {
+		t.Errorf("expected size limit error, got %v", err)
+	}
+}
+
 func TestPolicyPackExpiredAndMinVersion(t *testing.T) {
 	// 1. Expired pack check
 	expiredMeta := enterprise.Metadata{

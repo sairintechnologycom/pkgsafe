@@ -35,11 +35,27 @@ func CleanEnv(sandboxRoot string) []string {
 		blacklistMap[strings.ToUpper(k)] = true
 	}
 
+	// Blacklist generic secret keywords to block dynamically-named keys
+	secretKeywords := []string{
+		"SECRET", "TOKEN", "KEY", "PASSWORD", "PASS", "AUTH", "CREDENTIAL", "SIGNATURE", "PRIVATE", "JWT",
+	}
+
 	for _, e := range os.Environ() {
 		parts := strings.SplitN(e, "=", 2)
 		if len(parts) > 0 {
 			k := strings.ToUpper(parts[0])
 			if blacklistMap[k] {
+				continue
+			}
+			// Skip dynamic secrets
+			isSecret := false
+			for _, kw := range secretKeywords {
+				if strings.Contains(k, kw) {
+					isSecret = true
+					break
+				}
+			}
+			if isSecret {
 				continue
 			}
 		}
@@ -57,6 +73,9 @@ func CleanEnv(sandboxRoot string) []string {
 		"TMPDIR="+filepath.Join(absRoot, "tmp"),
 		"TEMP="+filepath.Join(absRoot, "tmp"),
 		"TMP="+filepath.Join(absRoot, "tmp"),
+		"XDG_CONFIG_HOME="+filepath.Join(absRoot, "home", ".config"),
+		"XDG_CACHE_HOME="+filepath.Join(absRoot, "home", ".cache"),
+		"XDG_DATA_HOME="+filepath.Join(absRoot, "home", ".local", "share"),
 	)
 	return env
 }

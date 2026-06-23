@@ -5,10 +5,12 @@ import (
 	"compress/gzip"
 	"crypto/sha512"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -124,6 +126,72 @@ func TestExtractTarballSkipsTraversalEntries(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dest, "evil-win.txt")); !os.IsNotExist(err) {
 		t.Fatalf("expected windows traversal entry to be skipped, stat err=%v", err)
+	}
+}
+
+func TestExtractTarballFileLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "too_many_files.tgz")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	for i := 0; i <= MaxExtractedFiles; i++ {
+		name := fmt.Sprintf("package/file%d.js", i)
+		if err := tw.WriteHeader(&tar.Header{
+			Name: name,
+			Mode: 0o644,
+			Size: 1,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write([]byte("a")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = tw.Close()
+	_ = gz.Close()
+	_ = f.Close()
+
+	dest := t.TempDir()
+	err = ExtractTarball(path, dest)
+	if err == nil {
+		t.Fatal("expected failure due to too many files limit")
+	}
+	if !strings.Contains(err.Error(), "artifact has too many files") {
+		t.Fatalf("expected too many files error, got %v", err)
+	}
+}
+
+func TestExtractTarballSizeLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "too_large.tgz")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	// Write header indicating 101MB file
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "package/huge.bin",
+		Mode: 0o644,
+		Size: MaxExtractedBytes + 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// We don't even write the bytes, we close the archive.
+	_ = tw.Close()
+	_ = gz.Close()
+	_ = f.Close()
+
+	dest := t.TempDir()
+	err = ExtractTarball(path, dest)
+	if err == nil {
+		t.Fatal("expected failure due to file size limit")
+	}
+	if !strings.Contains(err.Error(), "artifact extracted size exceeds limit") {
+		t.Fatalf("expected size limit error, got %v", err)
 	}
 }
 

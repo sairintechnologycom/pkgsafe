@@ -98,6 +98,17 @@ func TestReportGenerationAndExporters(t *testing.T) {
 	pol.PolicyPackOwner = "Platform Engineering"
 	pol.PolicyPackSource = "policy-pack"
 
+	// Mock registries config with credentials in URL
+	pol.Registries.Registries = map[string]map[string]policy.RegistryConfig{
+		"npm": {
+			"default": {
+				URL:     "https://user:password@registry.npmjs.org/",
+				Type:    "public",
+				Enabled: true,
+			},
+		},
+	}
+
 	// Mock active & expired exceptions
 	pol.Exceptions = []policy.Exception{
 		{
@@ -269,6 +280,7 @@ func TestReportGenerationAndExporters(t *testing.T) {
 		defer rZip.Close()
 
 		foundManifest := false
+		foundPolicy := false
 		for _, f := range rZip.File {
 			if f.Name == "pkgsafe-evidence-pack/manifest.json" {
 				foundManifest = true
@@ -290,9 +302,33 @@ func TestReportGenerationAndExporters(t *testing.T) {
 					t.Errorf("manifest has 0 files listed")
 				}
 			}
+			if f.Name == "pkgsafe-evidence-pack/raw/policy-effective.json" {
+				foundPolicy = true
+				rc, err := f.Open()
+				if err != nil {
+					t.Fatalf("failed to open policy-effective.json inside zip: %v", err)
+				}
+				b, _ := io.ReadAll(rc)
+				rc.Close()
+
+				var loadedPol policy.Policy
+				if err := json.Unmarshal(b, &loadedPol); err != nil {
+					t.Fatalf("failed to parse policy-effective.json: %v", err)
+				}
+				urlVal := loadedPol.Registries.Registries["npm"]["default"].URL
+				if strings.Contains(urlVal, "password") {
+					t.Errorf("expected registry URL to be redacted, but got %q", urlVal)
+				}
+				if !strings.Contains(urlVal, "[REDACTED]") {
+					t.Errorf("expected registry URL to contain [REDACTED], but got %q", urlVal)
+				}
+			}
 		}
 		if !foundManifest {
 			t.Errorf("manifest.json not found in ZIP pack")
+		}
+		if !foundPolicy {
+			t.Errorf("policy-effective.json not found in ZIP pack")
 		}
 	})
 }

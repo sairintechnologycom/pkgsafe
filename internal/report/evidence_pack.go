@@ -68,7 +68,22 @@ func CreateEvidencePack(outputPath string, r *RepositoryRiskReport, pol policy.P
 	findingsRaw, _ := json.MarshalIndent(r.Findings, "", "  ")
 	filesMap["raw/scan-results.json"] = findingsRaw
 
-	policyRaw, _ := json.MarshalIndent(pol, "", "  ")
+	policyCopy := pol
+	if policyCopy.Registries.Registries != nil {
+		// Deep copy registries map to avoid mutability side-effects
+		regsCopy := make(map[string]map[string]policy.RegistryConfig)
+		for eco, configs := range policyCopy.Registries.Registries {
+			regsCopy[eco] = make(map[string]policy.RegistryConfig)
+			for name, cfg := range configs {
+				cfg.URL = redactURL(cfg.URL)
+				cfg.SimpleURL = redactURL(cfg.SimpleURL)
+				regsCopy[eco][name] = cfg
+			}
+		}
+		policyCopy.Registries.Registries = regsCopy
+	}
+
+	policyRaw, _ := json.MarshalIndent(policyCopy, "", "  ")
 	filesMap["raw/policy-effective.json"] = policyRaw
 
 	// 2. Build Manifest

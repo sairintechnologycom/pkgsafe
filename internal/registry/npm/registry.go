@@ -166,6 +166,9 @@ func VerifyTarballIntegrity(tarballPath, integrity, shasum string) error {
 	return nil
 }
 
+const MaxExtractedFiles = 5000
+const MaxExtractedBytes = 100 * 1024 * 1024
+
 func ExtractTarball(tarballPath, dest string) error {
 	f, err := os.Open(tarballPath)
 	if err != nil {
@@ -178,6 +181,8 @@ func ExtractTarball(tarballPath, dest string) error {
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
+	count := 0
+	var total int64
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -190,6 +195,10 @@ func ExtractTarball(tarballPath, dest string) error {
 		if !ok {
 			continue
 		}
+		count++
+		if count > MaxExtractedFiles {
+			return fmt.Errorf("artifact has too many files")
+		}
 		target := filepath.Join(dest, name)
 		if !isWithinDir(dest, target) {
 			continue
@@ -200,6 +209,10 @@ func ExtractTarball(tarballPath, dest string) error {
 				return err
 			}
 		case tar.TypeReg:
+			total += header.Size
+			if total > MaxExtractedBytes {
+				return fmt.Errorf("artifact extracted size exceeds limit")
+			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return err
 			}
@@ -207,12 +220,13 @@ func ExtractTarball(tarballPath, dest string) error {
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
-				return err
+			_, copyErr := io.Copy(f, io.LimitReader(tr, header.Size))
+			closeErr := f.Close()
+			if copyErr != nil {
+				return copyErr
 			}
-			if err := f.Close(); err != nil {
-				return err
+			if closeErr != nil {
+				return closeErr
 			}
 		}
 	}

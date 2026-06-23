@@ -354,6 +354,7 @@ func TestAuditLogWriting(t *testing.T) {
 		Ecosystem:       "npm",
 		Mode:            "warn",
 		InstallExecuted: true,
+		Reason:          "bypass using secret key token=456",
 	}
 
 	err := LogAudit(pol, entry)
@@ -374,6 +375,9 @@ func TestAuditLogWriting(t *testing.T) {
 
 	if !strings.Contains(loaded.Command, "[REDACTED]") {
 		t.Errorf("expected redacted command, got %s", loaded.Command)
+	}
+	if !strings.Contains(loaded.Reason, "[REDACTED]") {
+		t.Errorf("expected redacted reason, got %s", loaded.Reason)
 	}
 }
 

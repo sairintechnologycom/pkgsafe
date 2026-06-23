@@ -62,8 +62,9 @@ func LogAudit(pol policy.Policy, entry AuditEntry) error {
 		entry.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
 
-	// Redact tokens in command
+	// Redact tokens in command and reason
 	entry.Command = RedactString(entry.Command)
+	entry.Reason = RedactString(entry.Reason)
 
 	b, err := json.Marshal(entry)
 	if err != nil {

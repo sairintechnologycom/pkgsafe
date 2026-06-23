@@ -2,6 +2,7 @@ package enterprise
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -38,6 +39,8 @@ func VerifyPolicyPack(tarGzPath string) (map[string][]byte, error) {
 
 	tr := tar.NewReader(gr)
 	files := make(map[string][]byte)
+	var totalSize int64
+	const MaxPackExtractedBytes = 50 * 1024 * 1024 // 50 MB limit
 
 	for {
 		hdr, err := tr.Next()
@@ -49,11 +52,19 @@ func VerifyPolicyPack(tarGzPath string) (map[string][]byte, error) {
 		}
 
 		if hdr.Typeflag == tar.TypeReg {
-			buf := new(strings.Builder)
-			if _, err := io.Copy(buf, tr); err != nil {
+			cleanName, ok := cleanPackPath(hdr.Name)
+			if !ok {
+				return nil, PackValidationError{Code: 1, Err: fmt.Errorf("unsafe file path in policy pack: %s", hdr.Name)}
+			}
+			totalSize += hdr.Size
+			if totalSize > MaxPackExtractedBytes {
+				return nil, PackValidationError{Code: 2, Err: fmt.Errorf("policy pack extracted size exceeds limit")}
+			}
+			buf := new(bytes.Buffer)
+			if _, err := io.Copy(buf, io.LimitReader(tr, hdr.Size)); err != nil {
 				return nil, PackValidationError{Code: 2, Err: fmt.Errorf("read tar entry %s: %w", hdr.Name, err)}
 			}
-			files[hdr.Name] = []byte(buf.String())
+			files[cleanName] = buf.Bytes()
 		}
 	}
 
@@ -257,3 +268,19 @@ func VerifyPolicyPack(tarGzPath string) (map[string][]byte, error) {
 
 	return files, nil
 }
+
+func cleanPackPath(name string) (string, bool) {
+	name = strings.ReplaceAll(name, "\\", "/")
+	for _, part := range strings.Split(name, "/") {
+		if part == ".." {
+			return "", false
+		}
+	}
+	clean := strings.TrimLeft(name, "/")
+	clean = strings.TrimSpace(clean)
+	if clean == "" || clean == "." || strings.Contains(clean, "..") {
+		return "", false
+	}
+	return clean, true
+}
+

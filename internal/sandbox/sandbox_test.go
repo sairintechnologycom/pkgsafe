@@ -59,9 +59,13 @@ func TestCleanEnv(t *testing.T) {
 	os.Setenv("AWS_ACCESS_KEY_ID", "REAL_AWS_KEY")
 	os.Setenv("GITHUB_TOKEN", "REAL_GITHUB_TOKEN")
 	os.Setenv("SOME_OTHER_VAR", "KEEP_THIS")
+	os.Setenv("GEMINI_API_KEY", "SECRET_GEMINI_KEY")
+	os.Setenv("STRIPE_SECRET_KEY", "SECRET_STRIPE_KEY")
 	defer os.Unsetenv("AWS_ACCESS_KEY_ID")
 	defer os.Unsetenv("GITHUB_TOKEN")
 	defer os.Unsetenv("SOME_OTHER_VAR")
+	defer os.Unsetenv("GEMINI_API_KEY")
+	defer os.Unsetenv("STRIPE_SECRET_KEY")
 
 	env := CleanEnv("/tmp/fake-root")
 
@@ -69,6 +73,9 @@ func TestCleanEnv(t *testing.T) {
 	hasGithub := false
 	hasSomeOther := false
 	hasFakeHome := false
+	hasGemini := false
+	hasStripe := false
+	hasXdgConfig := false
 
 	for _, e := range env {
 		if strings.HasPrefix(e, "AWS_ACCESS_KEY_ID=") {
@@ -83,6 +90,15 @@ func TestCleanEnv(t *testing.T) {
 		if strings.HasPrefix(e, "HOME=/tmp/fake-root/home") {
 			hasFakeHome = true
 		}
+		if strings.HasPrefix(e, "GEMINI_API_KEY=") {
+			hasGemini = true
+		}
+		if strings.HasPrefix(e, "STRIPE_SECRET_KEY=") {
+			hasStripe = true
+		}
+		if strings.HasPrefix(e, "XDG_CONFIG_HOME=/tmp/fake-root/home/.config") {
+			hasXdgConfig = true
+		}
 	}
 
 	if hasAws {
@@ -96,6 +112,15 @@ func TestCleanEnv(t *testing.T) {
 	}
 	if !hasFakeHome {
 		t.Error("expected HOME to be updated to fake home path")
+	}
+	if hasGemini {
+		t.Error("expected GEMINI_API_KEY to be filtered out dynamically")
+	}
+	if hasStripe {
+		t.Error("expected STRIPE_SECRET_KEY to be filtered out dynamically")
+	}
+	if !hasXdgConfig {
+		t.Error("expected XDG_CONFIG_HOME to be isolated")
 	}
 }
 
