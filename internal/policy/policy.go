@@ -60,19 +60,50 @@ type CISettings struct {
 	UploadSARIF bool
 }
 
+type InstallInterceptionSettings struct {
+	Enabled                              bool
+	DefaultMode                          string
+	ConfirmOnWarn                        bool
+	AllowYesOnWarn                       bool
+	AllowForceRiskAccept                 bool
+	ForceRiskAcceptRequiresReason        bool
+	BlockKnownMalwareAlways              bool
+	BlockCredentialAccessAlways          bool
+	AIAgentWarnRequiresConfirmation      bool
+	NonInteractiveWarnBlocksByDefault    bool
+	AuditLogEnabled                      bool
+	AuditLogPath                         string
+}
+
+type PackageManagerSetting struct {
+	Enabled              bool
+	RealBinary           string
+	ScanProjectInstall   bool
+	ScanCIInstall        bool
+	ScanRequirementsFile bool
+}
+
+type PackageManagersSettings struct {
+	NPM       PackageManagerSetting
+	Pip       PackageManagerSetting
+	PythonPip PackageManagerSetting
+}
+
 type Policy struct {
-	Mode            Mode
-	Ecosystems      EcosystemSettings
-	Thresholds      types.Thresholds
-	ProtectedPaths  []string
-	TrustedPackages PackageLists
-	BlockedPackages PackageLists
-	Rules           map[string]Rule
-	BlockPatterns   []string
-	WarnPatterns    []string
-	MCP             MCPSettings
-	Sandbox         SandboxSettings
-	CI              CISettings
+	Mode                Mode
+	Ecosystems          EcosystemSettings
+	Thresholds          types.Thresholds
+	ProtectedPaths      []string
+	TrustedPackages     PackageLists
+	BlockedPackages     PackageLists
+	Rules               map[string]Rule
+	BlockPatterns       []string
+	WarnPatterns        []string
+	MCP                 MCPSettings
+	Sandbox             SandboxSettings
+	CI                  CISettings
+	InstallInterception InstallInterceptionSettings
+	PackageManagers     PackageManagersSettings
 }
 
 func Default() Policy {
@@ -165,6 +196,34 @@ func Default() Policy {
 			ChangedOnly: true,
 			CommentPR:   true,
 			UploadSARIF: true,
+		},
+		InstallInterception: InstallInterceptionSettings{
+			Enabled:                           true,
+			DefaultMode:                       "warn",
+			ConfirmOnWarn:                     true,
+			AllowYesOnWarn:                    true,
+			AllowForceRiskAccept:              true,
+			ForceRiskAcceptRequiresReason:     true,
+			BlockKnownMalwareAlways:           true,
+			BlockCredentialAccessAlways:       true,
+			AIAgentWarnRequiresConfirmation:   true,
+			NonInteractiveWarnBlocksByDefault: true,
+			AuditLogEnabled:                   true,
+			AuditLogPath:                      "~/.pkgsafe/audit.log",
+		},
+		PackageManagers: PackageManagersSettings{
+			NPM: PackageManagerSetting{
+				Enabled:            true,
+				ScanProjectInstall: true,
+				ScanCIInstall:      true,
+			},
+			Pip: PackageManagerSetting{
+				Enabled:              true,
+				ScanRequirementsFile: true,
+			},
+			PythonPip: PackageManagerSetting{
+				Enabled: true,
+			},
 		},
 	}
 }
@@ -306,7 +365,7 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			switch key {
 			case "mode":
 				pol.Mode = ParseMode(unquote(val))
-			case "thresholds", "rules", "mcp", "sandbox", "ci", "ecosystems":
+			case "thresholds", "rules", "mcp", "sandbox", "ci", "ecosystems", "install_interception", "package_managers":
 			case "protected_paths":
 				pol.ProtectedPaths = nil
 				pol.BlockPatterns = nil
@@ -454,6 +513,81 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 				return fmt.Errorf("line %d: unsupported rule property %q", lineNo+1, key)
 			}
 			pol.Rules[ruleID] = rule
+		case "install_interception":
+			if indent != 2 {
+				return fmt.Errorf("line %d: expected install_interception property", lineNo+1)
+			}
+			switch key {
+			case "enabled":
+				pol.InstallInterception.Enabled = strings.EqualFold(unquote(val), "true")
+			case "default_mode":
+				pol.InstallInterception.DefaultMode = unquote(val)
+			case "confirm_on_warn":
+				pol.InstallInterception.ConfirmOnWarn = strings.EqualFold(unquote(val), "true")
+			case "allow_yes_on_warn":
+				pol.InstallInterception.AllowYesOnWarn = strings.EqualFold(unquote(val), "true")
+			case "allow_force_risk_accept":
+				pol.InstallInterception.AllowForceRiskAccept = strings.EqualFold(unquote(val), "true")
+			case "force_risk_accept_requires_reason":
+				pol.InstallInterception.ForceRiskAcceptRequiresReason = strings.EqualFold(unquote(val), "true")
+			case "block_known_malware_always":
+				pol.InstallInterception.BlockKnownMalwareAlways = strings.EqualFold(unquote(val), "true")
+			case "block_credential_access_always":
+				pol.InstallInterception.BlockCredentialAccessAlways = strings.EqualFold(unquote(val), "true")
+			case "ai_agent_warn_requires_confirmation":
+				pol.InstallInterception.AIAgentWarnRequiresConfirmation = strings.EqualFold(unquote(val), "true")
+			case "non_interactive_warn_blocks_by_default":
+				pol.InstallInterception.NonInteractiveWarnBlocksByDefault = strings.EqualFold(unquote(val), "true")
+			case "audit_log_enabled":
+				pol.InstallInterception.AuditLogEnabled = strings.EqualFold(unquote(val), "true")
+			case "audit_log_path":
+				pol.InstallInterception.AuditLogPath = unquote(val)
+			default:
+				return fmt.Errorf("line %d: unsupported install_interception property %q", lineNo+1, key)
+			}
+		case "package_managers":
+			if indent == 2 && val == "" {
+				subsection = key
+				continue
+			}
+			if indent != 4 || subsection == "" {
+				return fmt.Errorf("line %d: expected package_managers property", lineNo+1)
+			}
+			switch subsection {
+			case "npm":
+				switch key {
+				case "enabled":
+					pol.PackageManagers.NPM.Enabled = strings.EqualFold(unquote(val), "true")
+				case "real_binary":
+					pol.PackageManagers.NPM.RealBinary = unquote(val)
+				case "scan_project_install":
+					pol.PackageManagers.NPM.ScanProjectInstall = strings.EqualFold(unquote(val), "true")
+				case "scan_ci_install":
+					pol.PackageManagers.NPM.ScanCIInstall = strings.EqualFold(unquote(val), "true")
+				default:
+					return fmt.Errorf("line %d: unsupported npm property %q", lineNo+1, key)
+				}
+			case "pip":
+				switch key {
+				case "enabled":
+					pol.PackageManagers.Pip.Enabled = strings.EqualFold(unquote(val), "true")
+				case "real_binary":
+					pol.PackageManagers.Pip.RealBinary = unquote(val)
+				case "scan_requirements_file":
+					pol.PackageManagers.Pip.ScanRequirementsFile = strings.EqualFold(unquote(val), "true")
+				default:
+					return fmt.Errorf("line %d: unsupported pip property %q", lineNo+1, key)
+				}
+			case "python_pip":
+				switch key {
+				case "enabled":
+					pol.PackageManagers.PythonPip.Enabled = strings.EqualFold(unquote(val), "true")
+				default:
+					return fmt.Errorf("line %d: unsupported python_pip property %q", lineNo+1, key)
+				}
+			default:
+				return fmt.Errorf("line %d: unsupported package manager %q", lineNo+1, subsection)
+			}
 		default:
 			return fmt.Errorf("line %d: unsupported section %q", lineNo+1, section)
 		}

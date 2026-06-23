@@ -248,3 +248,32 @@ mcp:
   default_mode: warn
   ai_agent_default_install_allowed_on_warn: false
   human_default_install_allowed_on_warn: true
+
+install_interception:
+  enabled: true
+  default_mode: warn
+  confirm_on_warn: true
+  allow_yes_on_warn: true
+  allow_force_risk_accept: true
+  force_risk_accept_requires_reason: true
+  block_known_malware_always: true
+  block_credential_access_always: true
+  ai_agent_warn_requires_confirmation: true
+  non_interactive_warn_blocks_by_default: true
+  audit_log_enabled: true
+  audit_log_path: "~/.pkgsafe/audit.log"
+
+package_managers:
+  npm:
+    enabled: true
+    real_binary: ""
+    scan_project_install: true
+    scan_ci_install: true
+
+  pip:
+    enabled: true
+    real_binary: ""
+    scan_requirements_file: true
+
+  python_pip:
+    enabled: true

@@ -20,6 +20,7 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/mcp"
 	"github.com/niyam-ai/pkgsafe/internal/output"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/niyam-ai/pkgsafe/internal/intercept"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
 	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
@@ -92,6 +93,19 @@ func run(args []string) error {
 			return cmdCIScan(args[2:])
 		}
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe ci scan")
+	case "npm":
+		return wrapInterceptError(cli.NPMIntercept(args[1:]))
+	case "pip":
+		return wrapInterceptError(cli.PipIntercept(args[1:]))
+	case "python":
+		return wrapInterceptError(cli.PythonIntercept(args[1:]))
+	case "run":
+		return wrapInterceptError(cli.RunIntercept(args[1:]))
+	case "init":
+		if len(args) > 1 && args[1] == "shell" {
+			return cli.InitShell(args[2:])
+		}
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe init shell")
 	default:
 		usage()
 		return fmt.Errorf("unknown command %q", args[0])
@@ -112,6 +126,11 @@ Usage:
   pkgsafe npm-install <name> [--version <version>] [--mode warn|block|audit]
   pkgsafe ci scan [--lockfile <path>] [--policy <path>] [--mode audit|warn|block] [--fail-on none|warn|block]
   pkgsafe mcp serve
+  pkgsafe npm <npm-args...>
+  pkgsafe pip <pip-args...>
+  pkgsafe python <python-args...>
+  pkgsafe run [--] <command-args...>
+  pkgsafe init shell
   pkgsafe version
 `)
 }
@@ -811,4 +830,14 @@ func cmdCIScan(args []string) error {
 	}
 
 	return nil
+}
+
+func wrapInterceptError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if ie, ok := err.(intercept.InterceptError); ok {
+		return exitError{code: ie.Code, err: ie.Err}
+	}
+	return err
 }
