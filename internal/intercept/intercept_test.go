@@ -469,3 +469,53 @@ func TestCanProceedAIAndNonInteractiveWarnings(t *testing.T) {
 		t.Errorf("expected AI agent warning to proceed with explicit force-risk-accept override, got proceed=%v code=%d", proceed, code)
 	}
 }
+
+func TestLookPathRealSkipsWrapperScripts(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	dir1 := filepath.Join(tmpDir, "dir1")
+	dir2 := filepath.Join(tmpDir, "dir2")
+
+	if err := os.MkdirAll(dir1, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir2, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Create a wrapper script in dir1 named "npm" containing "pkgsafe"
+	wrapperPath := filepath.Join(dir1, "npm")
+	wrapperContent := `#!/bin/bash
+pkgsafe npm "$@"
+`
+	if err := os.WriteFile(wrapperPath, []byte(wrapperContent), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Create a mock real npm in dir2 containing standard real content
+	realPath := filepath.Join(dir2, "npm")
+	realContent := `#!/bin/bash
+echo "real npm execution"
+`
+	if err := os.WriteFile(realPath, []byte(realContent), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set PATH
+	oldPath := os.Getenv("PATH")
+	pathSep := string(filepath.ListSeparator)
+	os.Setenv("PATH", dir1+pathSep+dir2)
+	defer os.Setenv("PATH", oldPath)
+
+	resolved, err := LookPathReal("npm")
+	if err != nil {
+		t.Fatalf("LookPathReal failed: %v", err)
+	}
+
+	resolvedAbs, _ := filepath.Abs(resolved)
+	realAbs, _ := filepath.Abs(realPath)
+
+	if resolvedAbs != realAbs {
+		t.Errorf("expected LookPathReal to resolve to real npm at %s, but resolved to %s", realAbs, resolvedAbs)
+	}
+}

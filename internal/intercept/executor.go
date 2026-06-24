@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 )
@@ -104,6 +105,9 @@ func LookPathReal(binary string) (string, error) {
 				if err == nil && evalPath == currentExeAbs {
 					continue // Skip symlinks to ourselves
 				}
+				if isWrapperScript(absPath) {
+					continue // Skip wrapper scripts calling pkgsafe
+				}
 			}
 			return path, nil
 		}
@@ -115,4 +119,21 @@ func LookPathReal(binary string) (string, error) {
 
 func isExecutable(fi os.FileInfo) bool {
 	return fi.Mode()&0111 != 0
+}
+
+func isWrapperScript(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	buf := make([]byte, 4096)
+	n, err := f.Read(buf)
+	if err != nil && n == 0 {
+		return false
+	}
+
+	content := strings.ToLower(string(buf[:n]))
+	return strings.Contains(content, "pkgsafe")
 }
