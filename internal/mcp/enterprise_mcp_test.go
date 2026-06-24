@@ -299,4 +299,3 @@ func TestMCPGetPolicyEvidence(t *testing.T) {
 		t.Errorf("expected default policy pack name, got %v", evidence["policy_pack_name"])
 	}
 }
-

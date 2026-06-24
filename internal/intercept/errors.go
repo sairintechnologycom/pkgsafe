@@ -3,14 +3,14 @@ package intercept
 import "fmt"
 
 const (
-	ExitSuccess             = 0
-	ExitBlocked             = 1
-	ExitDeclined            = 2
-	ExitInstallFailed       = 3
-	ExitUsageError          = 4
-	ExitInternalError       = 5
-	ExitPolicyError         = 6
-	ExitUnsupportedCommand  = 7
+	ExitSuccess                = 0
+	ExitBlocked                = 1
+	ExitDeclined               = 2
+	ExitInstallFailed          = 3
+	ExitUsageError             = 4
+	ExitInternalError          = 5
+	ExitPolicyError            = 6
+	ExitUnsupportedCommand     = 7
 	ExitPackageManagerNotFound = 8
 )
 

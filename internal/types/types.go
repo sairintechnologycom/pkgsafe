@@ -34,25 +34,25 @@ type Vulnerability struct {
 }
 
 type ScanResult struct {
-	Package         PackageIdentity `json:"package"`
-	Mode            string          `json:"mode,omitempty"`
-	Score           int             `json:"risk_score"`
-	Decision        Decision        `json:"decision"`
-	Thresholds      Thresholds      `json:"thresholds,omitempty"`
-	Reasons         []Reason        `json:"reasons"`
-	Vulnerabilities []Vulnerability `json:"vulnerabilities,omitempty"`
-	Lifecycle       []string        `json:"lifecycle_scripts,omitempty"`
-	Suspicious      []string        `json:"suspicious_patterns,omitempty"`
-	SafeAlternates  []string        `json:"safe_alternatives,omitempty"`
-	Enforcement     string           `json:"enforcement,omitempty"`
-	Recommended     string           `json:"recommended_action,omitempty"`
-	ScannedAt       time.Time        `json:"scanned_at"`
-	Sandbox         SandboxSummary   `json:"sandbox,omitempty"`
-	Artifact        ArtifactSummary  `json:"artifact_analysis,omitempty"`
-	PolicyInfo      *PolicyEvidence  `json:"policy,omitempty"`
-	RegistryInfo    *RegistryEvidence`json:"registry,omitempty"`
-	TrustInfo       *TrustEvidence   `json:"trust,omitempty"`
-	ExceptionInfo   *ExceptionEvidence`json:"exception,omitempty"`
+	Package         PackageIdentity    `json:"package"`
+	Mode            string             `json:"mode,omitempty"`
+	Score           int                `json:"risk_score"`
+	Decision        Decision           `json:"decision"`
+	Thresholds      Thresholds         `json:"thresholds,omitempty"`
+	Reasons         []Reason           `json:"reasons"`
+	Vulnerabilities []Vulnerability    `json:"vulnerabilities,omitempty"`
+	Lifecycle       []string           `json:"lifecycle_scripts,omitempty"`
+	Suspicious      []string           `json:"suspicious_patterns,omitempty"`
+	SafeAlternates  []string           `json:"safe_alternatives,omitempty"`
+	Enforcement     string             `json:"enforcement,omitempty"`
+	Recommended     string             `json:"recommended_action,omitempty"`
+	ScannedAt       time.Time          `json:"scanned_at"`
+	Sandbox         SandboxSummary     `json:"sandbox,omitempty"`
+	Artifact        ArtifactSummary    `json:"artifact_analysis,omitempty"`
+	PolicyInfo      *PolicyEvidence    `json:"policy,omitempty"`
+	RegistryInfo    *RegistryEvidence  `json:"registry,omitempty"`
+	TrustInfo       *TrustEvidence     `json:"trust,omitempty"`
+	ExceptionInfo   *ExceptionEvidence `json:"exception,omitempty"`
 }
 
 type PolicyEvidence struct {

@@ -62,18 +62,18 @@ type CISettings struct {
 }
 
 type InstallInterceptionSettings struct {
-	Enabled                              bool
-	DefaultMode                          string
-	ConfirmOnWarn                        bool
-	AllowYesOnWarn                       bool
-	AllowForceRiskAccept                 bool
-	ForceRiskAcceptRequiresReason        bool
-	BlockKnownMalwareAlways              bool
-	BlockCredentialAccessAlways          bool
-	AIAgentWarnRequiresConfirmation      bool
-	NonInteractiveWarnBlocksByDefault    bool
-	AuditLogEnabled                      bool
-	AuditLogPath                         string
+	Enabled                           bool
+	DefaultMode                       string
+	ConfirmOnWarn                     bool
+	AllowYesOnWarn                    bool
+	AllowForceRiskAccept              bool
+	ForceRiskAcceptRequiresReason     bool
+	BlockKnownMalwareAlways           bool
+	BlockCredentialAccessAlways       bool
+	AIAgentWarnRequiresConfirmation   bool
+	NonInteractiveWarnBlocksByDefault bool
+	AuditLogEnabled                   bool
+	AuditLogPath                      string
 }
 
 type PackageManagerSetting struct {
@@ -259,11 +259,11 @@ func Load(path string) (Policy, error) {
 
 	// Unmarshal enterprise fields using gopkg.in/yaml.v3
 	var ent struct {
-		Registries          map[string]map[string]RegistryConfig   `yaml:"registries"`
-		TrustedPackageRules []TrustedPackageRule                   `yaml:"trusted_package_rules"`
-		BlockedPackageRules []BlockedPackageRule                   `yaml:"blocked_package_rules"`
-		Exceptions          []Exception                            `yaml:"exceptions"`
-		ScopedRules         []ScopedRule                           `yaml:"scoped_rules"`
+		Registries          map[string]map[string]RegistryConfig `yaml:"registries"`
+		TrustedPackageRules []TrustedPackageRule                 `yaml:"trusted_package_rules"`
+		BlockedPackageRules []BlockedPackageRule                 `yaml:"blocked_package_rules"`
+		Exceptions          []Exception                          `yaml:"exceptions"`
+		ScopedRules         []ScopedRule                         `yaml:"scoped_rules"`
 	}
 	if err := yaml.Unmarshal(b, &ent); err == nil {
 		if len(ent.Registries) > 0 {

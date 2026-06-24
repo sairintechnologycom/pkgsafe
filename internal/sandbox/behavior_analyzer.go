@@ -48,22 +48,22 @@ func checkCanaryAccesses(sandboxRoot string, before map[string]FileInfoRecord, s
 	}
 
 	tokenMap := map[string]string{
-		"PKGSAFE_CANARY_AWS_CREDENTIALS": "home/.aws/credentials",
-		"AKIAFAKEPKGSAFE000000":          "home/.aws/credentials",
-		"PKGSAFE_FAKE_SECRET":            "home/.aws/credentials",
-		"PKGSAFE_CANARY_AWS_CONFIG":      "home/.aws/config",
-		"PKGSAFE_CANARY_SSH_KEY":         "home/.ssh/id_rsa",
-		"PKGSAFE_CANARY_SSH_CONFIG":      "home/.ssh/config",
-		"PKGSAFE_CANARY_NPMRC":           "home/.npmrc",
-		"npm_pkgsafe_fake_token":         "home/.npmrc",
-		"PKGSAFE_CANARY_PYPIRC":          "home/.pypirc",
-		"PKGSAFE_CANARY_KUBECONFIG":      "home/.kube/config",
-		"PKGSAFE_CANARY_DOCKER_CONFIG":  "home/.docker/config.json",
-		"PKGSAFE_CANARY_AZURE_TOKENS":    "home/.azure/accessTokens.json",
+		"PKGSAFE_CANARY_AWS_CREDENTIALS":    "home/.aws/credentials",
+		"AKIAFAKEPKGSAFE000000":             "home/.aws/credentials",
+		"PKGSAFE_FAKE_SECRET":               "home/.aws/credentials",
+		"PKGSAFE_CANARY_AWS_CONFIG":         "home/.aws/config",
+		"PKGSAFE_CANARY_SSH_KEY":            "home/.ssh/id_rsa",
+		"PKGSAFE_CANARY_SSH_CONFIG":         "home/.ssh/config",
+		"PKGSAFE_CANARY_NPMRC":              "home/.npmrc",
+		"npm_pkgsafe_fake_token":            "home/.npmrc",
+		"PKGSAFE_CANARY_PYPIRC":             "home/.pypirc",
+		"PKGSAFE_CANARY_KUBECONFIG":         "home/.kube/config",
+		"PKGSAFE_CANARY_DOCKER_CONFIG":      "home/.docker/config.json",
+		"PKGSAFE_CANARY_AZURE_TOKENS":       "home/.azure/accessTokens.json",
 		"PKGSAFE_CANARY_GCLOUD_CREDENTIALS": "home/.config/gcloud/application_default_credentials.json",
-		"PKGSAFE_CANARY_VAULT_TOKEN":     "home/.vault-token",
-		"PKGSAFE_CANARY_DOTENV":          "workspace/.env",
-		"PKGSAFE_CANARY_DOTENV_LOCAL":    "workspace/.env.local",
+		"PKGSAFE_CANARY_VAULT_TOKEN":        "home/.vault-token",
+		"PKGSAFE_CANARY_DOTENV":             "workspace/.env",
+		"PKGSAFE_CANARY_DOTENV_LOCAL":       "workspace/.env.local",
 	}
 
 	for token, relPath := range tokenMap {

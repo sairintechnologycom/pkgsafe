@@ -80,7 +80,7 @@ func ApplyEnterpriseControls(
 			matchedScopedRules = append(matchedScopedRules, rule)
 			// Apply TrustScoreDelta
 			res.Score += rule.Apply.TrustScoreDelta
-			
+
 			// Apply BlockOnUnknownRegistry
 			if rule.Apply.BlockOnUnknownRegistry && (regName == "default" || regName == "" || regCfg.Type == "unknown") {
 				res.Score = 100
@@ -139,7 +139,7 @@ func ApplyEnterpriseControls(
 	}
 
 	forcedBlock := blockedMatched || hasMalware || res.Score >= blockThreshold
-	
+
 	if forcedBlock {
 		res.Decision = types.DecisionBlock
 	} else if res.Score > allowThreshold && res.Score <= warnThreshold {

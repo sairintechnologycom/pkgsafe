@@ -187,3 +187,49 @@ func TestTestRegistryFailure(t *testing.T) {
 		t.Errorf("expected status FAILED, got %s", res.Status)
 	}
 }
+
+func TestPyPINormalizationAndPrivateLeakage(t *testing.T) {
+	pol := policy.Default()
+	pol.Registries.Registries = map[string]map[string]policy.RegistryConfig{
+		"pypi": {
+			"company-private": {
+				URL:             "https://pypi.company.com/simple/",
+				Type:            "private",
+				Enabled:         true,
+				PackagePrefixes: []string{"company-"},
+			},
+			"default": {
+				URL:     "https://pypi.org/simple/",
+				Type:    "public",
+				Enabled: false, // Disabled to test blocking unmatched
+			},
+		},
+	}
+
+	// 1. PyPI Normalization checks: company_internal_pkg, company.internal.pkg, Company-Internal-Pkg must match "company-" prefix
+	namesToNormalize := []string{
+		"company_internal_pkg",
+		"company.internal.pkg",
+		"Company-Internal-Pkg",
+	}
+
+	for _, name := range namesToNormalize {
+		regName, regCfg := registry.ResolveRegistry("pypi", name, pol)
+		if regName != "company-private" {
+			t.Errorf("expected %q to resolve to company-private registry, got %s", name, regName)
+		}
+		if regCfg.URL != "https://pypi.company.com/simple/" {
+			t.Errorf("expected URL to be company-private registry URL, got %q", regCfg.URL)
+		}
+	}
+
+	// 2. Private Package Leakage: unmatched package must resolve to default disabled registry
+	unmatchedName := "public-pkg"
+	regName, regCfg := registry.ResolveRegistry("pypi", unmatchedName, pol)
+	if regName != "default" {
+		t.Errorf("expected unmatched package %s to resolve to default registry, got %s", unmatchedName, regName)
+	}
+	if regCfg.Enabled {
+		t.Errorf("expected default registry to be disabled, but got Enabled: true")
+	}
+}

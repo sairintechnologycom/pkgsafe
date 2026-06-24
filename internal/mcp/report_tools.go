@@ -13,9 +13,9 @@ import (
 
 // GenerateGovernanceReportParams defines input for generate_governance_report.
 type GenerateGovernanceReportParams struct {
-	RepoPath         string `json:"repo_path"`
-	Format           string `json:"format"`
-	IncludeAuditLog  bool   `json:"include_audit_log"`
+	RepoPath        string `json:"repo_path"`
+	Format          string `json:"format"`
+	IncludeAuditLog bool   `json:"include_audit_log"`
 }
 
 type GenerateGovernanceReportResult struct {

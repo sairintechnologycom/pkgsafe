@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -109,5 +111,46 @@ thresholds:
 	}
 	if _, err := os.Stat(ciEvidence); err != nil {
 		t.Errorf("expected CI gate report to be created")
+	}
+}
+
+func TestMCPCommandCleanStdout(t *testing.T) {
+	oldStdin := os.Stdin
+	oldStdout := os.Stdout
+	defer func() {
+		os.Stdin = oldStdin
+		os.Stdout = oldStdout
+	}()
+
+	inR, inW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	inW.Close() // Close writer immediately so reading from inR returns EOF
+	defer inR.Close()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+
+	os.Stdin = inR
+	os.Stdout = w
+
+	// Run command
+	err = run([]string{"mcp", "serve"})
+	w.Close()
+	if err != nil {
+		t.Fatalf("pkgsafe mcp serve failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, r)
+	if err != nil {
+		t.Fatalf("copy: %v", err)
+	}
+
+	if buf.Len() > 0 {
+		t.Errorf("expected no output on stdout for empty input, got %q", buf.String())
 	}
 }

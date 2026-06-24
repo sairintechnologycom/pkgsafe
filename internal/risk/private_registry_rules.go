@@ -25,7 +25,7 @@ func CheckPrivateRegistryRules(pkg types.PackageIdentity, regName string, regCfg
 
 	// 2. Public registry use for internal scope/prefix
 	isPublic := regCfg.Type == "public" || regName == "default"
-	
+
 	// Check scope for NPM
 	if pkg.Ecosystem == "npm" {
 		scope := getScope(pkg.Name)
@@ -44,7 +44,7 @@ func CheckPrivateRegistryRules(pkg types.PackageIdentity, regName string, regCfg
 									Evidence:    scope,
 									ScoreImpact: 100,
 								})
-								
+
 								// Also triggers dependency confusion
 								findings = append(findings, types.Reason{
 									ID:          "dependency_confusion_candidate",

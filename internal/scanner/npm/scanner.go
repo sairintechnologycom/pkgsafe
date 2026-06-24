@@ -9,15 +9,15 @@ import (
 	"strings"
 	"time"
 
-	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
 	"github.com/niyam-ai/pkgsafe/internal/agent"
+	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
 	"github.com/niyam-ai/pkgsafe/internal/db"
 	"github.com/niyam-ai/pkgsafe/internal/intel"
 	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
-	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
 	"github.com/niyam-ai/pkgsafe/internal/registry"
+	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
 	"github.com/niyam-ai/pkgsafe/internal/sandbox"
 	"github.com/niyam-ai/pkgsafe/internal/types"
@@ -73,6 +73,10 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		}
 	} else {
 		regName, regCfg = registry.ResolveRegistry("npm", name, pol)
+	}
+
+	if !regCfg.Enabled && regCfg.Type != "unknown" {
+		return types.ScanResult{}, fmt.Errorf("registry for package %s is disabled by policy", name)
 	}
 
 	// Block private scope resolving to public

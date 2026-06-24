@@ -90,12 +90,12 @@ type ScopedRuleMatch struct {
 }
 
 type ScopedRuleApply struct {
-	TrustScoreDelta         int  `yaml:"trust_score_delta" json:"trust_score_delta"`
-	RequireRegistryMatch    bool `yaml:"require_registry_match" json:"require_registry_match"`
-	WarnInstallAllowed      bool `yaml:"warn_install_allowed" json:"warn_install_allowed"`
-	BlockOnUnknownRegistry  bool `yaml:"block_on_unknown_registry" json:"block_on_unknown_registry"`
-	BlockMinScore           int  `yaml:"block_min_score" json:"block_min_score"`
-	WarnMinScore            int  `yaml:"warn_min_score" json:"warn_min_score"`
+	TrustScoreDelta        int  `yaml:"trust_score_delta" json:"trust_score_delta"`
+	RequireRegistryMatch   bool `yaml:"require_registry_match" json:"require_registry_match"`
+	WarnInstallAllowed     bool `yaml:"warn_install_allowed" json:"warn_install_allowed"`
+	BlockOnUnknownRegistry bool `yaml:"block_on_unknown_registry" json:"block_on_unknown_registry"`
+	BlockMinScore          int  `yaml:"block_min_score" json:"block_min_score"`
+	WarnMinScore           int  `yaml:"warn_min_score" json:"warn_min_score"`
 }
 
 type ScopedRule struct {

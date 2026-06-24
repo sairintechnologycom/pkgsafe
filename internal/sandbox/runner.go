@@ -32,7 +32,7 @@ func (pr *ProcessRunner) RunLifecycleScript(ctx context.Context, req SandboxRequ
 	if !req.KeepSandbox {
 		defer os.RemoveAll(sandboxRoot)
 	} else {
-		fmt.Printf("Keeping sandbox directory at: %s\n", sandboxRoot)
+		fmt.Fprintf(os.Stderr, "Keeping sandbox directory at: %s\n", sandboxRoot)
 	}
 
 	if err := CreateFakeHome(sandboxRoot); err != nil {
@@ -49,6 +49,7 @@ func (pr *ProcessRunner) RunLifecycleScript(ctx context.Context, req SandboxRequ
 	beforeFileInfo := RecordFileInfo(sandboxRoot)
 	env := CleanEnv(sandboxRoot)
 
+	fmt.Fprintln(os.Stderr, "Sandbox isolation is best-effort for this runner.")
 	if req.NetworkMode == "disabled" {
 		fmt.Fprintln(os.Stderr, "Warning: Network isolation is best-effort for runner fake-home-process.")
 	}

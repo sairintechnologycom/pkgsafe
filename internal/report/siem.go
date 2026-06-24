@@ -3,6 +3,8 @@ package report
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
 
 // ExportSIEM formats the risk events in JSONL for SIEM intake.
@@ -106,5 +108,5 @@ func ExportSIEM(r *RepositoryRiskReport) (string, error) {
 		_ = enc.Encode(gateEvt)
 	}
 
-	return buf.String(), nil
+	return registry.RedactSecrets(buf.String()), nil
 }

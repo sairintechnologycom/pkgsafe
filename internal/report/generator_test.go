@@ -332,3 +332,85 @@ func TestReportGenerationAndExporters(t *testing.T) {
 		}
 	})
 }
+
+func TestTokenRedactionInReports(t *testing.T) {
+	secrets := []string{
+		"https://user:password@registry.company.com",
+		"ghp_fakeToken45678901234567890123456789",
+		"npm_abc12345678901234567890123456789012",
+		"sk-test-secret1234567890123456789012",
+		"AKIAIOSFODNN7EXAMPLE",
+		"-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3\n-----END PRIVATE KEY-----",
+	}
+
+	// Create a mock report containing these secrets in recommendations, findings, and metadata
+	r := &RepositoryRiskReport{
+		SchemaVersion: "1.0",
+		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
+		Repository: RepositoryMetadata{
+			Name: "test-repo-" + secrets[0],
+		},
+		Policy: PolicyMetadata{
+			PackName:    "pack-" + secrets[1],
+			PackVersion: "1.0.0",
+		},
+		Summary: RiskSummary{
+			PackagesScanned: 1,
+			Blocked:         1,
+		},
+		Findings: []ReportFinding{
+			{
+				Package:   "test-pkg-" + secrets[2],
+				Version:   "1.0.0",
+				Decision:  "block",
+				RiskScore: 100,
+				Severity:  "critical",
+				RuleID:    "known_malware_indicator",
+				Message:   "Malware containing " + secrets[3],
+			},
+		},
+		Recommendations: []RecommendationRecord{
+			{
+				Type:    "block",
+				Message: "Recommendation mentioning " + secrets[4] + " and " + secrets[5],
+			},
+		},
+	}
+
+	// Test all exporters
+	exporters := []struct {
+		name string
+		fn   func(*RepositoryRiskReport) (string, error)
+	}{
+		{"JSON", ExportJSON},
+		{"Markdown", ExportMarkdown},
+		{"HTML", ExportHTML},
+		{"Sarif", ExportSarif},
+		{"SIEM", ExportSIEM},
+		{"ServiceNow", ExportServiceNow},
+		{"AzureDevOps", ExportAzureDevOps},
+	}
+
+	for _, tc := range exporters {
+		t.Run(tc.name, func(t *testing.T) {
+			output, err := tc.fn(r)
+			if err != nil {
+				t.Fatalf("failed to export: %v", err)
+			}
+			for _, secret := range secrets {
+				var cleanSecret string
+				if strings.Contains(secret, "@") {
+					cleanSecret = "user:password"
+				} else if strings.Contains(secret, "-----BEGIN") {
+					cleanSecret = "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3"
+				} else {
+					cleanSecret = secret
+				}
+
+				if strings.Contains(output, cleanSecret) {
+					t.Errorf("secret %q leaked in %s output", secret, tc.name)
+				}
+			}
+		})
+	}
+}

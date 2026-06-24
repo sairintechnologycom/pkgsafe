@@ -10,6 +10,7 @@ import (
 
 	"github.com/niyam-ai/pkgsafe/internal/audit"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
 
 // ExportMarkdown formats the Repository Risk Report as Markdown text.
@@ -76,7 +77,7 @@ func ExportMarkdown(r *RepositoryRiskReport) (string, error) {
 		}
 	}
 
-	return buf.String(), nil
+	return registry.RedactSecrets(buf.String()), nil
 }
 
 // ExportPolicyEvidence formats the policy pack rules and settings as Markdown.
@@ -422,5 +423,5 @@ func ExportCIGateReport(inputPath string) (string, error) {
 		buf.WriteString("No action required. Safe to merge.\n")
 	}
 
-	return buf.String(), nil
+	return registry.RedactSecrets(buf.String()), nil
 }

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -49,6 +50,10 @@ func VerifyPolicyPack(tarGzPath string) (map[string][]byte, error) {
 		}
 		if err != nil {
 			return nil, PackValidationError{Code: 2, Err: fmt.Errorf("read tar: %w", err)}
+		}
+
+		if hdr.Typeflag == tar.TypeSymlink || hdr.Typeflag == tar.TypeLink {
+			return nil, PackValidationError{Code: 1, Err: fmt.Errorf("unsafe symlink or hardlink in policy pack: %s", hdr.Name)}
 		}
 
 		if hdr.Typeflag == tar.TypeReg {
@@ -270,17 +275,39 @@ func VerifyPolicyPack(tarGzPath string) (map[string][]byte, error) {
 }
 
 func cleanPackPath(name string) (string, bool) {
-	name = strings.ReplaceAll(name, "\\", "/")
-	for _, part := range strings.Split(name, "/") {
+	// Reject Windows drive paths (e.g. C:\...) or paths containing drive letters/colons
+	if strings.Contains(name, ":") {
+		return "", false
+	}
+
+	// Normalise path separators to forward slash
+	norm := strings.ReplaceAll(name, "\\", "/")
+
+	// Reject absolute paths
+	if strings.HasPrefix(norm, "/") || filepath.IsAbs(name) || filepath.IsAbs(norm) {
+		return "", false
+	}
+
+	// Reject UNC paths or double-slashes at start
+	if strings.HasPrefix(norm, "//") || strings.HasPrefix(name, "\\\\") {
+		return "", false
+	}
+
+	// Split and check each component for path traversal
+	parts := strings.Split(norm, "/")
+	for _, part := range parts {
 		if part == ".." {
 			return "", false
 		}
 	}
-	clean := strings.TrimLeft(name, "/")
-	clean = strings.TrimSpace(clean)
-	if clean == "" || clean == "." || strings.Contains(clean, "..") {
+
+	// Use filepath.Clean to resolve relative dot segments
+	clean := filepath.Clean(norm)
+
+	// Reject if clean path is empty, dot, relative upwards, or absolute
+	if clean == "" || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || strings.HasPrefix(clean, "..\\") || filepath.IsAbs(clean) {
 		return "", false
 	}
+
 	return clean, true
 }
-

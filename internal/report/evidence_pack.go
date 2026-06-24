@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
 
 type ManifestFile struct {
@@ -85,6 +86,11 @@ func CreateEvidencePack(outputPath string, r *RepositoryRiskReport, pol policy.P
 
 	policyRaw, _ := json.MarshalIndent(policyCopy, "", "  ")
 	filesMap["raw/policy-effective.json"] = policyRaw
+
+	// Redact all reports and raw files to prevent credentials leakage
+	for k, content := range filesMap {
+		filesMap[k] = []byte(registry.RedactSecrets(string(content)))
+	}
 
 	// 2. Build Manifest
 	var manifestFiles []ManifestFile

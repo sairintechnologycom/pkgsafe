@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"html"
 	"strings"
+
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
 
 // ExportHTML outputs a styled, single-file HTML report.
@@ -317,5 +319,5 @@ func ExportHTML(r *RepositoryRiskReport) (string, error) {
 </html>
 `)
 
-	return buf.String(), nil
+	return registry.RedactSecrets(buf.String()), nil
 }

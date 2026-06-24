@@ -6,59 +6,66 @@ import (
 	"strings"
 )
 
-var envBlacklist = []string{
-	"AWS_ACCESS_KEY_ID",
-	"AWS_SECRET_ACCESS_KEY",
-	"AWS_SESSION_TOKEN",
-	"AZURE_CLIENT_SECRET",
-	"AZURE_TENANT_ID",
-	"AZURE_CLIENT_ID",
-	"GOOGLE_APPLICATION_CREDENTIALS",
-	"GITHUB_TOKEN",
-	"GH_TOKEN",
-	"NPM_TOKEN",
-	"NODE_AUTH_TOKEN",
-	"VAULT_TOKEN",
-	"KUBECONFIG",
-	"SSH_AUTH_SOCK",
-	"HOME",
-	"USERPROFILE",
-	"TMPDIR",
-	"TEMP",
-	"TMP",
-}
-
+// CleanEnv cleans the environment for sandbox execution.
+// It implements a strict environment allowlist to prevent leakage of credentials
+// or host directories into the sandboxed process.
 func CleanEnv(sandboxRoot string) []string {
 	var env []string
-	blacklistMap := make(map[string]bool)
-	for _, k := range envBlacklist {
-		blacklistMap[strings.ToUpper(k)] = true
+
+	// Strict list of allowed variable names
+	allowed := map[string]bool{
+		"PATH":     true,
+		"LANG":     true,
+		"LC_ALL":   true,
+		"TERM":     true,
+		"NODE_ENV": true,
 	}
 
-	// Blacklist generic secret keywords to block dynamically-named keys
-	secretKeywords := []string{
-		"SECRET", "TOKEN", "KEY", "PASSWORD", "PASS", "AUTH", "CREDENTIAL", "SIGNATURE", "PRIVATE", "JWT",
+	// Dynamic blacklist keywords (drop anything containing these, even if allowed/part of allowed)
+	dropKeywords := []string{
+		"KEY",
+		"TOKEN",
+		"SECRET",
+		"PASSWORD",
+		"CREDENTIAL",
+		"SESSION",
+		"COOKIE",
+		"AUTH",
 	}
 
 	for _, e := range os.Environ() {
 		parts := strings.SplitN(e, "=", 2)
-		if len(parts) > 0 {
-			k := strings.ToUpper(parts[0])
-			if blacklistMap[k] {
-				continue
+		if len(parts) != 2 {
+			continue
+		}
+		k := parts[0]
+		v := parts[1]
+
+		kUpper := strings.ToUpper(k)
+		if !allowed[kUpper] {
+			continue
+		}
+
+		// Drop if key contains any sensitive keywords
+		shouldDrop := false
+		for _, kw := range dropKeywords {
+			if strings.Contains(kUpper, kw) {
+				shouldDrop = true
+				break
 			}
-			// Skip dynamic secrets
-			isSecret := false
-			for _, kw := range secretKeywords {
-				if strings.Contains(k, kw) {
-					isSecret = true
-					break
-				}
-			}
-			if isSecret {
+		}
+		if shouldDrop {
+			continue
+		}
+
+		// Explicit NODE_ENV safety check
+		if kUpper == "NODE_ENV" {
+			vLower := strings.ToLower(v)
+			if vLower != "production" && vLower != "development" && vLower != "test" && vLower != "dev" && vLower != "prod" {
 				continue
 			}
 		}
+
 		env = append(env, e)
 	}
 
@@ -67,6 +74,7 @@ func CleanEnv(sandboxRoot string) []string {
 		absRoot = sandboxRoot
 	}
 
+	// Enforce redirection of home/profile, temporary, and XDG directories to the sandbox container path
 	env = append(env,
 		"HOME="+filepath.Join(absRoot, "home"),
 		"USERPROFILE="+filepath.Join(absRoot, "home"),
@@ -77,5 +85,6 @@ func CleanEnv(sandboxRoot string) []string {
 		"XDG_CACHE_HOME="+filepath.Join(absRoot, "home", ".cache"),
 		"XDG_DATA_HOME="+filepath.Join(absRoot, "home", ".local", "share"),
 	)
+
 	return env
 }

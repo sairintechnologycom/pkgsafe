@@ -447,6 +447,14 @@ func TestCanProceedAIAndNonInteractiveWarnings(t *testing.T) {
 		t.Errorf("expected warning to succeed in non-interactive mode with --yes, got proceed=%v code=%d", proceed, code)
 	}
 
+	// 2b. Test that it blocks even if NonInteractiveWarnBlocksByDefault is false!
+	pol.InstallInterception.NonInteractiveWarnBlocksByDefault = false
+	proceed, _, code = CanProceed(results, types.DecisionWarn, SafetyFlags{}, pol)
+	if proceed || code != ExitDeclined {
+		t.Errorf("expected warning to block in non-interactive mode without --yes even when NonInteractiveWarnBlocksByDefault is false, got proceed=%v code=%d", proceed, code)
+	}
+	pol.InstallInterception.NonInteractiveWarnBlocksByDefault = true // reset
+
 	// 3. AI agent warning -> block (must require force-risk-accept)
 	t.Setenv("PKGSAFE_REQUESTED_BY", "ai_agent")
 	defer os.Unsetenv("PKGSAFE_REQUESTED_BY")

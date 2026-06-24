@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/agent"
@@ -15,8 +14,8 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/intel"
 	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/registry"
+	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 	"github.com/niyam-ai/pkgsafe/internal/typosquat"
@@ -71,14 +70,16 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		regName, regCfg = registry.ResolveRegistry("pypi", name, pol)
 	}
 
+	if !regCfg.Enabled && regCfg.Type != "unknown" {
+		return types.ScanResult{}, fmt.Errorf("registry for package %s is disabled by policy", name)
+	}
+
 	// Block private scope/prefix resolving to public
 	if regCfg.Type == "public" {
 		for otherName, otherCfg := range pol.Registries.Registries["pypi"] {
 			if otherCfg.Type == "private" {
-				for _, pref := range otherCfg.PackagePrefixes {
-					if strings.HasPrefix(name, pref) {
-						return types.ScanResult{}, fmt.Errorf("private package prefix %s must resolve from approved private registry %s, but resolved to public registry", pref, otherName)
-					}
+				if registry.MatchPyPIPrefix(name, otherCfg.PackagePrefixes) {
+					return types.ScanResult{}, fmt.Errorf("private package prefix must resolve from approved private registry %s, but resolved to public registry", otherName)
 				}
 			}
 		}

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
 
 // ExportAzureDevOps formats the supply chain evidence in Azure DevOps Markdown style.
@@ -61,5 +63,5 @@ func ExportAzureDevOps(r *RepositoryRiskReport) (string, error) {
 		buf.WriteString("- No actions required. Repository conforms to policy.\n")
 	}
 
-	return buf.String(), nil
+	return registry.RedactSecrets(buf.String()), nil
 }

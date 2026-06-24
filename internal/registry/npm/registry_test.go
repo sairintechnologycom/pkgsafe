@@ -110,22 +110,45 @@ func TestVerifyTarballIntegrityRejectsMismatch(t *testing.T) {
 	}
 }
 
-func TestExtractTarballSkipsTraversalEntries(t *testing.T) {
+func TestExtractTarballRejectsTraversalEntries(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fixture.tgz")
 	writeTarball(t, path, map[string]string{
 		"package/package.json": `{"name":"fixture","version":"1.0.0"}`,
 		"package/../evil.txt":  `bad`,
-		"..\\evil-win.txt":     `bad`,
 	})
 	dest := t.TempDir()
-	if err := ExtractTarball(path, dest); err != nil {
+	err := ExtractTarball(path, dest)
+	if err == nil {
+		t.Fatal("expected traversal entry to be rejected with an error")
+	}
+}
+
+func TestExtractTarballSingleFileSizeLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "too_large_single.tgz")
+	f, err := os.Create(path)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dest, "evil.txt")); !os.IsNotExist(err) {
-		t.Fatalf("expected traversal entry to be skipped, stat err=%v", err)
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "package/huge_single.bin",
+		Mode: 0o644,
+		Size: MaxSingleFileSize + 1,
+	}); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dest, "evil-win.txt")); !os.IsNotExist(err) {
-		t.Fatalf("expected windows traversal entry to be skipped, stat err=%v", err)
+	_ = tw.Close()
+	_ = gz.Close()
+	_ = f.Close()
+
+	dest := t.TempDir()
+	err = ExtractTarball(path, dest)
+	if err == nil {
+		t.Fatal("expected failure due to single file size limit")
+	}
+	if !strings.Contains(err.Error(), "artifact single file size exceeds limit") {
+		t.Fatalf("expected single file size limit error, got %v", err)
 	}
 }
 
@@ -172,15 +195,24 @@ func TestExtractTarballSizeLimit(t *testing.T) {
 	}
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
-	// Write header indicating 101MB file
-	if err := tw.WriteHeader(&tar.Header{
-		Name: "package/huge.bin",
-		Mode: 0o644,
-		Size: MaxExtractedBytes + 1,
-	}); err != nil {
-		t.Fatal(err)
+
+	// Write three headers, each of 40MB. Collectively they are 120MB, exceeding 100MB total limit,
+	// but individually under 50MB single file size limit.
+	zeroBuf := make([]byte, 1024*1024) // 1MB buffer
+	for i := 0; i < 3; i++ {
+		if err := tw.WriteHeader(&tar.Header{
+			Name: fmt.Sprintf("package/huge-%d.bin", i),
+			Mode: 0o644,
+			Size: 40 * 1024 * 1024,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for j := 0; j < 40; j++ {
+			if _, err := tw.Write(zeroBuf); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
-	// We don't even write the bytes, we close the archive.
 	_ = tw.Close()
 	_ = gz.Close()
 	_ = f.Close()

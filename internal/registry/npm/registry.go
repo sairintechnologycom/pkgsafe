@@ -168,6 +168,7 @@ func VerifyTarballIntegrity(tarballPath, integrity, shasum string) error {
 
 const MaxExtractedFiles = 5000
 const MaxExtractedBytes = 100 * 1024 * 1024
+const MaxSingleFileSize = 50 * 1024 * 1024
 
 func ExtractTarball(tarballPath, dest string) error {
 	f, err := os.Open(tarballPath)
@@ -191,9 +192,15 @@ func ExtractTarball(tarballPath, dest string) error {
 		if err != nil {
 			return err
 		}
+
+		// Reject symlinks/hardlinks to prevent link escapes
+		if header.Typeflag == tar.TypeSymlink || header.Typeflag == tar.TypeLink {
+			return fmt.Errorf("unsafe symlink or hardlink in tarball: %s", header.Name)
+		}
+
 		name, ok := cleanTarPath(header.Name)
 		if !ok {
-			continue
+			return fmt.Errorf("unsafe file path in tarball: %s", header.Name)
 		}
 		count++
 		if count > MaxExtractedFiles {
@@ -201,7 +208,7 @@ func ExtractTarball(tarballPath, dest string) error {
 		}
 		target := filepath.Join(dest, name)
 		if !isWithinDir(dest, target) {
-			continue
+			return fmt.Errorf("unsafe file path %q escapes destination directory", header.Name)
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -209,6 +216,9 @@ func ExtractTarball(tarballPath, dest string) error {
 				return err
 			}
 		case tar.TypeReg:
+			if header.Size > MaxSingleFileSize {
+				return fmt.Errorf("artifact single file size exceeds limit")
+			}
 			total += header.Size
 			if total > MaxExtractedBytes {
 				return fmt.Errorf("artifact extracted size exceeds limit")
@@ -329,14 +339,30 @@ func isWithinDir(root, path string) bool {
 }
 
 func cleanTarPath(name string) (string, bool) {
+	// Reject paths containing Windows drive letters or alternate data streams
+	if strings.Contains(name, ":") {
+		return "", false
+	}
+
 	name = strings.ReplaceAll(name, "\\", "/")
+
+	// Reject absolute paths
+	if strings.HasPrefix(name, "/") || filepath.IsAbs(name) {
+		return "", false
+	}
+
+	// Reject UNC paths or double slashes
+	if strings.HasPrefix(name, "//") {
+		return "", false
+	}
+
 	for _, part := range strings.Split(name, "/") {
 		if part == ".." {
 			return "", false
 		}
 	}
 	clean := path.Clean(name)
-	if clean == "." || strings.HasPrefix(clean, "/") {
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || strings.HasPrefix(clean, "/") {
 		return "", false
 	}
 	return filepath.FromSlash(clean), true

@@ -177,25 +177,36 @@ func TestPolicyPackPathTraversal(t *testing.T) {
 		"version": "2026.06.01"
 	}`
 
-	checksumsText := ""
-	h := sha256.New()
-	h.Write([]byte(metaJSON))
-	checksumsText += fmt.Sprintf("%s  metadata.json\n", hex.EncodeToString(h.Sum(nil)))
-
-	packFiles := map[string][]byte{
-		"metadata.json":           []byte(metaJSON),
-		"checksums.txt":           []byte(checksumsText),
-		"../../evil-file.txt":     []byte("malicious content"),
+	maliciousPaths := []string{
+		"../../evil.json",
+		"/tmp/evil.json",
+		"C:\\evil.json",
+		"nested/../../../evil.json",
 	}
 
-	tarGzPath := createTestTarGz(t, packFiles)
+	for _, malPath := range maliciousPaths {
+		t.Run(malPath, func(t *testing.T) {
+			checksumsText := ""
+			h := sha256.New()
+			h.Write([]byte(metaJSON))
+			checksumsText += fmt.Sprintf("%s  metadata.json\n", hex.EncodeToString(h.Sum(nil)))
 
-	_, err := enterprise.VerifyPolicyPack(tarGzPath)
-	if err == nil {
-		t.Fatalf("expected verification failure due to path traversal entry")
-	}
-	if !strings.Contains(err.Error(), "unsafe file path in policy pack") {
-		t.Errorf("expected unsafe path error, got %v", err)
+			packFiles := map[string][]byte{
+				"metadata.json": []byte(metaJSON),
+				"checksums.txt": []byte(checksumsText),
+				malPath:         []byte("malicious content"),
+			}
+
+			tarGzPath := createTestTarGz(t, packFiles)
+
+			_, err := enterprise.VerifyPolicyPack(tarGzPath)
+			if err == nil {
+				t.Fatalf("expected verification failure for path %q", malPath)
+			}
+			if !strings.Contains(err.Error(), "unsafe file path in policy pack") {
+				t.Errorf("expected unsafe path error, got %v", err)
+			}
+		})
 	}
 }
 
@@ -687,7 +698,7 @@ registries:
 func TestHTTPRegistryWarning(t *testing.T) {
 	pol := policy.Default()
 	pkg := types.PackageIdentity{Ecosystem: "npm", Name: "test-pkg", Version: "1.0.0"}
-	
+
 	// Unsecure HTTP registry URL
 	res := types.ScanResult{
 		Package:  pkg,
@@ -696,7 +707,7 @@ func TestHTTPRegistryWarning(t *testing.T) {
 	}
 
 	res = risk.ApplyEnterpriseControls(res, pol, "custom-http", policy.RegistryConfig{Type: "private", URL: "http://npm.insecure.com/"}, "human", "developer")
-	
+
 	hasHTTPWarning := false
 	for _, r := range res.Reasons {
 		if r.ID == "http_registry_warning" {
@@ -738,4 +749,3 @@ func TestTokensRedacted(t *testing.T) {
 		t.Errorf("expected bearer token to be redacted: %s", redactedOutput)
 	}
 }
-

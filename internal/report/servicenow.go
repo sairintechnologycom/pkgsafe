@@ -3,6 +3,8 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
 
 // ExportServiceNow compiles the ServiceNow evidence payload.
@@ -65,5 +67,5 @@ func ExportServiceNow(r *RepositoryRiskReport) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(b), nil
+	return registry.RedactSecrets(string(b)), nil
 }

@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
+	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
@@ -546,7 +546,7 @@ func makeTarball(t *testing.T, files map[string]string) []byte {
 
 func TestCI_EnterpriseOptions(t *testing.T) {
 	tmp := t.TempDir()
-	
+
 	// Create mock policy pack
 	metaJSON := `{
 		"schema_version": "1.0",
@@ -558,7 +558,7 @@ func TestCI_EnterpriseOptions(t *testing.T) {
 			"min_pkgsafe_version": "0.1.0"
 		}
 	}`
-	
+
 	policyYAML := `
 mode: warn
 thresholds:

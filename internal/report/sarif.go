@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
 
 type SarifDescription struct {
@@ -133,7 +135,7 @@ func ExportSarif(r *RepositoryRiskReport) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(b), nil
+	return registry.RedactSecrets(string(b)), nil
 }
 
 func severityToSarifLevel(sev string) string {

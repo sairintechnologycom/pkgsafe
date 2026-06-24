@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/db"
@@ -51,6 +52,10 @@ func InstallPolicyPack(tarGzPath string) error {
 			continue
 		}
 		fpath := filepath.Join(installDir, fname)
+		rel, err := filepath.Rel(installDir, fpath)
+		if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			return fmt.Errorf("unsafe file path %q escapes install directory", fname)
+		}
 		if err := os.WriteFile(fpath, content, 0o644); err != nil {
 			return fmt.Errorf("write %s: %w", fname, err)
 		}

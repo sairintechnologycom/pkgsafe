@@ -1,10 +1,20 @@
 package registry
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 )
+
+// NormalizePyPIName normalizes PyPI package names according to Python package normalization rules:
+// - lowercase
+// - runs of -, _, . normalize to a single -
+func NormalizePyPIName(name string) string {
+	name = strings.ToLower(name)
+	reg := regexp.MustCompile(`[-_.]+`)
+	return reg.ReplaceAllString(name, "-")
+}
 
 func GetNPMScope(pkgName string) string {
 	if strings.HasPrefix(pkgName, "@") && strings.Contains(pkgName, "/") {
@@ -15,8 +25,10 @@ func GetNPMScope(pkgName string) string {
 }
 
 func MatchPyPIPrefix(pkgName string, prefixes []string) bool {
+	normName := NormalizePyPIName(pkgName)
 	for _, pref := range prefixes {
-		if strings.HasPrefix(pkgName, pref) {
+		normPref := NormalizePyPIName(pref)
+		if strings.HasPrefix(normName, normPref) {
 			return true
 		}
 	}
@@ -33,7 +45,7 @@ func ResolveRegistry(ecosystem string, pkgName string, pol policy.Policy) (strin
 
 	// 1. Check private registries with scope/prefix match
 	for name, cfg := range configs {
-		if name == "default" || !cfg.Enabled {
+		if name == "default" {
 			continue
 		}
 		if eco == "npm" {
@@ -52,8 +64,8 @@ func ResolveRegistry(ecosystem string, pkgName string, pol policy.Policy) (strin
 		}
 	}
 
-	// 2. Fallback to default
-	if defCfg, exists := configs["default"]; exists && defCfg.Enabled {
+	// 2. Fallback to default (even if disabled)
+	if defCfg, exists := configs["default"]; exists {
 		return "default", defCfg
 	}
 

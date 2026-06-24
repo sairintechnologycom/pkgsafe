@@ -133,7 +133,7 @@ func TestMCPServer(t *testing.T) {
 			JSONRPC: "2.0",
 			ID:      1,
 			Method:  "tools/call",
-			Params: json.RawMessage(fmtCallParams(toolName, argsBytes)),
+			Params:  json.RawMessage(fmtCallParams(toolName, argsBytes)),
 		}
 		writeReq(t, inWriter, req)
 

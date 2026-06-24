@@ -7,90 +7,77 @@ import (
 
 var Canaries = map[string]string{
 	"home/.aws/credentials": `[default]
-aws_access_key_id = AKIAFAKEPKGSAFE000000
-aws_secret_access_key = PKGSAFE_FAKE_SECRET
-# PKGSAFE_CANARY_AWS_CREDENTIALS
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 `,
 	"home/.aws/config": `[default]
 region = us-east-1
 output = json
-# PKGSAFE_CANARY_AWS_CONFIG
 `,
 	"home/.ssh/id_rsa": `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtcn
 NhAAAAAwEAAQAAAYEA01B...
-# PKGSAFE_CANARY_SSH_KEY
 -----END OPENSSH PRIVATE KEY-----
 `,
 	"home/.ssh/config": `Host *
   AddKeysToAgent yes
   UseKeychain yes
   IdentityFile ~/.ssh/id_rsa
-# PKGSAFE_CANARY_SSH_CONFIG
 `,
-	"home/.npmrc": `//registry.npmjs.org/:_authToken=npm_pkgsafe_fake_token
-# PKGSAFE_CANARY_NPMRC
+	"home/.npmrc": `//registry.npmjs.org/:_authToken=npm_s7Y2Rz9F3Kj1Lm5Np9Qr2St8Uv4Wx1Yz
 `,
 	"home/.pypirc": `[pypi]
 username = __token__
-password = pypi-pkgsafe-fake-token
-# PKGSAFE_CANARY_PYPIRC
+password = pypi-AgFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFB
 `,
 	"home/.kube/config": `apiVersion: v1
 clusters:
 - cluster:
     server: https://127.0.0.1:6443
-  name: pkgsafe-fake-cluster
+  name: local-k8s-cluster
 contexts:
 - context:
-    cluster: pkgsafe-fake-cluster
-    user: pkgsafe-fake-user
-  name: pkgsafe-fake-context
-current-context: pkgsafe-fake-context
+    cluster: local-k8s-cluster
+    user: admin-user
+  name: admin-context
+current-context: admin-context
 kind: Config
 preferences: {}
 users:
-- name: pkgsafe-fake-user
+- name: admin-user
   user:
-    token: pkgsafe-fake-token
-# PKGSAFE_CANARY_KUBECONFIG
+    token: k8s-token-f8b2c4e6a8d0
 `,
 	"home/.docker/config.json": `{
   "auths": {
     "https://index.docker.io/v1/": {
-      "auth": "cGtnc2FmZTpmYWtlX3Rva2Vu"
+      "auth": "YWRtaW46c3VwZXJzZWNyZXRwYXNzd29yZA=="
     }
   }
 }
-# PKGSAFE_CANARY_DOCKER_CONFIG
 `,
 	"home/.azure/accessTokens.json": `[
   {
     "tokenType": "Bearer",
     "expiresOn": "2026-12-31T23:59:59.000Z",
-    "accessToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6InBrZ3NhZmUifQ.fake_token"
+    "accessToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1NiJ9.fake_token_data"
   }
 ]
-# PKGSAFE_CANARY_AZURE_TOKENS
 `,
 	"home/.config/gcloud/application_default_credentials.json": `{
   "type": "authorized_user",
-  "client_id": "pkgsafe-fake-client-id",
-  "client_secret": "pkgsafe-fake-client-secret",
-  "refresh_token": "pkgsafe-fake-refresh-token"
+  "client_id": "1234567890-abcdef.apps.googleusercontent.com",
+  "client_secret": "GOCSPX-fake-secret-key-12345",
+  "refresh_token": "1//0fake-refresh-token-value"
 }
-# PKGSAFE_CANARY_GCLOUD_CREDENTIALS
 `,
-	"home/.vault-token": `s.pkgsafe_fake_vault_token
-# PKGSAFE_CANARY_VAULT_TOKEN
+	"home/.vault-token": `hvs.CAESIEx1234567890abcdefghijklmnopqrstuvwxyz
 `,
-	"workspace/.env": `DATABASE_URL=postgres://fake:fake@localhost:5432/fake
-API_SECRET=pkgsafe_fake_api_secret
-# PKGSAFE_CANARY_DOTENV
+	"workspace/.env": `DATABASE_URL=postgres://dbuser:dbpass123@localhost:5432/production_db
+API_SECRET=sec_9f3d8a1c6b5e4072f8a1
 `,
-	"workspace/.env.local": `DATABASE_URL=postgres://fake:fake@localhost:5432/fake
-API_SECRET=pkgsafe_fake_api_secret_local
-# PKGSAFE_CANARY_DOTENV_LOCAL
+	"workspace/.env.local": `DATABASE_URL=postgres://dbuser:dbpass123@localhost:5432/production_db
+API_SECRET=sec_7a2b9c3d5e8f4160a2c5
 `,
 }
 

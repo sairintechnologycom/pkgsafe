@@ -160,17 +160,17 @@ type RepositoryRiskReport struct {
 
 // SIEMEvent represents a normalized SIEM alert event.
 type SIEMEvent struct {
-	Timestamp   string `json:"timestamp"`
-	EventType   string `json:"event_type"`
-	Severity    string `json:"severity"`
-	Tool        string `json:"tool"`
-	Ecosystem   string `json:"ecosystem,omitempty"`
-	Package     string `json:"package,omitempty"`
-	Version     string `json:"version,omitempty"`
-	Decision    string `json:"decision,omitempty"`
-	RiskScore   int    `json:"risk_score,omitempty"`
-	RuleID      string `json:"rule_id,omitempty"`
-	Repository  string `json:"repository,omitempty"`
-	PolicyPack  string `json:"policy_pack,omitempty"`
-	Message     string `json:"message"`
+	Timestamp  string `json:"timestamp"`
+	EventType  string `json:"event_type"`
+	Severity   string `json:"severity"`
+	Tool       string `json:"tool"`
+	Ecosystem  string `json:"ecosystem,omitempty"`
+	Package    string `json:"package,omitempty"`
+	Version    string `json:"version,omitempty"`
+	Decision   string `json:"decision,omitempty"`
+	RiskScore  int    `json:"risk_score,omitempty"`
+	RuleID     string `json:"rule_id,omitempty"`
+	Repository string `json:"repository,omitempty"`
+	PolicyPack string `json:"policy_pack,omitempty"`
+	Message    string `json:"message"`
 }

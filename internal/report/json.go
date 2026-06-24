@@ -1,6 +1,10 @@
 package report
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/niyam-ai/pkgsafe/internal/registry"
+)
 
 // ExportJSON formats a report as pretty-printed JSON text.
 func ExportJSON(r *RepositoryRiskReport) (string, error) {
@@ -8,5 +12,5 @@ func ExportJSON(r *RepositoryRiskReport) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(b), nil
+	return registry.RedactSecrets(string(b)), nil
 }

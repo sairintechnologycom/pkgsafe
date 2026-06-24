@@ -67,10 +67,7 @@ func CanProceed(results []types.ScanResult, overallDecision types.Decision, sf S
 		}
 
 		if !IsInteractive() {
-			if pol.InstallInterception.NonInteractiveWarnBlocksByDefault {
-				return false, "Non-interactive mode detected. WARN decisions require --yes to proceed.", ExitDeclined
-			}
-			return true, "", ExitSuccess
+			return false, "Non-interactive mode detected. WARN decisions require --yes to proceed.", ExitDeclined
 		}
 
 		// Interactive prompt

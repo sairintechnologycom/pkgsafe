@@ -40,23 +40,23 @@ type MCPSandboxResult struct {
 
 // ValidatePackageInstallResult defines the structured tool response.
 type ValidatePackageInstallResult struct {
-	Ecosystem         string                     `json:"ecosystem"`
-	Package           string                     `json:"package"`
-	Version           string                     `json:"version"`
-	RequestedBy       string                     `json:"requested_by"`
-	Decision          string                     `json:"decision"`
-	RiskScore         int                        `json:"risk_score"`
-	InstallAllowed    bool                       `json:"install_allowed"`
-	Mode              string                     `json:"mode"`
-	Reasons           []types.Reason             `json:"reasons"`
-	Vulnerabilities   []types.Vulnerability      `json:"vulnerabilities"`
-	SafeAlternatives  []string                   `json:"safe_alternatives"`
-	RecommendedAction string                     `json:"recommended_action"`
-	Sandbox           *MCPSandboxResult          `json:"sandbox,omitempty"`
-	Policy            *types.PolicyEvidence      `json:"policy,omitempty"`
-	Registry          *types.RegistryEvidence    `json:"registry,omitempty"`
-	Trust             *types.TrustEvidence       `json:"trust,omitempty"`
-	Exception         *types.ExceptionEvidence   `json:"exception,omitempty"`
+	Ecosystem         string                   `json:"ecosystem"`
+	Package           string                   `json:"package"`
+	Version           string                   `json:"version"`
+	RequestedBy       string                   `json:"requested_by"`
+	Decision          string                   `json:"decision"`
+	RiskScore         int                      `json:"risk_score"`
+	InstallAllowed    bool                     `json:"install_allowed"`
+	Mode              string                   `json:"mode"`
+	Reasons           []types.Reason           `json:"reasons"`
+	Vulnerabilities   []types.Vulnerability    `json:"vulnerabilities"`
+	SafeAlternatives  []string                 `json:"safe_alternatives"`
+	RecommendedAction string                   `json:"recommended_action"`
+	Sandbox           *MCPSandboxResult        `json:"sandbox,omitempty"`
+	Policy            *types.PolicyEvidence    `json:"policy,omitempty"`
+	Registry          *types.RegistryEvidence  `json:"registry,omitempty"`
+	Trust             *types.TrustEvidence     `json:"trust,omitempty"`
+	Exception         *types.ExceptionEvidence `json:"exception,omitempty"`
 }
 
 // ValidatePackageInstall evaluates if a package install should proceed.

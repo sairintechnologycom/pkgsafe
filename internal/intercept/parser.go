@@ -6,20 +6,20 @@ import (
 )
 
 type SafetyFlags struct {
-	Mode             string
-	PolicyPath       string
-	Sandbox          bool
-	Offline          bool
-	DryRun           bool
-	Yes              bool
-	JSON             bool
-	ForceRiskAccept  bool
-	Reason           string
-	PolicyPack       string
-	RequestedBy      string
-	Environment      string
-	RegistryConfig   string
-	EnterpriseMode   bool
+	Mode            string
+	PolicyPath      string
+	Sandbox         bool
+	Offline         bool
+	DryRun          bool
+	Yes             bool
+	JSON            bool
+	ForceRiskAccept bool
+	Reason          string
+	PolicyPack      string
+	RequestedBy     string
+	Environment     string
+	RegistryConfig  string
+	EnterpriseMode  bool
 }
 
 func ExtractSafetyFlags(args []string) ([]string, SafetyFlags) {
