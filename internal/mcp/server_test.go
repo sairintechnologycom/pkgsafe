@@ -24,6 +24,11 @@ import (
 )
 
 func TestMCPServer(t *testing.T) {
+	tmpHome := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", oldHome)
+
 	// Set up mock registry server
 	srv := testRegistryServer(t, map[string]string{
 		"1.0.0": testPackageJSON(t, "safe-package"),

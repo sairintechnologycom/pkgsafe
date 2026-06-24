@@ -173,6 +173,10 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 	if len(result.Reasons) > 0 {
 		fmt.Fprintln(w, "\nReasons:")
 		for _, r := range result.Reasons {
+			if r.ID == "score_clamped" {
+				fmt.Fprintln(w, "- Score clamped to 100")
+				continue
+			}
 			fmt.Fprintf(w, "- [%s %+d] %s: %s", r.Severity, r.ScoreImpact, r.ID, r.Description)
 			if r.Evidence != "" {
 				fmt.Fprintf(w, " (%s)", r.Evidence)

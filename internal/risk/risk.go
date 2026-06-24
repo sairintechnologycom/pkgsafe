@@ -30,7 +30,7 @@ func Evaluate(pkg types.PackageIdentity, findings []types.Reason, lifecycle []st
 		}
 		reasons = append(reasons, reason)
 		score += reason.ScoreImpact
-		if reason.ID == "credential_path_reference" || reason.ID == "blocked_package" || reason.ID == "known_malware_indicator" || reason.ID == "known_vulnerability_critical" || reason.Severity == "critical" {
+		if reason.ID == "credential_path_reference" || reason.ID == "blocked_package" || reason.ID == "known_malware_indicator" || reason.ID == "known_vulnerability_critical" || reason.Severity == "critical" || (rule.BlockInStrictMode && pol.Mode == policy.ModeBlock) {
 			forcedBlock = true
 		}
 	}
@@ -60,7 +60,16 @@ func Evaluate(pkg types.PackageIdentity, findings []types.Reason, lifecycle []st
 		}
 	}
 
+	rawScore := score
 	score = clamp(score, 0, 100)
+	if rawScore > 100 {
+		reasons = append(reasons, types.Reason{
+			ID:          "score_clamped",
+			Severity:    "informational",
+			Description: "Score clamped to 100",
+			ScoreImpact: 0,
+		})
+	}
 	decision := Decide(score, forcedBlock, pol.Thresholds)
 
 	return types.ScanResult{

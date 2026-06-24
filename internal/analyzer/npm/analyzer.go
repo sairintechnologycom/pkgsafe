@@ -81,6 +81,12 @@ func AnalyzePackageJSON(b []byte, pol policy.Policy) (types.ScanResult, error) {
 					break
 				}
 			}
+			if (strings.Contains(lower, "curl") || strings.Contains(lower, "wget") || strings.Contains(lower, "fetch")) &&
+				(strings.Contains(lower, "| sh") || strings.Contains(lower, "| bash") || strings.Contains(lower, "| cmd") || strings.Contains(lower, "| powershell") || strings.Contains(lower, "| pwsh") ||
+					strings.Contains(lower, "|sh") || strings.Contains(lower, "|bash")) {
+				suspicious = append(suspicious, "shell_download_execute")
+				findings = risk.AddReason(findings, "shell_download_execute", "Lifecycle script attempted to download and execute shell commands", script)
+			}
 			for _, pat := range secretPatterns() {
 				if matchAny(lower, normalized, pat) {
 					suspicious = append(suspicious, pat)

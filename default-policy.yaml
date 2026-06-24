@@ -61,6 +61,7 @@ rules:
     enabled: true
     severity: high
     score: 30
+    block_in_strict_mode: true
 
   credential_path_reference:
     enabled: true

@@ -169,3 +169,24 @@ func TestVulnerabilityRiskScoring(t *testing.T) {
 		t.Errorf("trusted package reduction should not be applied to critical CVE")
 	}
 }
+
+func TestBlockInStrictMode(t *testing.T) {
+	pol := policy.Default()
+	rule := pol.Rules["network_command_in_lifecycle"]
+	rule.BlockInStrictMode = true
+	pol.Rules["network_command_in_lifecycle"] = rule
+
+	// 1. Under ModeWarn, should trigger a warn (since score is 30, allow_max is 29, block_min is 70)
+	pol.Mode = policy.ModeWarn
+	res := Evaluate(pkg("foo"), []types.Reason{{ID: "network_command_in_lifecycle"}}, nil, nil, nil, pol)
+	if res.Decision != types.DecisionWarn {
+		t.Errorf("expected decision warn under ModeWarn, got %s", res.Decision)
+	}
+
+	// 2. Under ModeBlock, should trigger a block
+	pol.Mode = policy.ModeBlock
+	res = Evaluate(pkg("foo"), []types.Reason{{ID: "network_command_in_lifecycle"}}, nil, nil, nil, pol)
+	if res.Decision != types.DecisionBlock {
+		t.Errorf("expected decision block under ModeBlock, got %s", res.Decision)
+	}
+}

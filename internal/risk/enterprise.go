@@ -101,6 +101,10 @@ func ApplyEnterpriseControls(
 			hasMalware = true
 			break
 		}
+		if rule, ok := policy.RuleFor(pol, r.ID); ok && rule.BlockInStrictMode && pol.Mode == policy.ModeBlock {
+			hasMalware = true
+			break
+		}
 	}
 
 	// 4. Check Trusted Package Rules

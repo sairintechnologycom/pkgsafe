@@ -19,10 +19,11 @@ const (
 )
 
 type Rule struct {
-	Enabled    bool
-	Severity   string
-	Score      int
-	MaxAgeDays int
+	Enabled            bool
+	Severity           string
+	Score              int
+	MaxAgeDays         int
+	BlockInStrictMode bool
 }
 
 type PackageLists struct {
@@ -141,7 +142,7 @@ func Default() Policy {
 		BlockedPackages: PackageLists{NPM: []string{}, PyPI: []string{}},
 		Rules: map[string]Rule{
 			"lifecycle_script_present":               {Enabled: true, Severity: "medium", Score: 20},
-			"network_command_in_lifecycle":           {Enabled: true, Severity: "high", Score: 30},
+			"network_command_in_lifecycle":           {Enabled: true, Severity: "high", Score: 30, BlockInStrictMode: true},
 			"credential_path_reference":              {Enabled: true, Severity: "critical", Score: 100},
 			"secret_keyword_reference":               {Enabled: true, Severity: "high", Score: 35},
 			"obfuscated_script":                      {Enabled: true, Severity: "high", Score: 25},
@@ -598,6 +599,8 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 					return fmt.Errorf("line %d: max_age_days must be an integer", lineNo+1)
 				}
 				rule.MaxAgeDays = n
+			case "block_in_strict_mode":
+				rule.BlockInStrictMode = strings.EqualFold(unquote(val), "true")
 			default:
 				return fmt.Errorf("line %d: unsupported rule property %q", lineNo+1, key)
 			}
