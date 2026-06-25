@@ -245,3 +245,72 @@ func TestServeAPICommand(t *testing.T) {
 	}
 }
 
+func TestScanGoAndCargoDepsCommands(t *testing.T) {
+	tmp, err := os.MkdirTemp("", "go-cargo-test")
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	defer os.RemoveAll(tmp)
+
+	// Create dummy go.mod
+	goModContent := `module testapp
+
+go 1.20
+
+require (
+	github.com/example/foo v1.0.0
+)
+`
+	goModPath := filepath.Join(tmp, "go.mod")
+	if err := os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	// Create dummy Cargo.lock
+	cargoLockContent := `[[package]]
+name = "test-crate"
+version = "0.2.0"
+`
+	cargoLockPath := filepath.Join(tmp, "Cargo.lock")
+	if err := os.WriteFile(cargoLockPath, []byte(cargoLockContent), 0644); err != nil {
+		t.Fatalf("write Cargo.lock: %v", err)
+	}
+
+	// 1. Run scan-go-deps with --offline flag
+	err = run([]string{"scan-go-deps", goModPath, "--offline"})
+	if err != nil {
+		t.Errorf("scan-go-deps failed: %v", err)
+	}
+
+	// 2. Run scan-go-deps with --json and --offline
+	err = run([]string{"scan-go-deps", goModPath, "--offline", "--json"})
+	if err != nil {
+		t.Errorf("scan-go-deps --json failed: %v", err)
+	}
+
+	// 3. Test missing positional argument for scan-go-deps
+	err = run([]string{"scan-go-deps", "--offline"})
+	if err == nil {
+		t.Errorf("expected error for missing positional argument in scan-go-deps, got nil")
+	}
+
+	// 4. Run scan-cargo-deps with --offline
+	err = run([]string{"scan-cargo-deps", cargoLockPath, "--offline"})
+	if err != nil {
+		t.Errorf("scan-cargo-deps failed: %v", err)
+	}
+
+	// 5. Run scan-cargo-deps with --json and --offline
+	err = run([]string{"scan-cargo-deps", cargoLockPath, "--offline", "--json"})
+	if err != nil {
+		t.Errorf("scan-cargo-deps --json failed: %v", err)
+	}
+
+	// 6. Test missing positional argument for scan-cargo-deps
+	err = run([]string{"scan-cargo-deps", "--offline"})
+	if err == nil {
+		t.Errorf("expected error for missing positional argument in scan-cargo-deps, got nil")
+	}
+}
+
+

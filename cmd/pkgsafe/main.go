@@ -21,8 +21,12 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/intercept"
 	"github.com/niyam-ai/pkgsafe/internal/mcp"
 	"github.com/niyam-ai/pkgsafe/internal/output"
+	cargodeps "github.com/niyam-ai/pkgsafe/internal/deps/cargo"
+	godeps "github.com/niyam-ai/pkgsafe/internal/deps/golang"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
+	scargo "github.com/niyam-ai/pkgsafe/internal/scanner/cargo"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
+	sgolang "github.com/niyam-ai/pkgsafe/internal/scanner/golang"
 	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 )
@@ -74,6 +78,10 @@ func run(args []string) error {
 		return cmdScanPyPIPackage(args[1:])
 	case "scan-python-deps":
 		return cmdScanPythonDeps(args[1:])
+	case "scan-go-deps":
+		return cmdScanGoDeps(args[1:])
+	case "scan-cargo-deps":
+		return cmdScanCargoDeps(args[1:])
 	case "scan-lockfile":
 		return cmdScanLockfile(args[1:])
 	case "explain":
@@ -131,6 +139,8 @@ Usage:
   pkgsafe scan-npm-package <name> [--version <version>] [--policy <path>] [--policy-pack <name>] [--mode warn|block|audit] [--json]
   pkgsafe scan-pypi-package <name> [--version <version>] [--policy <path>] [--policy-pack <name>] [--mode warn|block|audit] [--json]
   pkgsafe scan-python-deps <requirements.txt|pyproject.toml> [--json]
+  pkgsafe scan-go-deps <go.mod> [--json]
+  pkgsafe scan-cargo-deps <Cargo.lock> [--json]
   pkgsafe scan-lockfile <package-lock.json> [--json]
   pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
@@ -244,6 +254,142 @@ func cmdScanPythonDeps(args []string) error {
 		_ = saveResult(res)
 		results = append(results, res)
 	}
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(results)
+	}
+	for i, res := range results {
+		if i > 0 {
+			fmt.Fprintln(os.Stdout)
+		}
+		if err := output.Write(os.Stdout, res, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cmdScanGoDeps(args []string) error {
+	fs := flag.NewFlagSet("scan-go-deps", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	policyPack := fs.String("policy-pack", "", "policy pack name")
+	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("dependency file path is required")
+	}
+
+	if !*offline {
+		cli.UpdateDBAsync("", "Go", "osv", 24*time.Hour)
+	}
+
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	if err != nil {
+		return err
+	}
+
+	content, err := os.ReadFile(fs.Arg(0))
+	if err != nil {
+		return fmt.Errorf("read dependency file: %w", err)
+	}
+
+	deps, err := godeps.ParseGoMod(content)
+	if err != nil {
+		return fmt.Errorf("parse go.mod: %w", err)
+	}
+
+	scanner := sgolang.New()
+	scanner.Policy = pol
+	scanner.Offline = *offline
+	scanner.Environment = "developer"
+	scanner.RequestedBy = "human"
+
+	var results []types.ScanResult
+	for _, dep := range deps {
+		res, err := scanner.ScanPackage(dep.Name, dep.Version)
+		if err != nil {
+			return fmt.Errorf("scan dependency %s: %w", dep.Name, err)
+		}
+		res = stripEnterprise(res, *enterpriseMode)
+		_ = saveResult(res)
+		results = append(results, res)
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(results)
+	}
+	for i, res := range results {
+		if i > 0 {
+			fmt.Fprintln(os.Stdout)
+		}
+		if err := output.Write(os.Stdout, res, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cmdScanCargoDeps(args []string) error {
+	fs := flag.NewFlagSet("scan-cargo-deps", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	policyPack := fs.String("policy-pack", "", "policy pack name")
+	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("dependency file path is required")
+	}
+
+	if !*offline {
+		cli.UpdateDBAsync("", "crates.io", "osv", 24*time.Hour)
+	}
+
+	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	if err != nil {
+		return err
+	}
+
+	content, err := os.ReadFile(fs.Arg(0))
+	if err != nil {
+		return fmt.Errorf("read dependency file: %w", err)
+	}
+
+	deps, err := cargodeps.ParseCargoLock(content)
+	if err != nil {
+		return fmt.Errorf("parse Cargo.lock: %w", err)
+	}
+
+	scanner := scargo.New()
+	scanner.Policy = pol
+	scanner.Offline = *offline
+	scanner.Environment = "developer"
+	scanner.RequestedBy = "human"
+
+	var results []types.ScanResult
+	for _, dep := range deps {
+		res, err := scanner.ScanPackage(dep.Name, dep.Version)
+		if err != nil {
+			return fmt.Errorf("scan dependency %s: %w", dep.Name, err)
+		}
+		res = stripEnterprise(res, *enterpriseMode)
+		_ = saveResult(res)
+		results = append(results, res)
+	}
+
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
