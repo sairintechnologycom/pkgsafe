@@ -1,0 +1,65 @@
+{
+  "name": "pkgsafe-vscode",
+  "displayName": "PkgSafe",
+  "description": "Pre-installation security firewall for open-source dependencies",
+  "version": "0.1.0",
+  "publisher": "niyam-ai",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Linters",
+    "Security"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "PkgSafe",
+      "properties": {
+        "pkgsafe.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable PkgSafe live dependency scanning."
+        },
+        "pkgsafe.port": {
+          "type": "string",
+          "default": "8080",
+          "description": "Port of the local PkgSafe REST API server."
+        },
+        "pkgsafe.token": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer token for local PkgSafe REST API authentication."
+        },
+        "pkgsafe.mode": {
+          "type": "string",
+          "enum": ["", "audit", "warn", "block"],
+          "default": "",
+          "description": "Scan mode override (audit, warn, block)."
+        },
+        "pkgsafe.offline": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force scans to run offline using cached databases."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "pkgsafe.scanActiveFile",
+        "title": "PkgSafe: Scan Dependencies in Active File"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^5.0.0"
+  }
+}
