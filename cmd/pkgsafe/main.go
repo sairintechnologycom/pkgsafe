@@ -13,6 +13,7 @@ import (
 	"time"
 
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
+	"github.com/niyam-ai/pkgsafe/internal/api"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
 	"github.com/niyam-ai/pkgsafe/internal/ci"
 	"github.com/niyam-ai/pkgsafe/internal/cli"
@@ -28,6 +29,8 @@ import (
 
 var version = "0.1.0"
 var commit = "local"
+
+var apiServeFunc = api.Serve
 
 type exitError struct {
 	code int
@@ -87,6 +90,8 @@ func run(args []string) error {
 		return cmdReport(args[1:])
 	case "mcp":
 		return cmdMCP(args[1:])
+	case "serve-api":
+		return cmdServeAPI(args[1:])
 	case "update-db":
 		return cmdUpdateDB(args[1:])
 	case "db":
@@ -151,6 +156,7 @@ Usage:
   pkgsafe report servicenow-export [--output <path>]
   pkgsafe report azure-devops-export [--output <path>]
   pkgsafe mcp serve
+  pkgsafe serve-api [--port <port>] [--token <token>] [--policy <path>] [--mode <mode>] [--offline]
   pkgsafe npm <npm-args...>
   pkgsafe pip <pip-args...>
   pkgsafe python <python-args...>
@@ -804,7 +810,7 @@ func flagNeedsValue(arg string) bool {
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network",
-		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config":
+		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token":
 		return true
 	default:
 		return false
@@ -924,3 +930,29 @@ func wrapInterceptError(err error) error {
 	}
 	return err
 }
+
+func cmdServeAPI(args []string) error {
+	fs := flag.NewFlagSet("serve-api", flag.ContinueOnError)
+	port := fs.String("port", "8080", "port to listen on")
+	token := fs.String("token", "", "bearer token for authorization")
+	policyPath := fs.String("policy", "", "default policy path")
+	mode := fs.String("mode", "", "default mode (audit, warn, block)")
+	offline := fs.Bool("offline", false, "run server offline")
+
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	cfg := api.Config{
+		Port:          *port,
+		Token:         *token,
+		DefaultPolicy: *policyPath,
+		DefaultMode:   *mode,
+		Offline:       *offline,
+		Version:       version,
+		Commit:        commit,
+	}
+
+	return apiServeFunc(cfg)
+}
+

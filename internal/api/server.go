@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
@@ -239,3 +241,15 @@ func (s *Server) tokenAuth(token string, next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// Serve sets up the Server, prints a start message, and listens on localhost.
+func Serve(cfg Config) error {
+	s := NewServer(cfg)
+	port := cfg.Port
+	if strings.HasPrefix(port, ":") {
+		port = port[1:]
+	}
+	fmt.Printf("Starting PkgSafe REST API server on http://127.0.0.1:%s...\n", port)
+	return http.ListenAndServe("127.0.0.1:"+port, s.Router())
+}
+

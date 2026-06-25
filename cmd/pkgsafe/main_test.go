@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/niyam-ai/pkgsafe/internal/api"
 )
 
 func TestReorderFlagsAllowsTrailingCommandFlags(t *testing.T) {
@@ -154,3 +156,92 @@ func TestMCPCommandCleanStdout(t *testing.T) {
 		t.Errorf("expected no output on stdout for empty input, got %q", buf.String())
 	}
 }
+
+func TestServeAPICommand(t *testing.T) {
+	// Stub apiServeFunc
+	oldAPIServe := apiServeFunc
+	defer func() { apiServeFunc = oldAPIServe }()
+
+	var calledCfg api.Config
+	var called bool
+
+	apiServeFunc = func(cfg api.Config) error {
+		called = true
+		calledCfg = cfg
+		return nil
+	}
+
+	tests := []struct {
+		name     string
+		args     []string
+		wantPort string
+		wantTok  string
+		wantPol  string
+		wantMode string
+		wantOff  bool
+	}{
+		{
+			name:     "default values",
+			args:     []string{"serve-api"},
+			wantPort: "8080",
+			wantTok:  "",
+			wantPol:  "",
+			wantMode: "",
+			wantOff:  false,
+		},
+		{
+			name:     "custom flags",
+			args:     []string{"serve-api", "--port", "9090", "--token", "test-token", "--policy", "/path/to/policy.yaml", "--mode", "block", "--offline"},
+			wantPort: "9090",
+			wantTok:  "test-token",
+			wantPol:  "/path/to/policy.yaml",
+			wantMode: "block",
+			wantOff:  true,
+		},
+		{
+			name:     "flags after command",
+			args:     []string{"serve-api", "--offline", "--port=9091", "--token=xyz"},
+			wantPort: "9091",
+			wantTok:  "xyz",
+			wantPol:  "",
+			wantMode: "",
+			wantOff:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called = false
+			calledCfg = api.Config{}
+			err := run(tt.args)
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if !called {
+				t.Fatal("expected api.Serve to be called, but it was not")
+			}
+			if calledCfg.Port != tt.wantPort {
+				t.Errorf("Port = %q, want %q", calledCfg.Port, tt.wantPort)
+			}
+			if calledCfg.Token != tt.wantTok {
+				t.Errorf("Token = %q, want %q", calledCfg.Token, tt.wantTok)
+			}
+			if calledCfg.DefaultPolicy != tt.wantPol {
+				t.Errorf("DefaultPolicy = %q, want %q", calledCfg.DefaultPolicy, tt.wantPol)
+			}
+			if calledCfg.DefaultMode != tt.wantMode {
+				t.Errorf("DefaultMode = %q, want %q", calledCfg.DefaultMode, tt.wantMode)
+			}
+			if calledCfg.Offline != tt.wantOff {
+				t.Errorf("Offline = %v, want %v", calledCfg.Offline, tt.wantOff)
+			}
+			if calledCfg.Version != version {
+				t.Errorf("Version = %q, want %q", calledCfg.Version, version)
+			}
+			if calledCfg.Commit != commit {
+				t.Errorf("Commit = %q, want %q", calledCfg.Commit, commit)
+			}
+		})
+	}
+}
+
