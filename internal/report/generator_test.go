@@ -389,6 +389,7 @@ func TestTokenRedactionInReports(t *testing.T) {
 		{"SIEM", ExportSIEM},
 		{"ServiceNow", ExportServiceNow},
 		{"AzureDevOps", ExportAzureDevOps},
+		{"CSV", func(r *RepositoryRiskReport) (string, error) { return ExportCSV(r, "findings") }},
 	}
 
 	for _, tc := range exporters {
