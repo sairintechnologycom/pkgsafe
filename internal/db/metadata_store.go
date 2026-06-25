@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"time"
 )
 
 func (d *DB) SetMetadata(ctx context.Context, key, val string) error {
@@ -18,4 +19,16 @@ func (d *DB) GetMetadata(ctx context.Context, key string) (string, error) {
 		SELECT value FROM threat_db_metadata WHERE key = ?
 	`, key).Scan(&val)
 	return val, err
+}
+
+func (d *DB) NeedsUpdate(ctx context.Context, threshold time.Duration) bool {
+	val, err := d.GetMetadata(ctx, "last_update")
+	if err != nil {
+		return true
+	}
+	lastUpdate, err := time.Parse(time.RFC3339, val)
+	if err != nil {
+		return true
+	}
+	return time.Since(lastUpdate) > threshold
 }

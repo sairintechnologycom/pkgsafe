@@ -113,3 +113,42 @@ func TestDBLifecycle(t *testing.T) {
 		t.Errorf("expected indexed package count 1, got %d", pCount)
 	}
 }
+
+func TestNeedsUpdate(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test.db")
+
+	d, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	defer d.Close()
+
+	ctx := context.Background()
+
+	// 1. Never updated
+	if !d.NeedsUpdate(ctx, 24*time.Hour) {
+		t.Errorf("expected NeedsUpdate to return true when last_update is missing")
+	}
+
+	// 2. Updated within threshold (recently)
+	recentTime := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	err = d.SetMetadata(ctx, "last_update", recentTime)
+	if err != nil {
+		t.Fatalf("failed to set metadata: %v", err)
+	}
+	if d.NeedsUpdate(ctx, 24*time.Hour) {
+		t.Errorf("expected NeedsUpdate to return false when last_update is within threshold")
+	}
+
+	// 3. Updated past threshold (long ago)
+	oldTime := time.Now().Add(-25 * time.Hour).UTC().Format(time.RFC3339)
+	err = d.SetMetadata(ctx, "last_update", oldTime)
+	if err != nil {
+		t.Fatalf("failed to set metadata: %v", err)
+	}
+	if !d.NeedsUpdate(ctx, 24*time.Hour) {
+		t.Errorf("expected NeedsUpdate to return true when last_update is past threshold")
+	}
+}
+

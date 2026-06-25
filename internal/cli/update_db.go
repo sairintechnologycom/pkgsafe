@@ -11,6 +11,25 @@ import (
 )
 
 func UpdateDB(dbPath, ecosystem, source string) error {
+	return updateDB(dbPath, ecosystem, source, false)
+}
+
+func UpdateDBAsync(dbPath, ecosystem, source string, threshold time.Duration) {
+	d, err := db.Open(dbPath)
+	if err != nil {
+		return
+	}
+	needsUpdate := d.NeedsUpdate(context.Background(), threshold)
+	d.Close()
+
+	if needsUpdate {
+		go func() {
+			_ = updateDB(dbPath, ecosystem, source, true)
+		}()
+	}
+}
+
+func updateDB(dbPath, ecosystem, source string, silent bool) error {
 	if ecosystem == "" {
 		ecosystem = "npm"
 	}
@@ -75,13 +94,16 @@ func UpdateDB(dbPath, ecosystem, source string) error {
 	nowStr := time.Now().UTC().Format(time.RFC3339)
 	_ = d.SetMetadata(ctx, "last_update", nowStr)
 
-	fmt.Println("PkgSafe threat DB updated.")
-	fmt.Println()
-	fmt.Printf("Source: %s\n", source)
-	fmt.Printf("Ecosystem: %s\n", ecosystem)
-	fmt.Printf("Records updated: %d\n", updatedCount)
-	fmt.Printf("Last updated: %s\n", nowStr)
-	fmt.Printf("Database: %s\n", d.Path())
+	if !silent {
+		fmt.Println("PkgSafe threat DB updated.")
+		fmt.Println()
+		fmt.Printf("Source: %s\n", source)
+		fmt.Printf("Ecosystem: %s\n", ecosystem)
+		fmt.Printf("Records updated: %d\n", updatedCount)
+		fmt.Printf("Last updated: %s\n", nowStr)
+		fmt.Printf("Database: %s\n", d.Path())
+	}
 
 	return nil
 }
+

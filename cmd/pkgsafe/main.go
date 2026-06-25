@@ -180,6 +180,9 @@ func cmdScanPyPIPackage(args []string) error {
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
+	if !*offline {
+		cli.UpdateDBAsync("", "pypi", "osv", 24*time.Hour)
+	}
 	if fs.NArg() != 1 {
 		return errors.New("package name is required")
 	}
@@ -273,6 +276,7 @@ func cmdScanLocalNPM(args []string) error {
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
+	cli.UpdateDBAsync("", "npm", "osv", 24*time.Hour)
 	if fs.NArg() != 1 {
 		return errors.New("directory is required")
 	}
@@ -352,6 +356,9 @@ func cmdScanNPMPackage(args []string) error {
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
+	}
+	if !*offline {
+		cli.UpdateDBAsync("", "npm", "osv", 24*time.Hour)
 	}
 	if fs.NArg() != 1 {
 		return errors.New("package name is required")
@@ -941,6 +948,10 @@ func cmdServeAPI(args []string) error {
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
+	}
+	if !*offline {
+		cli.UpdateDBAsync("", "npm", "osv", 24*time.Hour)
+		cli.UpdateDBAsync("", "pypi", "osv", 24*time.Hour)
 	}
 
 	cfg := api.Config{
