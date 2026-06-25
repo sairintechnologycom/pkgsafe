@@ -44,6 +44,47 @@ func TestCredentialReadBlocks(t *testing.T) {
 	if res.Decision != types.DecisionBlock {
 		t.Fatalf("expected block, got %s score=%d reasons=%v", res.Decision, res.Score, res.Reasons)
 	}
+	if res.Score != 100 {
+		t.Errorf("expected score 100, got %d", res.Score)
+	}
+	expectedReasons := []string{
+		"lifecycle_script_present",
+		"credential_path_reference",
+		"missing_repository",
+		"missing_license",
+		"score_clamped",
+	}
+	for _, id := range expectedReasons {
+		if !hasReason(res.Reasons, id) {
+			t.Errorf("expected reason %s not found in %v", id, res.Reasons)
+		}
+	}
+}
+
+func TestCurlPipeShBlocks(t *testing.T) {
+	res, err := AnalyzePackageDir(fixture("curl-pipe-sh"), policy.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Decision != types.DecisionBlock {
+		t.Fatalf("expected block, got %s score=%d reasons=%v", res.Decision, res.Score, res.Reasons)
+	}
+	if res.Score != 100 {
+		t.Errorf("expected score 100, got %d", res.Score)
+	}
+	expectedReasons := []string{
+		"lifecycle_script_present",
+		"network_command_in_lifecycle",
+		"shell_download_execute",
+		"missing_repository",
+		"missing_license",
+		"score_clamped",
+	}
+	for _, id := range expectedReasons {
+		if !hasReason(res.Reasons, id) {
+			t.Errorf("expected reason %s not found in %v", id, res.Reasons)
+		}
+	}
 }
 
 func TestTyposquatWarns(t *testing.T) {
@@ -55,6 +96,16 @@ func TestTyposquatWarns(t *testing.T) {
 		t.Fatalf("expected warn/block for typosquat, got allow")
 	}
 }
+
+func hasReason(reasons []types.Reason, id string) bool {
+	for _, r := range reasons {
+		if r.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 
 func TestLockfileTyposquat(t *testing.T) {
 	res, err := AnalyzeLockfile(filepath.Join("..", "..", "..", "testdata", "npm", "package-lock.json"), policy.Default())
