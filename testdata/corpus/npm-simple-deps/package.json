@@ -1,0 +1,9 @@
+{
+  "name": "npm-simple-deps",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}

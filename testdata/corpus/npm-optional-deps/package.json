@@ -1,0 +1,9 @@
+{
+  "name": "npm-optional-deps",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "optionalDependencies": {
+    "fsevents": "^2.3.2"
+  }
+}

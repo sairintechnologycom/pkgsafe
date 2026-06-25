@@ -1,0 +1,3191 @@
+{
+  "credential-reading-pkg": {
+    "expected_dependencies": [],
+    "expected_decision": "block",
+    "min_score": 100,
+    "max_score": 150
+  },
+  "duplicate-dependencies": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "huge-lockfile": {
+    "expected_dependencies": [
+      {
+        "package_name": "pkg-1",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-2",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-3",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-4",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-5",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-6",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-7",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-8",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-9",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-10",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-11",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-12",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-13",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-14",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-15",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-16",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-17",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-18",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-19",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-20",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-21",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-22",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-23",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-24",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-25",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-26",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-27",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-28",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-29",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-30",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-31",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-32",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-33",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-34",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-35",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-36",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-37",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-38",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-39",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-40",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-41",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-42",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-43",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-44",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-45",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-46",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-47",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-48",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-49",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-50",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-51",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-52",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-53",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-54",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-55",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-56",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-57",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-58",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-59",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-60",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-61",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-62",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-63",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-64",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-65",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-66",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-67",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-68",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-69",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-70",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-71",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-72",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-73",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-74",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-75",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-76",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-77",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-78",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-79",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-80",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-81",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-82",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-83",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-84",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-85",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-86",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-87",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-88",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-89",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-90",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-91",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-92",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-93",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-94",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-95",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-96",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-97",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-98",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-99",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-100",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-101",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-102",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-103",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-104",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-105",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-106",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-107",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-108",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-109",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-110",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-111",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-112",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-113",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-114",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-115",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-116",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-117",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-118",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-119",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-120",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-121",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-122",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-123",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-124",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-125",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-126",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-127",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-128",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-129",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-130",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-131",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-132",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-133",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-134",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-135",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-136",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-137",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-138",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-139",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-140",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-141",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-142",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-143",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-144",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-145",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-146",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-147",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-148",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-149",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-150",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-151",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-152",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-153",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-154",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-155",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-156",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-157",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-158",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-159",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-160",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-161",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-162",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-163",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-164",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-165",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-166",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-167",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-168",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-169",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-170",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-171",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-172",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-173",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-174",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-175",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-176",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-177",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-178",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-179",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-180",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-181",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-182",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-183",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-184",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-185",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-186",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-187",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-188",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-189",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-190",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-191",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-192",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-193",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-194",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-195",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-196",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-197",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-198",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-199",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-200",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-201",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-202",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-203",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-204",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-205",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-206",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-207",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-208",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-209",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-210",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-211",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-212",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-213",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-214",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-215",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-216",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-217",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-218",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-219",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-220",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-221",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-222",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-223",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-224",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-225",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-226",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-227",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-228",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-229",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-230",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-231",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-232",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-233",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-234",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-235",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-236",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-237",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-238",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-239",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-240",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-241",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-242",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-243",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-244",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-245",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-246",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-247",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-248",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-249",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-250",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-251",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-252",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-253",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-254",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-255",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-256",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-257",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-258",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-259",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-260",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-261",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-262",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-263",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-264",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-265",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-266",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-267",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-268",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-269",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-270",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-271",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-272",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-273",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-274",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-275",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-276",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-277",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-278",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-279",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-280",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-281",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-282",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-283",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-284",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-285",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-286",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-287",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-288",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-289",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-290",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-291",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-292",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-293",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-294",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-295",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-296",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-297",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-298",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-299",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-300",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-301",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-302",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-303",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-304",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-305",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-306",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-307",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-308",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-309",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-310",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-311",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-312",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-313",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-314",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-315",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-316",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-317",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-318",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-319",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-320",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-321",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-322",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-323",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-324",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-325",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-326",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-327",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-328",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-329",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-330",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-331",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-332",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-333",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-334",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-335",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-336",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-337",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-338",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-339",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-340",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-341",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-342",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-343",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-344",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-345",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-346",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-347",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-348",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-349",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-350",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-351",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-352",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-353",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-354",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-355",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-356",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-357",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-358",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-359",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-360",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-361",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-362",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-363",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-364",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-365",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-366",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-367",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-368",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-369",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-370",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-371",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-372",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-373",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-374",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-375",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-376",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-377",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-378",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-379",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-380",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-381",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-382",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-383",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-384",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-385",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-386",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-387",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-388",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-389",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-390",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-391",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-392",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-393",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-394",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-395",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-396",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-397",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-398",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-399",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-400",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-401",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-402",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-403",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-404",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-405",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-406",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-407",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-408",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-409",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-410",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-411",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-412",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-413",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-414",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-415",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-416",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-417",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-418",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-419",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-420",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-421",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-422",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-423",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-424",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-425",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-426",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-427",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-428",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-429",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-430",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-431",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-432",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-433",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-434",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-435",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-436",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-437",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-438",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-439",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-440",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-441",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-442",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-443",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-444",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-445",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-446",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-447",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-448",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-449",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-450",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-451",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-452",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-453",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-454",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-455",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-456",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-457",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-458",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-459",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-460",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-461",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-462",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-463",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-464",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-465",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-466",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-467",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-468",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-469",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-470",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-471",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-472",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-473",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-474",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-475",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-476",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-477",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-478",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-479",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-480",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-481",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-482",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-483",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-484",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-485",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-486",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-487",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-488",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-489",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-490",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-491",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-492",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-493",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-494",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-495",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-496",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-497",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-498",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-499",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-500",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-501",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-502",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-503",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-504",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-505",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-506",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-507",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-508",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-509",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-510",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-511",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-512",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-513",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-514",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-515",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-516",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-517",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-518",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-519",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-520",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-521",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-522",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-523",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-524",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-525",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-526",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-527",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-528",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-529",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-530",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-531",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-532",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-533",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-534",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-535",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-536",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-537",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-538",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-539",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-540",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-541",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-542",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-543",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-544",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-545",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-546",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-547",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-548",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-549",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-550",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-551",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-552",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-553",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-554",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-555",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-556",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-557",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-558",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-559",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-560",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-561",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-562",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-563",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-564",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-565",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-566",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-567",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-568",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-569",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-570",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-571",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-572",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-573",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-574",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-575",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-576",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-577",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-578",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-579",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-580",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-581",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-582",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-583",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-584",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-585",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-586",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-587",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-588",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-589",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-590",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-591",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-592",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-593",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-594",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-595",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-596",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-597",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-598",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-599",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "pkg-600",
+        "dependency_type": "transitive",
+        "direct": false
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "js-ts-imports": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "express",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "axios",
+        "dependency_type": "source-import",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "malformed-lockfile": {
+    "expected_dependencies": [],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "malformed-package-json": {
+    "expected_dependencies": [],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "npm-alias-specs": {
+    "expected_dependencies": [
+      {
+        "package_name": "my-lodash",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "npm-dev-deps": {
+    "expected_dependencies": [
+      {
+        "package_name": "typescript",
+        "dependency_type": "dev",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "npm-lock-transitive": {
+    "expected_dependencies": [
+      {
+        "package_name": "axios",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "follow-redirects",
+        "dependency_type": "transitive",
+        "direct": false
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "npm-optional-deps": {
+    "expected_dependencies": [
+      {
+        "package_name": "fsevents",
+        "dependency_type": "optional",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "npm-peer-deps": {
+    "expected_dependencies": [
+      {
+        "package_name": "react",
+        "dependency_type": "peer",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "npm-simple-deps": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "npm-workspaces": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "axios",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "postinstall-curl-pkg": {
+    "expected_dependencies": [],
+    "expected_decision": "block",
+    "min_score": 100,
+    "max_score": 150
+  },
+  "scoped-packages": {
+    "expected_dependencies": [
+      {
+        "package_name": "@babel/core",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "typosquat-pkg": {
+    "expected_dependencies": [],
+    "expected_decision": "warn",
+    "min_score": 25,
+    "max_score": 50
+  },
+  "workspace-references": {
+    "expected_dependencies": [
+      {
+        "package_name": "subapp",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  }
+}

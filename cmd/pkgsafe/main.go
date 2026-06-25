@@ -17,18 +17,20 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/cache"
 	"github.com/niyam-ai/pkgsafe/internal/ci"
 	"github.com/niyam-ai/pkgsafe/internal/cli"
+	cargodeps "github.com/niyam-ai/pkgsafe/internal/deps/cargo"
+	godeps "github.com/niyam-ai/pkgsafe/internal/deps/golang"
+	npminventory "github.com/niyam-ai/pkgsafe/internal/deps/npm"
 	pydeps "github.com/niyam-ai/pkgsafe/internal/deps/python"
 	"github.com/niyam-ai/pkgsafe/internal/intercept"
 	"github.com/niyam-ai/pkgsafe/internal/mcp"
 	"github.com/niyam-ai/pkgsafe/internal/output"
-	cargodeps "github.com/niyam-ai/pkgsafe/internal/deps/cargo"
-	godeps "github.com/niyam-ai/pkgsafe/internal/deps/golang"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	scargo "github.com/niyam-ai/pkgsafe/internal/scanner/cargo"
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
 	sgolang "github.com/niyam-ai/pkgsafe/internal/scanner/golang"
+	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
 	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/niyam-ai/pkgsafe/internal/validation"
 )
 
 var version = "0.1.0"
@@ -107,6 +109,13 @@ func run(args []string) error {
 			return cmdDBStatus(args[2:])
 		}
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe db status")
+	case "inventory":
+		return cmdInventory(args[1:])
+	case "test":
+		if len(args) > 1 && args[1] == "corpus" {
+			return cmdTestCorpus(args[2:])
+		}
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe test corpus")
 	case "ci":
 		if len(args) > 1 && args[1] == "scan" {
 			return cmdCIScan(args[2:])
@@ -142,6 +151,8 @@ Usage:
   pkgsafe scan-go-deps <go.mod> [--json]
   pkgsafe scan-cargo-deps <Cargo.lock> [--json]
   pkgsafe scan-lockfile <package-lock.json> [--json]
+  pkgsafe inventory <repo-path> [--json]
+  pkgsafe test corpus [--json]
   pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe npm-install <name> [--version <version>] [--policy-pack <name>] [--mode warn|block|audit]
@@ -1112,4 +1123,52 @@ func cmdServeAPI(args []string) error {
 
 	return apiServeFunc(cfg)
 }
+
+func cmdInventory(args []string) error {
+	fs := flag.NewFlagSet("inventory", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("repository path is required")
+	}
+	repoPath := fs.Arg(0)
+
+	deps, err := npminventory.ScanInventory(repoPath)
+	if err != nil {
+		return err
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(deps)
+	}
+
+	fmt.Printf("Inventory of dependencies in %s:\n\n", repoPath)
+	fmt.Printf("%-35s %-15s %-15s %-45s\n", "Package Name", "Type", "Direct/Trans", "Source File")
+	fmt.Println(strings.Repeat("-", 115))
+	for _, d := range deps {
+		dirStr := "transitive"
+		if d.Direct {
+			dirStr = "direct"
+		}
+		fmt.Printf("%-35s %-15s %-15s %-45s\n", d.Name, d.DependencyType, dirStr, d.SourceFile)
+	}
+	return nil
+}
+
+func cmdTestCorpus(args []string) error {
+	fs := flag.NewFlagSet("test-corpus", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	// We use "testdata/corpus" as the directory containing test cases
+	// and "testdata/corpus-golden.json" as the expected results file.
+	return validation.RunCorpus("testdata/corpus", "testdata/corpus-golden.json", *asJSON)
+}
+
 

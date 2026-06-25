@@ -1,0 +1,9 @@
+{
+  "name": "subapp",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

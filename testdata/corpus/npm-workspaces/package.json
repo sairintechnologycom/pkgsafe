@@ -1,0 +1,12 @@
+{
+  "name": "workspaces-root",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "workspaces": [
+    "packages/*"
+  ],
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}

@@ -20,14 +20,19 @@ var (
 )
 
 type PackageJSON struct {
-	Name            string            `json:"name"`
-	Version         string            `json:"version"`
-	Description     string            `json:"description"`
-	License         any               `json:"license"`
-	Repository      any               `json:"repository"`
-	Scripts         map[string]string `json:"scripts"`
-	Dependencies    map[string]string `json:"dependencies"`
-	DevDependencies map[string]string `json:"devDependencies"`
+	Name                 string            `json:"name"`
+	Version              string            `json:"version"`
+	Description          string            `json:"description"`
+	License              any               `json:"license"`
+	Repository           any               `json:"repository"`
+	Scripts              map[string]string `json:"scripts"`
+	Dependencies         map[string]string `json:"dependencies"`
+	DevDependencies      map[string]string `json:"devDependencies"`
+	PeerDependencies     map[string]string `json:"peerDependencies"`
+	OptionalDependencies map[string]string `json:"optionalDependencies"`
+	BundledDependencies  any               `json:"bundledDependencies"`
+	BundleDependencies   any               `json:"bundleDependencies"`
+	Workspaces           any               `json:"workspaces"`
 }
 
 func AnalyzePackageDir(dir string, pol policy.Policy) (types.ScanResult, error) {

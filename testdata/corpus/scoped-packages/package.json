@@ -1,0 +1,9 @@
+{
+  "name": "scoped-pkg-app",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "@babel/core": "^7.0.0"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "alias-app",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "my-lodash": "npm:lodash@^4.17.21"
+  }
+}

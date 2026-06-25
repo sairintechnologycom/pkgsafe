@@ -1,0 +1,9 @@
+{
+  "name": "npm-dev-deps",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
