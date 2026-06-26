@@ -17,9 +17,30 @@ hardening and operability, then ecosystem/maturity breadth.
 
 ---
 
-## P0 — Blockers (the security model does not hold today)
+## Progress (updated 2026-06-26)
 
-### B1. Policy-pack signatures are not cryptographically verified
+**✅ DONE — merged to `main`:** all P0 blockers and both P1 data-integrity items.
+
+| Item | PR |
+|------|----|
+| B1 — pack signature verification (ed25519) | #3 |
+| B2 — packs can't overwrite the vuln DB | #4 |
+| B3 — sandbox honestly relabeled | #5 |
+| S1 — OSV fails closed | #6 |
+| S2 — real OSV bulk DB sync | #7 |
+
+Plus earlier: constant-time token compare + CSV redaction (#1), ExtractZip byte cap (#2).
+
+**⬜ REMAINING — to be planned next:** **P2** (API hardening), **P3** (operability:
+parallelism, logging, no fail-open stub, version gating), **P4** (Go/Cargo content
+analysis, PyPI lockfile parsers, CI/release maturity, test coverage, README). Completed
+sections below are kept for the record, annotated with their PR.
+
+---
+
+## P0 — Blockers ✅ ALL DONE (merged)
+
+### B1. Policy-pack signatures are not cryptographically verified — ✅ DONE (PR #3)
 - [ ] Implement real signature verification (e.g. ed25519/minisign or cosign), with a
       configured/trusted public key, over a canonical digest of pack contents.
 - [ ] Make `checksums.txt` cover **all** files and be itself covered by the signature;
@@ -35,7 +56,7 @@ from checksum coverage. `internal/enterprise/metadata.go:13-16` parses
 the repo. **Impact:** authenticity is theater — anyone who can hand you a pack can
 recompute checksums and forge "signed" status.
 
-### B2. Installing a policy pack silently overwrites the active vulnerability DB
+### B2. Installing a policy pack silently overwrites the active vulnerability DB — ✅ DONE (PR #4)
 - [ ] Never write a pack-supplied `pkgsafe.db` to `db.DefaultDBPath()`.
 - [ ] If packs may legitimately carry advisory data, import it into a namespaced/merged
       store with provenance — never replace the live DB unconditionally.
@@ -48,7 +69,7 @@ bypassing the per-pack `installDir` sandboxing used for all other files (`:54-61
 `ExportBundle` (`:157-164`) bundles the local DB into packs. **Impact:** combined with
 B1, a malicious pack can replace the entire vuln DB (e.g. empty it) to blind the scanner.
 
-### B3. The "sandbox" provides no real isolation
+### B3. The "sandbox" provides no real isolation — ✅ DONE via honest relabel (PR #5)
 - [ ] Either implement genuine isolation (container/namespaces+seccomp+network namespace,
       or a microVM/gVisor) for lifecycle execution, **or**
 - [ ] Honestly relabel the feature as "heuristic behavior analysis" everywhere in code,
@@ -68,9 +89,9 @@ files — none contained; detection is trivially evaded.
 
 ---
 
-## P1 — Vulnerability data path (fails open today)
+## P1 — Vulnerability data path ✅ ALL DONE (merged)
 
-### S1. OSV lookup fails open on network/rate-limit errors
+### S1. OSV lookup fails open on network/rate-limit errors — ✅ DONE (PR #6)
 - [ ] On OSV query error, fail closed (or degrade to a clearly-surfaced "unknown" state),
       never silently score the package as having zero vulnerabilities.
 - [ ] Add retries with backoff and explicit `429`/rate-limit handling.
@@ -82,7 +103,7 @@ single 15s client, no retries, treats non-200 (incl. 429) as generic error.
 `internal/cli/update_db.go:75-78` swallows per-package errors. **Impact:** a transient
 outage or rate-limit yields a false "clean" verdict.
 
-### S2. No real bundled / synced advisory database
+### S2. No real bundled / synced advisory database — ✅ DONE (PR #7)
 - [ ] Provide a real OSV bulk import / periodic sync (not per-cached-package refresh).
 - [ ] Ship or bootstrap a seeded DB so a clean machine isn't empty offline.
 - [ ] Replace the hardcoded 5-package seed with a genuine update path.
@@ -96,7 +117,7 @@ but proceeds when stale. **Impact:** no trustworthy offline posture; thin online
 
 ---
 
-## P2 — API & service hardening
+## P2 — API & service hardening  ⬅️ NEXT
 
 ### S3. API unauthenticated by default; missing transport/DoS hardening
 - [ ] Require auth (or fail to start without it) for any non-loopback exposure.
@@ -200,8 +221,10 @@ supply-chain tool is itself a supply-chain gap.
 
 ## Suggested milestones
 
-1. **"Honest security" (P0):** B1 + B2 + B3 — make signed packs real, stop DB overwrite,
-   either isolate or relabel the sandbox. Gate any "secure"/"firewall" marketing on this.
-2. **"Trustworthy data" (P1):** S1 + S2 — fail closed on OSV, real advisory sync/bundle.
-3. **"Safe to operate" (P2/P3):** S3–S7 — API hardening, parallelism, logging, no fail-open.
+1. ✅ **"Honest security" (P0):** B1 + B2 + B3 — DONE (PRs #3/#4/#5). Signed packs are
+   real, DB overwrite stopped, sandbox honestly relabeled.
+2. ✅ **"Trustworthy data" (P1):** S1 + S2 — DONE (PRs #6/#7). OSV fails closed; real
+   advisory bulk sync.
+3. ⬅️ **"Safe to operate" (P2/P3):** S3–S7 — API hardening, parallelism, logging, no
+   fail-open report stub, version gating. **← next session plans this.**
 4. **"Breadth & shipping" (P4):** S8 + S9 + M1–M3 — Go/Cargo depth, lockfiles, CI/release, docs.
