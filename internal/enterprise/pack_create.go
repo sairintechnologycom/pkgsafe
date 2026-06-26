@@ -3,6 +3,7 @@ package enterprise
 import (
 	"archive/tar"
 	"compress/gzip"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,13 +14,27 @@ import (
 	"time"
 )
 
-func CreatePolicyPack(name string, srcDir string, outputPath string) error {
+// CreatePolicyPack builds a policy pack tarball from srcDir. When
+// signingKeyPath is non-empty, the pack's checksums.txt is signed with the
+// ed25519 private key at that path, signature.sig is added, and the pack
+// metadata is marked as requiring a signature.
+func CreatePolicyPack(name string, srcDir string, outputPath string, signingKeyPath string) error {
 	if srcDir == "" {
 		srcDir = ".pkgsafe"
 	}
 	if _, err := os.Stat(srcDir); os.IsNotExist(err) {
 		// fallback to current directory
 		srcDir = "."
+	}
+
+	// Load the signing key up front so a bad key fails before we write anything.
+	var signingKey ed25519.PrivateKey
+	if signingKeyPath != "" {
+		var err error
+		signingKey, err = LoadPrivateKey(signingKeyPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	// 1. Validate or write metadata.json
@@ -61,6 +76,23 @@ func CreatePolicyPack(name string, srcDir string, outputPath string) error {
 		}
 	}
 
+	// If signing, mark the metadata as requiring a signature and persist it so
+	// the updated metadata.json is what gets checksummed and signed below.
+	if signingKey != nil {
+		meta, err := ParseMetadata(metaBytes)
+		if err != nil {
+			return fmt.Errorf("invalid metadata in src dir: %w", err)
+		}
+		meta.Signing = Signing{Required: true, Algorithm: SignatureAlgorithm}
+		metaBytes, err = json.MarshalIndent(meta, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(metaPath, metaBytes, 0o644); err != nil {
+			return fmt.Errorf("write signed metadata: %w", err)
+		}
+	}
+
 	// 2. Gather list of pack files to include
 	candidateFiles := []string{
 		"metadata.json",
@@ -92,6 +124,13 @@ func CreatePolicyPack(name string, srcDir string, outputPath string) error {
 	// Write checksums.txt
 	checksumsContent := strings.Join(checksumsLines, "\n") + "\n"
 	filesToPack["checksums.txt"] = []byte(checksumsContent)
+
+	// Sign checksums.txt (which covers every other file) and attach the
+	// detached signature. Added after checksums are computed so it is never
+	// self-referenced.
+	if signingKey != nil {
+		filesToPack["signature.sig"] = SignPack(signingKey, filesToPack["checksums.txt"])
+	}
 
 	// Create tarball
 	outDir := filepath.Dir(outputPath)

@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/ed25519"
 	"fmt"
 	"io"
 	"net/url"
@@ -25,7 +26,25 @@ func (e PackValidationError) Error() string {
 	return e.Err.Error()
 }
 
+// VerifyPolicyPack verifies a policy pack using the default trusted keys
+// (PKGSAFE_PACK_PUBLIC_KEYS and ~/.pkgsafe/trusted-keys). See
+// VerifyPolicyPackWithKeys for the signature-trust semantics.
 func VerifyPolicyPack(tarGzPath string) (map[string][]byte, error) {
+	return VerifyPolicyPackWithKeys(tarGzPath, DefaultTrustedKeys())
+}
+
+// VerifyPolicyPackWithKeys verifies a policy pack's structure, checksums, and
+// (when applicable) its cryptographic signature against trustedKeys.
+//
+// Signature semantics:
+//   - If metadata.signing.required is true, the pack MUST carry a signature.sig
+//     that verifies against one of trustedKeys; if trustedKeys is empty or the
+//     signature is missing/invalid, verification FAILS CLOSED.
+//   - If a signature is present but signing is not required, it is still
+//     verified when trusted keys are configured (a tampered/forged signature
+//     fails); with no trusted keys configured it is skipped with a warning.
+//   - Unsigned packs that do not require signing verify as before.
+func VerifyPolicyPackWithKeys(tarGzPath string, trustedKeys []ed25519.PublicKey) (map[string][]byte, error) {
 	f, err := os.Open(tarGzPath)
 	if err != nil {
 		return nil, PackValidationError{Code: 2, Err: fmt.Errorf("open pack file: %w", err)}
@@ -95,11 +114,27 @@ func VerifyPolicyPack(tarGzPath string) (map[string][]byte, error) {
 		return nil, PackValidationError{Code: 1, Err: err}
 	}
 
-	// Check signature if signing required
-	if meta.Signing.Required {
-		_, hasSig := files["signature.sig"]
-		if !hasSig {
-			return nil, PackValidationError{Code: 3, Err: fmt.Errorf("signature.sig is required by metadata but missing")}
+	// Cryptographically verify the pack signature. The signature is computed
+	// over checksums.txt, which in turn covers every other file by SHA-256, so
+	// a valid signature authenticates the whole pack.
+	sig, hasSig := files["signature.sig"]
+	if meta.Signing.Required && !hasSig {
+		return nil, PackValidationError{Code: 3, Err: fmt.Errorf("signature.sig is required by metadata but missing")}
+	}
+	if meta.Signing.Algorithm != "" && meta.Signing.Algorithm != SignatureAlgorithm {
+		return nil, PackValidationError{Code: 1, Err: fmt.Errorf("unsupported signing algorithm %q (only %q is supported)", meta.Signing.Algorithm, SignatureAlgorithm)}
+	}
+	if hasSig {
+		switch {
+		case len(trustedKeys) > 0:
+			if err := VerifyPackSignature(trustedKeys, checksumsContent, sig); err != nil {
+				return nil, PackValidationError{Code: 3, Err: fmt.Errorf("signature verification failed: %w", err)}
+			}
+		case meta.Signing.Required:
+			// Required but nothing to verify against — fail closed.
+			return nil, PackValidationError{Code: 3, Err: fmt.Errorf("pack requires a signature but no trusted public key is configured (set %s or add keys to %s)", TrustedKeysEnv, TrustedKeysDir())}
+		default:
+			fmt.Fprintf(os.Stderr, "Warning: policy pack %s carries a signature but no trusted public key is configured; signature not verified\n", meta.Name)
 		}
 	}
 
