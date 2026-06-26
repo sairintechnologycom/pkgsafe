@@ -110,6 +110,9 @@ func run(args []string) error {
 		}
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe db status")
 	case "inventory":
+		if len(args) > 1 && args[1] == "diff" {
+			return cmdInventoryDiff(args[2:])
+		}
 		return cmdInventory(args[1:])
 	case "test":
 		if len(args) > 1 && args[1] == "corpus" {
@@ -152,6 +155,7 @@ Usage:
   pkgsafe scan-cargo-deps <Cargo.lock> [--json]
   pkgsafe scan-lockfile <package-lock.json> [--json]
   pkgsafe inventory <repo-path> [--json]
+  pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
   pkgsafe test corpus [--json]
   pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
@@ -975,7 +979,8 @@ func flagNeedsValue(arg string) bool {
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network",
-		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token":
+		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token",
+		"base", "repo":
 		return true
 	default:
 		return false
@@ -1141,16 +1146,23 @@ func cmdInventory(args []string) error {
 		return err
 	}
 
+	var cleanDeps []types.Dependency
+	for _, d := range deps {
+		if d.Name != "" {
+			cleanDeps = append(cleanDeps, d)
+		}
+	}
+
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(deps)
+		return enc.Encode(cleanDeps)
 	}
 
 	fmt.Printf("Inventory of dependencies in %s:\n\n", repoPath)
 	fmt.Printf("%-35s %-15s %-15s %-45s\n", "Package Name", "Type", "Direct/Trans", "Source File")
 	fmt.Println(strings.Repeat("-", 115))
-	for _, d := range deps {
+	for _, d := range cleanDeps {
 		dirStr := "transitive"
 		if d.Direct {
 			dirStr = "direct"
@@ -1172,4 +1184,71 @@ func cmdTestCorpus(args []string) error {
 	return validation.RunCorpus("testdata/corpus", "testdata/corpus-golden.json", *asJSON)
 }
 
+func cmdInventoryDiff(args []string) error {
+	fs := flag.NewFlagSet("inventory-diff", flag.ContinueOnError)
+	baseBranch := fs.String("base", "main", "base git branch to compare against")
+	repoPath := fs.String("repo", ".", "path to the repository")
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
 
+	currentDeps, err := npminventory.ScanInventory(*repoPath)
+	if err != nil {
+		return fmt.Errorf("scan current inventory: %w", err)
+	}
+
+	baseDeps, err := npminventory.ScanInventoryGit(*repoPath, *baseBranch)
+	if err != nil {
+		return fmt.Errorf("scan base inventory for branch %q: %w", *baseBranch, err)
+	}
+
+	report := npminventory.DiffInventories(baseDeps, currentDeps)
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(report)
+	}
+
+	fmt.Printf("Dependency Inventory Diff (Base: %s vs Working Tree: %s)\n", *baseBranch, *repoPath)
+	fmt.Println(strings.Repeat("=", 80))
+
+	fmt.Println("\nAdded Dependencies:")
+	if len(report.Added) == 0 {
+		fmt.Println("  (None)")
+	} else {
+		for _, d := range report.Added {
+			fmt.Printf("  + %s (%s, direct=%t) in %s\n", d.Name, d.DependencyType, d.Direct, d.SourceFile)
+		}
+	}
+
+	fmt.Println("\nRemoved Dependencies:")
+	if len(report.Removed) == 0 {
+		fmt.Println("  (None)")
+	} else {
+		for _, d := range report.Removed {
+			fmt.Printf("  - %s (%s, direct=%t) from %s\n", d.Name, d.DependencyType, d.Direct, d.SourceFile)
+		}
+	}
+
+	fmt.Println("\nModified/Changed Dependencies:")
+	if len(report.Changed) == 0 {
+		fmt.Println("  (None)")
+	} else {
+		for _, c := range report.Changed {
+			fmt.Printf("  * %s in %s:\n", c.Name, c.SourceFile)
+			if c.BaseVersion != c.CurVersion {
+				fmt.Printf("    Version: %s -> %s\n", c.BaseVersion, c.CurVersion)
+			}
+			if c.BaseType != c.CurType {
+				fmt.Printf("    Type:    %s -> %s\n", c.BaseType, c.CurType)
+			}
+			if c.BaseDirect != c.CurDirect {
+				fmt.Printf("    Direct:  %t -> %t\n", c.BaseDirect, c.CurDirect)
+			}
+		}
+	}
+
+	return nil
+}

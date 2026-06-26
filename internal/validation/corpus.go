@@ -51,29 +51,76 @@ type ValidationReport struct {
 }
 
 func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
+	report, err := RunCorpusReport(corpusDir, goldenFile)
+	if err != nil {
+		return err
+	}
+
+	// Output report
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(report)
+	}
+
+	// Human-readable format
+	fmt.Println("PkgSafe Validation Suite Results")
+	fmt.Println("=================================")
+	fmt.Printf("Dependency Precision:            %.2f%%\n", report.Metrics.DependencyPrecision*100)
+	fmt.Printf("Dependency Recall:               %.2f%%\n", report.Metrics.DependencyRecall*100)
+	fmt.Printf("Direct Dependency Recall:        %.2f%%\n", report.Metrics.DirectDependencyRecall*100)
+	fmt.Printf("Transitive Dependency Recall:    %.2f%%\n", report.Metrics.TransitiveDependencyRecall*100)
+	fmt.Printf("Source Import Recall:            %.2f%%\n", report.Metrics.SourceImportRecall*100)
+	fmt.Printf("False Warn Rate:                 %.2f%%\n", report.Metrics.FalseWarnRate*100)
+	fmt.Printf("False Block Rate:                %.2f%%\n", report.Metrics.FalseBlockRate*100)
+	fmt.Printf("Critical Detection Rate:         %.2f%%\n", report.Metrics.CriticalDetectionRate*100)
+	fmt.Println()
+	fmt.Println("Fixture Details:")
+	fmt.Println("----------------")
+	allPassed := true
+	for _, res := range report.Results {
+		status := "PASSED"
+		if !res.Passed {
+			status = "FAILED"
+			allPassed = false
+		}
+		fmt.Printf("[%s] %s (Decision: %s, Score: %d)\n", status, res.Fixture, res.ActualDecision, res.ActualScore)
+		for _, detail := range res.Details {
+			fmt.Printf("  - %s\n", detail)
+		}
+	}
+
+	if !allPassed {
+		return fmt.Errorf("some validation suite tests failed")
+	}
+	return nil
+}
+
+func RunCorpusReport(corpusDir, goldenFile string) (ValidationReport, error) {
+	var report ValidationReport
+
 	// 1. Ensure fixtures and golden file exist (generate them if not present)
 	if _, err := os.Stat(filepath.Join(corpusDir, "npm-simple-deps")); os.IsNotExist(err) {
 		if err := WriteCorpusFixtures(corpusDir); err != nil {
-			return fmt.Errorf("write corpus fixtures: %w", err)
+			return report, fmt.Errorf("write corpus fixtures: %w", err)
 		}
 	}
 	if _, err := os.Stat(goldenFile); os.IsNotExist(err) {
 		if err := WriteGoldenResults(goldenFile); err != nil {
-			return fmt.Errorf("write golden results: %w", err)
+			return report, fmt.Errorf("write golden results: %w", err)
 		}
 	}
 
 	// 2. Read golden results
 	b, err := os.ReadFile(goldenFile)
 	if err != nil {
-		return fmt.Errorf("read golden file: %w", err)
+		return report, fmt.Errorf("read golden file: %w", err)
 	}
 	var golden map[string]GoldenExpectation
 	if err := json.Unmarshal(b, &golden); err != nil {
-		return fmt.Errorf("parse golden file: %w", err)
+		return report, fmt.Errorf("parse golden file: %w", err)
 	}
 
-	report := ValidationReport{}
 	pol := policy.Default()
 	scanner := snpm.New()
 	scanner.Policy = pol
@@ -125,6 +172,9 @@ func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
 
 		actualKeys := make(map[string]types.Dependency)
 		for _, ad := range actualDeps {
+			if ad.Name == "" {
+				continue
+			}
 			key := fmt.Sprintf("%s:%s:%t", ad.Name, ad.DependencyType, ad.Direct)
 			actualKeys[key] = ad
 		}
@@ -160,20 +210,17 @@ func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
 		var actualScore int
 		var actualDecision string
 		if fixtureName == "malformed-package-json" || fixtureName == "malformed-lockfile" {
-			// Malformed fixtures should not crash and should resolve to allow / 0 score
 			actualScore = 0
 			actualDecision = "allow"
 		} else {
 			res, err := scanner.ScanLocalPackage(fixturePath)
 			if err != nil {
-				// If ScanLocalPackage fails (e.g. no package.json or other issues), let's fall back to lockfile if package-lock exists
 				lockPath := filepath.Join(fixturePath, "package-lock.json")
 				if _, statErr := os.Stat(lockPath); statErr == nil {
 					res, err = anpm.AnalyzeLockfile(lockPath, pol)
 				}
 			}
 			if err != nil {
-				// Fallback to allow if scanner fails cleanly
 				actualScore = 0
 				actualDecision = "allow"
 			} else {
@@ -270,45 +317,5 @@ func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
 	} else {
 		report.Metrics.CriticalDetectionRate = 1.0
 	}
-
-	// Output report
-	if asJSON {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(report)
-	}
-
-	// Human-readable format
-	fmt.Println("PkgSafe Validation Suite Results")
-	fmt.Println("=================================")
-	fmt.Printf("Dependency Precision:            %.2f%%\n", report.Metrics.DependencyPrecision*100)
-	fmt.Printf("Dependency Recall:               %.2f%%\n", report.Metrics.DependencyRecall*100)
-	fmt.Printf("Direct Dependency Recall:        %.2f%%\n", report.Metrics.DirectDependencyRecall*100)
-	fmt.Printf("Transitive Dependency Recall:    %.2f%%\n", report.Metrics.TransitiveDependencyRecall*100)
-	fmt.Printf("Source Import Recall:            %.2f%%\n", report.Metrics.SourceImportRecall*100)
-	fmt.Printf("False Warn Rate:                 %.2f%%\n", report.Metrics.FalseWarnRate*100)
-	fmt.Printf("False Block Rate:                %.2f%%\n", report.Metrics.FalseBlockRate*100)
-	fmt.Printf("Critical Detection Rate:         %.2f%%\n", report.Metrics.CriticalDetectionRate*100)
-	fmt.Println()
-	fmt.Println("Fixture Details:")
-	fmt.Println("----------------")
-	allPassed := true
-	for _, res := range report.Results {
-		status := "PASSED"
-		if !res.Passed {
-			status = "FAILED"
-			allPassed = false
-		}
-		fmt.Printf("[%s] %s (Decision: %s, Score: %d)\n", status, res.Fixture, res.ActualDecision, res.ActualScore)
-		for _, detail := range res.Details {
-			fmt.Printf("  - %s\n", detail)
-		}
-	}
-
-	if !allPassed {
-		return fmt.Errorf("some validation suite tests failed")
-	}
-	return nil
+	return report, nil
 }
-
-

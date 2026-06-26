@@ -70,6 +70,9 @@ func ExtractTarGz(path, dest string) error {
 		if err != nil {
 			return err
 		}
+		if header.Typeflag == tar.TypeSymlink || header.Typeflag == tar.TypeLink {
+			return fmt.Errorf("unsafe symlink or hardlink in tarball: %s", header.Name)
+		}
 		name, ok := cleanArchivePath(header.Name)
 		if !ok {
 			return fmt.Errorf("unsafe archive path %q", header.Name)
@@ -123,6 +126,9 @@ func ExtractZip(path, dest string) error {
 	}
 	var total int64
 	for _, file := range zr.File {
+		if file.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("unsafe symlink in zip: %s", file.Name)
+		}
 		name, ok := cleanArchivePath(file.Name)
 		if !ok {
 			return fmt.Errorf("unsafe archive path %q", file.Name)
@@ -181,8 +187,24 @@ func ExtractZip(path, dest string) error {
 }
 
 func cleanArchivePath(name string) (string, bool) {
+	// Reject paths containing Windows drive letters or alternate data streams
+	if strings.Contains(name, ":") {
+		return "", false
+	}
+
 	name = strings.ReplaceAll(name, "\\", "/")
-	if strings.HasPrefix(name, "/") || strings.Contains(name, "\x00") {
+
+	// Reject absolute paths
+	if strings.HasPrefix(name, "/") || filepath.IsAbs(name) {
+		return "", false
+	}
+
+	// Reject UNC paths or double slashes
+	if strings.HasPrefix(name, "//") {
+		return "", false
+	}
+
+	if strings.Contains(name, "\x00") {
 		return "", false
 	}
 	for _, part := range strings.Split(name, "/") {
@@ -191,7 +213,7 @@ func cleanArchivePath(name string) (string, bool) {
 		}
 	}
 	clean := filepath.Clean(filepath.FromSlash(name))
-	if clean == "." || strings.HasPrefix(clean, "..") {
+	if clean == "." || strings.HasPrefix(clean, "..") || strings.HasPrefix(clean, "../") || strings.HasPrefix(clean, "..\\") {
 		return "", false
 	}
 	return clean, true

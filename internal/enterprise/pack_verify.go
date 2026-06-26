@@ -61,6 +61,7 @@ func VerifyPolicyPackWithKeys(tarGzPath string, trustedKeys []ed25519.PublicKey)
 	files := make(map[string][]byte)
 	var totalSize int64
 	const MaxPackExtractedBytes = 50 * 1024 * 1024 // 50 MB limit
+	const MaxPackFileCount = 1000
 
 	for {
 		hdr, err := tr.Next()
@@ -79,6 +80,9 @@ func VerifyPolicyPackWithKeys(tarGzPath string, trustedKeys []ed25519.PublicKey)
 			cleanName, ok := cleanPackPath(hdr.Name)
 			if !ok {
 				return nil, PackValidationError{Code: 1, Err: fmt.Errorf("unsafe file path in policy pack: %s", hdr.Name)}
+			}
+			if len(files) >= MaxPackFileCount {
+				return nil, PackValidationError{Code: 2, Err: fmt.Errorf("policy pack has too many files")}
 			}
 			totalSize += hdr.Size
 			if totalSize > MaxPackExtractedBytes {

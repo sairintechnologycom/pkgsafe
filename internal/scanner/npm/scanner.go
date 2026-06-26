@@ -13,6 +13,7 @@ import (
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
 	"github.com/niyam-ai/pkgsafe/internal/db"
+	npminventory "github.com/niyam-ai/pkgsafe/internal/deps/npm"
 	"github.com/niyam-ai/pkgsafe/internal/intel"
 	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
@@ -469,6 +470,11 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 
 	baseFindings := stripPolicyGeneratedReasons(res.Reasons)
 	allFindings := append(baseFindings, sandboxFindings...)
+
+	if deps, scanErr := npminventory.ScanInventory(dir); scanErr == nil {
+		mismatches := npminventory.CheckMismatches(deps)
+		allFindings = append(allFindings, mismatches...)
+	}
 
 	finalRes := risk.Evaluate(res.Package, allFindings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 	finalRes.Sandbox = res.Sandbox

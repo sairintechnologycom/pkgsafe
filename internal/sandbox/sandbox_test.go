@@ -46,7 +46,7 @@ func TestFakeHomeAndCanaries(t *testing.T) {
 		}
 	}
 
-	for relPath, _ := range Canaries {
+	for relPath := range Canaries {
 		path := filepath.Join(tmp, relPath)
 		data, err := os.ReadFile(path)
 		if err != nil {

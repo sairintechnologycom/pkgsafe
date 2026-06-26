@@ -124,13 +124,42 @@ func WriteCorpusFixtures(baseDir string) error {
   "name": "js-ts-imports",
   "version": "1.0.0",
   "license": "MIT",
-  "repository": "github:user/repo"
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "*",
+    "express": "*",
+    "axios": "*",
+    "pkg-default": "*",
+    "pkg-type": "*",
+    "pkg-export-all": "*",
+    "pkg-export-some": "*",
+    "pkg-require": "*",
+    "pkg-dynamic": "*",
+    "@scope/pkg-scoped": "*"
+  }
 }`,
 			"index.ts": `import lodash from "lodash";
 import * as fs from "fs";
 import "./local-file";
 require("express");
 import("axios");
+
+// Adversarial import tests
+import defaultVal from "pkg-default";
+import type { x } from "pkg-type";
+export * from "pkg-export-all";
+export { y } from "pkg-export-some";
+const req = require("pkg-require");
+const dyn = import("pkg-dynamic");
+import x from "@scope/pkg-scoped";
+
+// Ignore Node built-ins
+import path from "node:path";
+import crypto from "crypto";
+
+// Flag unresolved dynamic import
+const varName = "some-pkg";
+require(varName);
 `,
 		},
 		"typosquat-pkg": {
@@ -169,7 +198,9 @@ import("axios");
 		"malformed-lockfile": {
 			"package.json": `{
   "name": "malformed-lockfile",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo"
 }`,
 			"package-lock.json": `{
   "name": "malformed",
@@ -245,6 +276,300 @@ import("axios");
   }
 }`,
 		},
+		// New mismatch detection fixtures
+		"mismatch-undeclared": {
+			"package.json": `{
+  "name": "mismatch-undeclared",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo"
+}`,
+			"index.js": `import "lodash";`,
+		},
+		"mismatch-transitive": {
+			"package.json": `{
+  "name": "mismatch-transitive",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo"
+}`,
+			"package-lock.json": `{
+  "name": "mismatch-transitive",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "name": "mismatch-transitive",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "github:user/repo"
+    },
+    "node_modules/lodash": {
+      "version": "4.17.21",
+      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+      "integrity": "sha512-lodash-hash",
+      "dev": false
+    }
+  }
+}`,
+			"index.js": `import "lodash";`,
+		},
+		"mismatch-missing-lockfile": {
+			"package.json": `{
+  "name": "mismatch-missing-lockfile",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}`,
+			"package-lock.json": `{
+  "name": "mismatch-missing-lockfile",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "name": "mismatch-missing-lockfile",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "github:user/repo"
+    }
+  }
+}`,
+			"index.js": `import "lodash";`,
+		},
+		"mismatch-missing-pkgjson": {
+			"package.json": `{
+  "name": "mismatch-missing-pkgjson",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo"
+}`,
+			"package-lock.json": `{
+  "name": "mismatch-missing-pkgjson",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "name": "mismatch-missing-pkgjson",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "github:user/repo",
+      "dependencies": {
+        "lodash": "^4.17.21"
+      }
+    },
+    "node_modules/lodash": {
+      "version": "4.17.21",
+      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+      "integrity": "sha512-lodash-hash"
+    }
+  }
+}`,
+		},
+		"mismatch-unused": {
+			"package.json": `{
+  "name": "mismatch-unused",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}`,
+			"index.js": ``,
+		},
+		"mismatch-unresolved": {
+			"package.json": `{
+  "name": "mismatch-unresolved",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo"
+}`,
+			"index.js": `require(dynamicPackageName);`,
+		},
+		// Lockfile versions & details fixtures
+		"lockfile-v1": {
+			"package.json": `{
+  "name": "lockfile-v1",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.0.0"
+  }
+}`,
+			"package-lock.json": `{
+  "name": "lockfile-v1",
+  "version": "1.0.0",
+  "lockfileVersion": 1,
+  "dependencies": {
+    "lodash": {
+      "version": "4.17.21",
+      "dev": false,
+      "optional": false,
+      "requires": {
+        "foo": "^1.0.0"
+      },
+      "dependencies": {
+        "foo": {
+          "version": "1.0.0",
+          "dev": true,
+          "optional": true
+        }
+      }
+    }
+  }
+}`,
+		},
+		"lockfile-v2": {
+			"package.json": `{
+  "name": "lockfile-v2",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.0.0"
+  }
+}`,
+			"package-lock.json": `{
+  "name": "lockfile-v2",
+  "version": "1.0.0",
+  "lockfileVersion": 2,
+  "packages": {
+    "": {
+      "name": "lockfile-v2",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "github:user/repo",
+      "dependencies": {
+        "lodash": "^4.0.0"
+      }
+    },
+    "node_modules/lodash": {
+      "version": "4.17.21",
+      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+      "integrity": "sha512-lodash-hash"
+    }
+  },
+  "dependencies": {
+    "lodash": {
+      "version": "4.17.21"
+    }
+  }
+}`,
+		},
+		"lockfile-missing-resolved": {
+			"package.json": `{
+  "name": "lockfile-missing-resolved",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.0.0"
+  }
+}`,
+			"package-lock.json": `{
+  "name": "lockfile-missing-resolved",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "name": "lockfile-missing-resolved",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "github:user/repo",
+      "dependencies": {
+        "lodash": "^4.0.0"
+      }
+    },
+    "node_modules/lodash": {
+      "version": "4.17.21",
+      "integrity": "sha512-lodash-hash"
+    }
+  }
+}`,
+		},
+		"lockfile-missing-integrity": {
+			"package.json": `{
+  "name": "lockfile-missing-integrity",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.0.0"
+  }
+}`,
+			"package-lock.json": `{
+  "name": "lockfile-missing-integrity",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "name": "lockfile-missing-integrity",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "github:user/repo",
+      "dependencies": {
+        "lodash": "^4.0.0"
+      }
+    },
+    "node_modules/lodash": {
+      "version": "4.17.21",
+      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz"
+    }
+  }
+}`,
+		},
+		"lockfile-optional-dev": {
+			"package.json": `{
+  "name": "lockfile-optional-dev",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.0.0"
+  }
+}`,
+			"package-lock.json": `{
+  "name": "lockfile-optional-dev",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "name": "lockfile-optional-dev",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "github:user/repo",
+      "dependencies": {
+        "lodash": "^4.0.0"
+      }
+    },
+    "node_modules/lodash": {
+      "version": "4.17.21",
+      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+      "integrity": "sha512-lodash-hash",
+      "dev": true,
+      "optional": true
+    }
+  }
+}`,
+		},
+		"empty-package-json": {
+			"package.json": `{}`,
+		},
+		"unsupported-dependency-spec": {
+			"package.json": `{
+  "name": "unsupported-spec",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "foo": "git+ssh://git@github.com:user/foo.git"
+  }
+}`,
+		},
 	}
 
 	for name, files := range fixtures {
@@ -254,7 +579,6 @@ import("axios");
 		}
 		for filename, content := range files {
 			path := filepath.Join(dir, filename)
-			// Create parent directory if it's a nested file
 			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 				return fmt.Errorf("create file dir %s: %w", filepath.Dir(path), err)
 			}
@@ -311,21 +635,21 @@ func generateHugeLockfile() string {
 
 // WriteGoldenResults writes the golden expected results file to path.
 func WriteGoldenResults(path string) error {
-	type ExpDep struct {
+	type GoldenDep struct {
 		Name           string `json:"package_name"`
 		DependencyType string `json:"dependency_type"`
 		Direct         bool   `json:"direct"`
 	}
 	type FixtureExpectation struct {
-		ExpectedDeps     []ExpDep `json:"expected_dependencies"`
-		ExpectedDecision string   `json:"expected_decision"`
-		MinScore         int      `json:"min_score"`
-		MaxScore         int      `json:"max_score"`
+		ExpectedDeps     []GoldenDep `json:"expected_dependencies"`
+		ExpectedDecision string      `json:"expected_decision"`
+		MinScore         int         `json:"min_score"`
+		MaxScore         int         `json:"max_score"`
 	}
 
 	data := map[string]FixtureExpectation{
 		"npm-simple-deps": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "lodash", DependencyType: "production", Direct: true},
 			},
 			ExpectedDecision: "allow",
@@ -333,7 +657,7 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"npm-dev-deps": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "typescript", DependencyType: "dev", Direct: true},
 			},
 			ExpectedDecision: "allow",
@@ -341,7 +665,7 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"npm-peer-deps": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "react", DependencyType: "peer", Direct: true},
 			},
 			ExpectedDecision: "allow",
@@ -349,7 +673,7 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"npm-optional-deps": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "fsevents", DependencyType: "optional", Direct: true},
 			},
 			ExpectedDecision: "allow",
@@ -357,7 +681,7 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"npm-workspaces": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "lodash", DependencyType: "production", Direct: true},
 				{Name: "axios", DependencyType: "production", Direct: true},
 			},
@@ -366,7 +690,7 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"npm-lock-transitive": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "axios", DependencyType: "production", Direct: true},
 				{Name: "follow-redirects", DependencyType: "transitive", Direct: false},
 			},
@@ -375,47 +699,65 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"js-ts-imports": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "lodash", DependencyType: "source-import", Direct: true},
 				{Name: "express", DependencyType: "source-import", Direct: true},
 				{Name: "axios", DependencyType: "source-import", Direct: true},
+				{Name: "pkg-default", DependencyType: "source-import", Direct: true},
+				{Name: "pkg-type", DependencyType: "source-import", Direct: true},
+				{Name: "pkg-export-all", DependencyType: "source-import", Direct: true},
+				{Name: "pkg-export-some", DependencyType: "source-import", Direct: true},
+				{Name: "pkg-require", DependencyType: "source-import", Direct: true},
+				{Name: "pkg-dynamic", DependencyType: "source-import", Direct: true},
+				{Name: "@scope/pkg-scoped", DependencyType: "source-import", Direct: true},
+				{Name: "varName", DependencyType: "unresolved-dynamic-import", Direct: true},
+				{Name: "lodash", DependencyType: "production", Direct: true},
+				{Name: "express", DependencyType: "production", Direct: true},
+				{Name: "axios", DependencyType: "production", Direct: true},
+				{Name: "pkg-default", DependencyType: "production", Direct: true},
+				{Name: "pkg-type", DependencyType: "production", Direct: true},
+				{Name: "pkg-export-all", DependencyType: "production", Direct: true},
+				{Name: "pkg-export-some", DependencyType: "production", Direct: true},
+				{Name: "pkg-require", DependencyType: "production", Direct: true},
+				{Name: "pkg-dynamic", DependencyType: "production", Direct: true},
+				{Name: "@scope/pkg-scoped", DependencyType: "production", Direct: true},
 			},
-			ExpectedDecision: "allow",
-			MinScore:         0,
-			MaxScore:         10,
+			ExpectedDecision: "warn",
+			MinScore:         25,
+			MaxScore:         30,
 		},
 		"typosquat-pkg": {
-			ExpectedDeps:     []ExpDep{},
+			ExpectedDeps:     []GoldenDep{},
 			ExpectedDecision: "warn",
 			MinScore:         25,
 			MaxScore:         50,
 		},
 		"credential-reading-pkg": {
-			ExpectedDeps:     []ExpDep{},
+			ExpectedDeps:     []GoldenDep{},
 			ExpectedDecision: "block",
 			MinScore:         100,
 			MaxScore:         150,
 		},
 		"postinstall-curl-pkg": {
-			ExpectedDeps:     []ExpDep{},
+			ExpectedDeps:     []GoldenDep{},
 			ExpectedDecision: "block",
 			MinScore:         100,
 			MaxScore:         150,
 		},
 		"malformed-package-json": {
-			ExpectedDeps:     []ExpDep{},
+			ExpectedDeps:     []GoldenDep{},
 			ExpectedDecision: "allow",
 			MinScore:         0,
 			MaxScore:         10,
 		},
 		"malformed-lockfile": {
-			ExpectedDeps:     []ExpDep{},
+			ExpectedDeps:     []GoldenDep{},
 			ExpectedDecision: "allow",
 			MinScore:         0,
 			MaxScore:         10,
 		},
 		"scoped-packages": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "@babel/core", DependencyType: "production", Direct: true},
 			},
 			ExpectedDecision: "allow",
@@ -423,7 +765,7 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"duplicate-dependencies": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "lodash", DependencyType: "production", Direct: true},
 			},
 			ExpectedDecision: "allow",
@@ -431,7 +773,7 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"npm-alias-specs": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "my-lodash", DependencyType: "production", Direct: true},
 			},
 			ExpectedDecision: "allow",
@@ -439,8 +781,120 @@ func WriteGoldenResults(path string) error {
 			MaxScore:         10,
 		},
 		"workspace-references": {
-			ExpectedDeps: []ExpDep{
+			ExpectedDeps: []GoldenDep{
 				{Name: "subapp", DependencyType: "production", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         0,
+			MaxScore:         10,
+		},
+		// Expected golden mismatches
+		"mismatch-undeclared": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "source-import", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         15,
+			MaxScore:         20,
+		},
+		"mismatch-transitive": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "transitive", Direct: false},
+				{Name: "lodash", DependencyType: "source-import", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         15,
+			MaxScore:         20,
+		},
+		"mismatch-missing-lockfile": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "production", Direct: true},
+				{Name: "lodash", DependencyType: "source-import", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         10,
+			MaxScore:         15,
+		},
+		"mismatch-missing-pkgjson": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "production", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         10,
+			MaxScore:         15,
+		},
+		"mismatch-unused": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "production", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         0,
+			MaxScore:         10,
+		},
+		"mismatch-unresolved": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "dynamicPackageName", DependencyType: "unresolved-dynamic-import", Direct: true},
+			},
+			ExpectedDecision: "warn",
+			MinScore:         25,
+			MaxScore:         30,
+		},
+		// Expected golden lockfile versions
+		"lockfile-v1": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "production", Direct: true},
+				{Name: "lodash", DependencyType: "production", Direct: true}, // Direct in lockfile
+				{Name: "foo", DependencyType: "transitive", Direct: false},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         0,
+			MaxScore:         10,
+		},
+		"lockfile-v2": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "production", Direct: true},
+				{Name: "lodash", DependencyType: "production", Direct: true}, // Direct in lockfile
+			},
+			ExpectedDecision: "allow",
+			MinScore:         0,
+			MaxScore:         10,
+		},
+		"lockfile-missing-resolved": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "production", Direct: true},
+				{Name: "lodash", DependencyType: "production", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         0,
+			MaxScore:         10,
+		},
+		"lockfile-missing-integrity": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "production", Direct: true},
+				{Name: "lodash", DependencyType: "production", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         0,
+			MaxScore:         10,
+		},
+		"lockfile-optional-dev": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "lodash", DependencyType: "production", Direct: true},
+				{Name: "lodash", DependencyType: "production", Direct: true},
+			},
+			ExpectedDecision: "allow",
+			MinScore:         0,
+			MaxScore:         10,
+		},
+		"empty-package-json": {
+			ExpectedDeps:     []GoldenDep{},
+			ExpectedDecision: "allow",
+			MinScore:         0,
+			MaxScore:         15,
+		},
+		"unsupported-dependency-spec": {
+			ExpectedDeps: []GoldenDep{
+				{Name: "foo", DependencyType: "production", Direct: true},
 			},
 			ExpectedDecision: "allow",
 			MinScore:         0,
@@ -448,15 +902,14 @@ func WriteGoldenResults(path string) error {
 		},
 	}
 
-	// Generate expected huge lockfile deps list
 	hugeExpectation := FixtureExpectation{
-		ExpectedDeps:     make([]ExpDep, 0, 600),
+		ExpectedDeps:     make([]GoldenDep, 0, 600),
 		ExpectedDecision: "allow",
 		MinScore:         0,
 		MaxScore:         10,
 	}
 	for i := 1; i <= 600; i++ {
-		hugeExpectation.ExpectedDeps = append(hugeExpectation.ExpectedDeps, ExpDep{
+		hugeExpectation.ExpectedDeps = append(hugeExpectation.ExpectedDeps, GoldenDep{
 			Name:           fmt.Sprintf("pkg-%d", i),
 			DependencyType: "transitive",
 			Direct:         false,

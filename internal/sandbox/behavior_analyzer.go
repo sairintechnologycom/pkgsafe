@@ -48,22 +48,17 @@ func checkCanaryAccesses(sandboxRoot string, before map[string]FileInfoRecord, s
 	}
 
 	tokenMap := map[string]string{
-		"PKGSAFE_CANARY_AWS_CREDENTIALS":    "home/.aws/credentials",
-		"AKIAFAKEPKGSAFE000000":             "home/.aws/credentials",
-		"PKGSAFE_FAKE_SECRET":               "home/.aws/credentials",
-		"PKGSAFE_CANARY_AWS_CONFIG":         "home/.aws/config",
-		"PKGSAFE_CANARY_SSH_KEY":            "home/.ssh/id_rsa",
-		"PKGSAFE_CANARY_SSH_CONFIG":         "home/.ssh/config",
-		"PKGSAFE_CANARY_NPMRC":              "home/.npmrc",
-		"npm_pkgsafe_fake_token":            "home/.npmrc",
-		"PKGSAFE_CANARY_PYPIRC":             "home/.pypirc",
-		"PKGSAFE_CANARY_KUBECONFIG":         "home/.kube/config",
-		"PKGSAFE_CANARY_DOCKER_CONFIG":      "home/.docker/config.json",
-		"PKGSAFE_CANARY_AZURE_TOKENS":       "home/.azure/accessTokens.json",
-		"PKGSAFE_CANARY_GCLOUD_CREDENTIALS": "home/.config/gcloud/application_default_credentials.json",
-		"PKGSAFE_CANARY_VAULT_TOKEN":        "home/.vault-token",
-		"PKGSAFE_CANARY_DOTENV":             "workspace/.env",
-		"PKGSAFE_CANARY_DOTENV_LOCAL":       "workspace/.env.local",
+		"AKIAIOSFODNN7EXAMPLE":                  "home/.aws/credentials",
+		"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLE": "home/.aws/credentials",
+		"npm_s7Y2Rz9F3Kj1Lm5Np9Qr2St8Uv4Wx1Yz":  "home/.npmrc",
+		"pypi-AgFBQUFBQUFBQUFBQUFBQUFBQUFBQUF":  "home/.pypirc",
+		"k8s-token-f8b2c4e6a8d0":                "home/.kube/config",
+		"YWRtaW46c3VwZXJzZWNyZXRwYXNzd29yZA==":  "home/.docker/config.json",
+		"fake_token_data":                       "home/.azure/accessTokens.json",
+		"GOCSPX-fake-secret-key-12345":          "home/.config/gcloud/application_default_credentials.json",
+		"hvs.CAESIEx1234567890abcdef":           "home/.vault-token",
+		"sec_9f3d8a1c6b5e4072f8a1":              "workspace/.env",
+		"sec_7a2b9c3d5e8f4160a2c5":              "workspace/.env.local",
 	}
 
 	for token, relPath := range tokenMap {

@@ -151,4 +151,3 @@ func TestNeedsUpdate(t *testing.T) {
 		t.Errorf("expected NeedsUpdate to return true when last_update is past threshold")
 	}
 }
-

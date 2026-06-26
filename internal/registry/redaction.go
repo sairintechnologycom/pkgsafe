@@ -2,7 +2,9 @@ package registry
 
 import (
 	"net/url"
+	"os"
 	"regexp"
+	"strings"
 )
 
 // RedactURL redacts username and password from registry URLs
@@ -52,6 +54,30 @@ func RedactSecrets(input string) string {
 	// 8. Private Key PEM block
 	rePEM := regexp.MustCompile(`(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----`)
 	input = rePEM.ReplaceAllString(input, "[REDACTED]")
+
+	// 9. Dynamic environment variables redaction
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		k := parts[0]
+		v := parts[1]
+		if len(v) < 6 { // don't redact short values like "true", "yes", etc.
+			continue
+		}
+		kUpper := strings.ToUpper(k)
+		isSecret := false
+		for _, kw := range []string{"TOKEN", "KEY", "SECRET", "PASSWORD", "AUTH", "COOKIE", "SESSION", "CREDENTIAL"} {
+			if strings.Contains(kUpper, kw) {
+				isSecret = true
+				break
+			}
+		}
+		if isSecret {
+			input = strings.ReplaceAll(input, v, "[REDACTED]")
+		}
+	}
 
 	return input
 }

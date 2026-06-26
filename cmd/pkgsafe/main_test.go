@@ -312,5 +312,3 @@ version = "0.2.0"
 		t.Errorf("expected error for missing positional argument in scan-cargo-deps, got nil")
 	}
 }
-
-
