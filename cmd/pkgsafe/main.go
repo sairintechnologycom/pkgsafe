@@ -878,7 +878,7 @@ func uniqueStrings(in []string) []string {
 
 func cmdUpdateDB(args []string) error {
 	fs := flag.NewFlagSet("update-db", flag.ContinueOnError)
-	eco := fs.String("ecosystem", "npm", "package ecosystem")
+	eco := fs.String("ecosystem", "all", "ecosystem to sync: npm, pypi, go, cargo, or all")
 	src := fs.String("source", "osv", "threat database source")
 	if err := fs.Parse(args); err != nil {
 		return err

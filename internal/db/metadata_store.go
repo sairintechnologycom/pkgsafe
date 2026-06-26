@@ -22,7 +22,18 @@ func (d *DB) GetMetadata(ctx context.Context, key string) (string, error) {
 }
 
 func (d *DB) NeedsUpdate(ctx context.Context, threshold time.Duration) bool {
-	val, err := d.GetMetadata(ctx, "last_update")
+	return d.needsUpdateKey(ctx, "last_update", threshold)
+}
+
+// NeedsUpdateEcosystem reports whether the named OSV ecosystem's advisory data
+// is older than threshold (or has never been synced). Staleness is tracked per
+// ecosystem so syncing one does not mask another being out of date.
+func (d *DB) NeedsUpdateEcosystem(ctx context.Context, ecosystem string, threshold time.Duration) bool {
+	return d.needsUpdateKey(ctx, "last_update_"+ecosystem, threshold)
+}
+
+func (d *DB) needsUpdateKey(ctx context.Context, key string, threshold time.Duration) bool {
+	val, err := d.GetMetadata(ctx, key)
 	if err != nil {
 		return true
 	}
