@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ed25519"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +12,20 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
+
+// resolveTrustedKeys returns the default trusted keys plus, if keyPath is set,
+// the explicitly-provided public key.
+func resolveTrustedKeys(keyPath string) ([]ed25519.PublicKey, error) {
+	keys := enterprise.DefaultTrustedKeys()
+	if keyPath != "" {
+		k, err := enterprise.LoadPublicKey(keyPath)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
 
 func cmdPolicy(args []string) error {
 	if len(args) == 0 {
@@ -133,27 +148,61 @@ func cmdPolicyPack(args []string) error {
 	}
 
 	switch args[0] {
+	case "keygen":
+		fs := flag.NewFlagSet("policy-pack-keygen", flag.ContinueOnError)
+		out := fs.String("out", "pkgsafe-pack-key", "output path prefix (writes <prefix>.key and <prefix>.pub)")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		priv, pub, err := enterprise.GenerateKeypair()
+		if err != nil {
+			return err
+		}
+		privPath := *out + ".key"
+		pubPath := *out + ".pub"
+		if err := os.WriteFile(privPath, priv, 0o600); err != nil {
+			return err
+		}
+		if err := os.WriteFile(pubPath, pub, 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("Wrote signing (private) key: %s\nWrote trusted (public) key: %s\n", privPath, pubPath)
+		fmt.Printf("Keep %s secret. Distribute %s to verifiers (e.g. ~/.pkgsafe/trusted-keys/).\n", privPath, pubPath)
+		return nil
+
 	case "create":
 		fs := flag.NewFlagSet("policy-pack-create", flag.ContinueOnError)
 		name := fs.String("name", "enterprise-standard", "policy pack name")
 		output := fs.String("output", "enterprise-policy-pack.tar.gz", "output tar.gz file path")
+		signingKey := fs.String("signing-key", "", "ed25519 private key (PEM) to sign the pack")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
-		err := enterprise.CreatePolicyPack(*name, ".pkgsafe", *output)
+		err := enterprise.CreatePolicyPack(*name, ".pkgsafe", *output, *signingKey)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Policy pack %s created successfully: %s\n", *name, *output)
+		if *signingKey != "" {
+			fmt.Printf("Policy pack %s created and signed successfully: %s\n", *name, *output)
+		} else {
+			fmt.Printf("Policy pack %s created successfully (unsigned): %s\n", *name, *output)
+		}
 		return nil
 
 	case "verify":
-		if len(args) < 2 {
-			return fmt.Errorf("usage: pkgsafe policy pack verify <path>")
+		fs := flag.NewFlagSet("policy-pack-verify", flag.ContinueOnError)
+		keyPath := fs.String("key", "", "trusted ed25519 public key (PEM) to verify the signature")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
 		}
-		path := args[1]
-		_, err := enterprise.VerifyPolicyPack(path)
+		if fs.NArg() < 1 {
+			return fmt.Errorf("usage: pkgsafe policy pack verify [--key <pubkey>] <path>")
+		}
+		keys, err := resolveTrustedKeys(*keyPath)
 		if err != nil {
+			return exitError{code: 1, err: err}
+		}
+		if _, err := enterprise.VerifyPolicyPackWithKeys(fs.Arg(0), keys); err != nil {
 			if ve, ok := err.(enterprise.PackValidationError); ok {
 				return exitError{code: ve.Code, err: ve.Err}
 			}
@@ -163,12 +212,19 @@ func cmdPolicyPack(args []string) error {
 		return nil
 
 	case "install":
-		if len(args) < 2 {
-			return fmt.Errorf("usage: pkgsafe policy pack install <path>")
+		fs := flag.NewFlagSet("policy-pack-install", flag.ContinueOnError)
+		keyPath := fs.String("key", "", "trusted ed25519 public key (PEM) to verify the signature")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
 		}
-		path := args[1]
-		err := enterprise.InstallPolicyPack(path)
+		if fs.NArg() < 1 {
+			return fmt.Errorf("usage: pkgsafe policy pack install [--key <pubkey>] <path>")
+		}
+		keys, err := resolveTrustedKeys(*keyPath)
 		if err != nil {
+			return exitError{code: 1, err: err}
+		}
+		if err := enterprise.InstallPolicyPackWithKeys(fs.Arg(0), keys); err != nil {
 			if ve, ok := err.(enterprise.PackValidationError); ok {
 				return exitError{code: ve.Code, err: ve.Err}
 			}

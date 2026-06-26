@@ -159,9 +159,10 @@ Usage:
   pkgsafe ci scan [--lockfile <path>] [--policy <path>] [--policy-pack <name>] [--mode audit|warn|block] [--fail-on none|warn|block]
   pkgsafe policy validate <path>
   pkgsafe policy explain <path>
-  pkgsafe policy pack create --name <name> --output <path>
-  pkgsafe policy pack verify <path>
-  pkgsafe policy pack install <path>
+  pkgsafe policy pack keygen [--out <prefix>]
+  pkgsafe policy pack create --name <name> --output <path> [--signing-key <key.pem>]
+  pkgsafe policy pack verify [--key <pubkey.pem>] <path>
+  pkgsafe policy pack install [--key <pubkey.pem>] <path>
   pkgsafe policy pack list
   pkgsafe policy pack export --output <path>
   pkgsafe registry list

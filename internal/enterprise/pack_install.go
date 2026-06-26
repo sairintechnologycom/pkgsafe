@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -15,8 +16,15 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/db"
 )
 
+// InstallPolicyPack verifies (with the default trusted keys) and installs a pack.
 func InstallPolicyPack(tarGzPath string) error {
-	files, err := VerifyPolicyPack(tarGzPath)
+	return InstallPolicyPackWithKeys(tarGzPath, DefaultTrustedKeys())
+}
+
+// InstallPolicyPackWithKeys verifies a pack against trustedKeys before
+// installing it. Installation never proceeds on a verification failure.
+func InstallPolicyPackWithKeys(tarGzPath string, trustedKeys []ed25519.PublicKey) error {
+	files, err := VerifyPolicyPackWithKeys(tarGzPath, trustedKeys)
 	if err != nil {
 		return err
 	}
