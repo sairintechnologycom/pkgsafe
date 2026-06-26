@@ -3,23 +3,36 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
 	"github.com/niyam-ai/pkgsafe/internal/db"
 	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
 )
+
+// saveBatchSize bounds how many advisory rows are written per transaction.
+const saveBatchSize = 1000
 
 func UpdateDB(dbPath, ecosystem, source string) error {
 	return updateDB(dbPath, ecosystem, source, false)
 }
 
+// UpdateDBAsync triggers a background sync for the given ecosystem if its
+// advisory data is older than threshold. Staleness is tracked per ecosystem so
+// scanning one ecosystem does not suppress refreshing another.
 func UpdateDBAsync(dbPath, ecosystem, source string, threshold time.Duration) {
 	d, err := db.Open(dbPath)
 	if err != nil {
 		return
 	}
-	needsUpdate := d.NeedsUpdate(context.Background(), threshold)
+	bucket, ok := osv.EcosystemBucket(ecosystem)
+	var needsUpdate bool
+	if ok {
+		needsUpdate = d.NeedsUpdateEcosystem(context.Background(), bucket, threshold)
+	} else {
+		needsUpdate = d.NeedsUpdate(context.Background(), threshold)
+	}
 	d.Close()
 
 	if needsUpdate {
@@ -30,9 +43,6 @@ func UpdateDBAsync(dbPath, ecosystem, source string, threshold time.Duration) {
 }
 
 func updateDB(dbPath, ecosystem, source string, silent bool) error {
-	if ecosystem == "" {
-		ecosystem = "npm"
-	}
 	if source == "" {
 		source = "osv"
 	}
@@ -43,52 +53,34 @@ func updateDB(dbPath, ecosystem, source string, silent bool) error {
 	}
 	defer d.Close()
 
-	// Load previously scanned packages from cache
-	store, err := cache.Load("")
-	if err != nil {
-		return fmt.Errorf("load cache: %w", err)
-	}
-
-	uniquePackages := make(map[string]bool)
-	for _, res := range store.Results {
-		if res.Package.Name != "" {
-			uniquePackages[res.Package.Name] = true
-		}
-	}
-
-	// For MVP, if no packages have been scanned, we can seeding some default common packages
-	// to make update-db look nice and work on a clean environment.
-	if len(uniquePackages) == 0 {
-		for _, name := range []string{"lodash", "axios", "react", "express", "typescript"} {
-			uniquePackages[name] = true
-		}
-	}
-
 	ctx := context.Background()
-	client := osv.NewClient()
-	updatedCount := 0
 
-	for name := range uniquePackages {
-		rawVulns, err := client.Query(ctx, osv.QueryRequest{
-			Package: &osv.Package{Name: name, Ecosystem: ecosystem},
-		})
+	// Resolve which OSV ecosystems to sync. An empty value or "all" syncs every
+	// supported ecosystem; otherwise the single named ecosystem is synced.
+	var buckets []string
+	if ecosystem == "" || strings.EqualFold(ecosystem, "all") {
+		buckets = osv.AllEcosystems()
+	} else {
+		bucket, ok := osv.EcosystemBucket(ecosystem)
+		if !ok {
+			return fmt.Errorf("unsupported ecosystem %q (want npm, pypi, go, or cargo)", ecosystem)
+		}
+		buckets = []string{bucket}
+	}
+
+	total := 0
+	var failures []string
+	for _, bucket := range buckets {
+		n, err := syncEcosystem(ctx, d, bucket)
 		if err != nil {
-			// Fail silently or log error for this package, but continue with others
+			failures = append(failures, fmt.Sprintf("%s: %v", bucket, err))
+			if !silent {
+				fmt.Fprintf(os.Stderr, "Warning: OSV sync for %s failed: %v\n", bucket, err)
+			}
 			continue
 		}
-
-		var dbVulns []db.Vulnerability
-		for _, v := range rawVulns {
-			dbV := osv.MapVulnerability(v, name, ecosystem)
-			dbVulns = append(dbVulns, dbV)
-		}
-
-		if len(dbVulns) > 0 {
-			err = d.SaveVulnerabilities(ctx, dbVulns)
-			if err == nil {
-				updatedCount += len(dbVulns)
-			}
-		}
+		total += n
+		_ = d.SetMetadata(ctx, "last_update_"+bucket, time.Now().UTC().Format(time.RFC3339))
 	}
 
 	nowStr := time.Now().UTC().Format(time.RFC3339)
@@ -98,12 +90,61 @@ func updateDB(dbPath, ecosystem, source string, silent bool) error {
 		fmt.Println("PkgSafe threat DB updated.")
 		fmt.Println()
 		fmt.Printf("Source: %s\n", source)
-		fmt.Printf("Ecosystem: %s\n", ecosystem)
-		fmt.Printf("Records updated: %d\n", updatedCount)
+		fmt.Printf("Ecosystems: %s\n", strings.Join(buckets, ", "))
+		fmt.Printf("Advisory rows written: %d\n", total)
 		fmt.Printf("Last updated: %s\n", nowStr)
 		fmt.Printf("Database: %s\n", d.Path())
+		if len(failures) > 0 {
+			fmt.Printf("Failed: %s\n", strings.Join(failures, "; "))
+		}
 	}
 
+	// Fail closed: if every requested ecosystem failed, surface an error rather
+	// than reporting a successful "update" that wrote nothing.
+	if len(buckets) > 0 && len(failures) == len(buckets) {
+		return fmt.Errorf("all ecosystem syncs failed: %s", strings.Join(failures, "; "))
+	}
 	return nil
 }
 
+// syncEcosystem downloads the OSV bulk archive for one ecosystem and writes one
+// advisory row per affected package, in batched transactions. Returns the
+// number of rows written.
+func syncEcosystem(ctx context.Context, d *db.DB, bucket string) (int, error) {
+	records, err := osv.FetchBulk(ctx, bucket)
+	if err != nil {
+		return 0, err
+	}
+
+	written := 0
+	batch := make([]db.Vulnerability, 0, saveBatchSize)
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		if err := d.SaveVulnerabilities(ctx, batch); err != nil {
+			return err
+		}
+		written += len(batch)
+		batch = batch[:0]
+		return nil
+	}
+
+	for _, rec := range records {
+		for _, aff := range rec.Affected {
+			if aff.Package.Ecosystem != bucket || aff.Package.Name == "" {
+				continue
+			}
+			batch = append(batch, osv.MapVulnerability(rec, aff.Package.Name, aff.Package.Ecosystem))
+			if len(batch) >= saveBatchSize {
+				if err := flush(); err != nil {
+					return written, err
+				}
+			}
+		}
+	}
+	if err := flush(); err != nil {
+		return written, err
+	}
+	return written, nil
+}

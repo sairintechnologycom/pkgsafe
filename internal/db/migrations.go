@@ -1,11 +1,27 @@
 package db
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func (d *DB) Migrate() error {
+	// A single OSV advisory can affect many packages, so the primary key must
+	// include the package, not just the advisory id. Older databases used an
+	// id-only primary key; drop that table so it is recreated with the
+	// composite key below. The data is regenerable advisory data, so dropping
+	// it is safe (a re-sync repopulates it).
+	var existingDDL string
+	_ = d.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='vulnerability_records'`).Scan(&existingDDL)
+	if existingDDL != "" && !strings.Contains(existingDDL, "PRIMARY KEY (id, ecosystem, package_name)") {
+		if _, err := d.Exec(`DROP TABLE vulnerability_records`); err != nil {
+			return fmt.Errorf("rebuild vulnerability_records: %w", err)
+		}
+	}
+
 	schema := []string{
 		`CREATE TABLE IF NOT EXISTS vulnerability_records (
-			id TEXT PRIMARY KEY,
+			id TEXT NOT NULL,
 			ecosystem TEXT NOT NULL,
 			package_name TEXT NOT NULL,
 			summary TEXT,
@@ -15,8 +31,11 @@ func (d *DB) Migrate() error {
 			fixed_versions TEXT,
 			references_json TEXT,
 			source TEXT NOT NULL,
-			fetched_at TEXT NOT NULL
+			fetched_at TEXT NOT NULL,
+			PRIMARY KEY (id, ecosystem, package_name)
 		);`,
+		`CREATE INDEX IF NOT EXISTS idx_vuln_records_pkg
+			ON vulnerability_records (ecosystem, package_name);`,
 		`CREATE TABLE IF NOT EXISTS package_vulnerability_index (
 			ecosystem TEXT NOT NULL,
 			package_name TEXT NOT NULL,
