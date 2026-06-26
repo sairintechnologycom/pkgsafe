@@ -137,8 +137,8 @@ func ExtractZip(path, dest string) error {
 			}
 			continue
 		}
-		total += int64(file.UncompressedSize64)
-		if total > MaxExtractedBytes {
+		// Fast-fail on honestly-declared oversize files before opening them.
+		if int64(file.UncompressedSize64) > MaxExtractedBytes-total {
 			return fmt.Errorf("artifact extracted size exceeds limit")
 		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
@@ -153,7 +153,15 @@ func ExtractZip(path, dest string) error {
 			in.Close()
 			return err
 		}
-		_, copyErr := io.Copy(out, in)
+		// Defense in depth against a zip bomb. Go's zip reader already refuses to
+		// emit more bytes than the declared UncompressedSize64 (returning
+		// ErrFormat), so the fast-fail check above is normally authoritative.
+		// We additionally cap the *actual* bytes written to the remaining budget
+		// so extraction never relies on stdlib-internal enforcement to bound how
+		// much can land on disk.
+		remaining := MaxExtractedBytes - total
+		written, copyErr := io.Copy(out, io.LimitReader(in, remaining+1))
+		total += written
 		closeOutErr := out.Close()
 		closeInErr := in.Close()
 		if copyErr != nil {
@@ -164,6 +172,9 @@ func ExtractZip(path, dest string) error {
 		}
 		if closeInErr != nil {
 			return closeInErr
+		}
+		if total > MaxExtractedBytes {
+			return fmt.Errorf("artifact extracted size exceeds limit")
 		}
 	}
 	return nil
