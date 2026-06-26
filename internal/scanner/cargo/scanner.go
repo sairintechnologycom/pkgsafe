@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/cache"
@@ -197,7 +198,12 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		Package: &osv.Package{Name: name, Ecosystem: "crates.io"},
 		Version: pkgVersion,
 	})
-	if err == nil && len(rawVulns) > 0 {
+	if err != nil {
+		// Fail closed: the OSV lookup did not complete, so this package was not
+		// checked for known vulnerabilities. Surface it instead of scoring clean.
+		fmt.Fprintf(os.Stderr, "Warning: OSV vulnerability lookup failed for crates.io/%s@%s: %v; failing closed (advisory data unavailable)\n", name, pkgVersion, err)
+		findings = append(findings, risk.VulnDataUnavailableReason(err))
+	} else if len(rawVulns) > 0 {
 		var dbVulns []db.Vulnerability
 		for _, v := range rawVulns {
 			dbV := osv.MapVulnerability(v, name, "crates.io")

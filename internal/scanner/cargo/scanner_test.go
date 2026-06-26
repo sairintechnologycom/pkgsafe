@@ -196,3 +196,56 @@ func TestScanPackageOnline(t *testing.T) {
 		t.Fatalf("expected yanked to be false")
 	}
 }
+
+// TestScanPackageOnlineOSVFailClosed verifies that when the OSV lookup fails,
+// the scan does NOT silently score the package as clean: it surfaces a
+// vulnerability_data_unavailable reason and does not return an "allow" decision.
+func TestScanPackageOnlineOSVFailClosed(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	cratesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/api/v1/crates/serde/1.0.0") {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"version": {"num":"1.0.0","created_at":"2026-06-25T10:00:00Z","yanked":false}}`))
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	defer cratesSrv.Close()
+
+	// OSV always errors (500) -> lookup cannot complete.
+	osvSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer osvSrv.Close()
+
+	oldNewClient := osv.NewClient
+	defer func() { osv.NewClient = oldNewClient }()
+	osv.NewClient = func() *osv.Client {
+		return &osv.Client{
+			HTTPClient:   &http.Client{Timeout: 5 * time.Second},
+			BaseURL:      osvSrv.URL,
+			MaxRetries:   1,
+			RetryBackoff: time.Millisecond,
+		}
+	}
+
+	scanner := Scanner{BaseURL: cratesSrv.URL, Policy: policy.Default()}
+	res, err := scanner.ScanPackage("serde", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	found := false
+	for _, r := range res.Reasons {
+		if r.ID == "vulnerability_data_unavailable" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected vulnerability_data_unavailable reason on OSV failure, got reasons %+v", res.Reasons)
+	}
+	if res.Decision == types.DecisionAllow {
+		t.Fatalf("expected fail-closed decision (not allow) when OSV unavailable, got %s (score %d)", res.Decision, res.Score)
+	}
+}
