@@ -10,7 +10,7 @@ PkgSafe intercepts commands through explicit wrapped execution or shell aliases/
 
 1. **Parses the Input**: Resolves which package manager (`npm`, `pip`, `python -m pip`) and subcommands/arguments are targeted.
 2. **Identifies Target Packages**: Extracts requested packages, version specifiers, and locks.
-3. **Checks Policy Rules**: Compares against local rules, known vulnerability intelligence (OSV), typosquatting targets, and optionally executes static analysis / sandboxing.
+3. **Checks Policy Rules**: Compares against local rules, known vulnerability intelligence (OSV), typosquatting targets, and optionally runs heuristic behavior analysis of lifecycle scripts.
 4. **Applies Enforcement Matrix**:
    - **ALLOW**: Installs the dependency safely via delegation to the real package manager.
    - **WARN**: Prompts the developer in interactive sessions, or rejects in non-interactive/AI agent environments unless explicit override flags are passed.
@@ -45,7 +45,7 @@ You can customize runtime behavior by adding safety flags at command invocation:
 
 - `--mode <warn|block|audit>`: Overrides current enforcement mode.
 - `--policy <path>`: Uses a custom YAML policy file.
-- `--sandbox`: Enables sandboxed execution of installation behaviors (where supported).
+- `--sandbox`: Runs lifecycle scripts for heuristic behavior analysis (Linux/macOS). Note: scripts execute on the host without OS isolation — not a security sandbox.
 - `--offline`: Runs checks offline using the local cache and threat DB.
 - `--dry-run`: Completes security checks and prints recommendations without invoking the real package manager.
 - `--yes`: Answers "Yes" to warnings (for non-interactive shell executions).

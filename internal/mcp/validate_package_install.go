@@ -275,7 +275,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 
 	recAction := output.RecommendedAction(res)
 	if sandboxEnabled && !res.Sandbox.Available {
-		recAction = "Sandbox requested but unavailable. Behavioral analysis was not performed. " + recAction
+		recAction = "Behavior analysis requested but unavailable on this platform; it was not performed. " + recAction
 	}
 
 	var mcpSandbox *MCPSandboxResult

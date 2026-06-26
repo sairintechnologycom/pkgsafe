@@ -404,8 +404,8 @@ func TestSandboxContainment(t *testing.T) {
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
-	expectedWarning := "Sandbox isolation is best-effort for this runner."
+	expectedWarning := "WITHOUT isolation"
 	if !strings.Contains(output, expectedWarning) {
-		t.Errorf("expected stderr to contain warning %q, got %q", expectedWarning, output)
+		t.Errorf("expected stderr to contain the no-isolation warning %q, got %q", expectedWarning, output)
 	}
 }

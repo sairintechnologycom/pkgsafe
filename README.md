@@ -116,4 +116,4 @@ CLI JSON output uses the stable scan contract:
 
 ## Notes
 
-This scaffold intentionally avoids cloud dependencies and external Go modules. The first iteration uses local JSON cache and deterministic policy scoring. SQLite, OSV ingestion, sandboxing, and IDE extensions should be added in later phases.
+This scaffold intentionally avoids cloud dependencies and external Go modules. The first iteration uses local JSON cache and deterministic policy scoring. SQLite vulnerability storage and OSV ingestion are implemented. Lifecycle-script behavior analysis is heuristic only — it executes scripts on the host without OS isolation and is not a security sandbox; real isolation and IDE extensions are planned for later phases.

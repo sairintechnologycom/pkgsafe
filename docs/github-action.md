@@ -14,7 +14,7 @@ It runs policy-driven package risk scans on pull requests, updates a PR summary 
 | `fail-on` | Minimum decision that fails the workflow: `none`, `warn`, `block` | No | `block` |
 | `changed-only` | Only scan dependencies changed in the pull request | No | `true` |
 | `baseline` | Baseline branch for changed dependency detection | No | `main` |
-| `sandbox` | Enable sandboxed lifecycle behavior analysis | No | `false` |
+| `sandbox` | Run lifecycle scripts for heuristic behavior analysis (runs on host, no OS isolation) | No | `false` |
 | `offline` | Use offline local vulnerability database only | No | `false` |
 | `upload-sarif` | Upload SARIF results to GitHub Code Scanning | No | `true` |
 | `comment-pr` | Post or update pull request summary comment | No | `true` |

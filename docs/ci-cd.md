@@ -18,7 +18,7 @@ pkgsafe ci scan [flags]
 * `--fail-on <threshold>`: Minimum decision that fails the scan (`none`, `warn`, or `block`). Defaults to `block`.
 * `--changed-only`: Scan only direct or transitive package changes between the current branch and a baseline branch.
 * `--baseline <branch>`: Baseline branch name. Defaults to `main`.
-* `--sandbox`: Enable sandboxed execution of package lifecycle scripts.
+* `--sandbox`: Run package lifecycle scripts for heuristic behavior analysis. Note: scripts execute on the host without OS isolation (no container/namespace/network sandbox) — not a security sandbox. Use a disposable environment.
 * `--offline`: Scan using the cached vulnerability database and locally cached metadata only.
 * `--json-output <path>`: Path to write the JSON findings report.
 * `--sarif-output <path>`: Path to write the SARIF (Static Analysis Results Interchange Format) version 2.1.0 file.

@@ -223,7 +223,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	if s.SandboxEnabled {
 		if !sandboxAvailable {
 			res.Sandbox.NotPerformed = true
-			res.Sandbox.NotPerfReason = "No supported sandbox runner available on this platform"
+			res.Sandbox.NotPerfReason = "No supported behavior-analysis runner available on this platform"
 		} else {
 			runner := &sandbox.ProcessRunner{}
 			var scriptsExecuted []types.SandboxScriptResult
@@ -406,7 +406,7 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 	if s.SandboxEnabled {
 		if !sandboxAvailable {
 			res.Sandbox.NotPerformed = true
-			res.Sandbox.NotPerfReason = "No supported sandbox runner available on this platform"
+			res.Sandbox.NotPerfReason = "No supported behavior-analysis runner available on this platform"
 		} else {
 			runner := &sandbox.ProcessRunner{}
 			for _, scriptName := range []string{"preinstall", "install", "postinstall", "prepare"} {

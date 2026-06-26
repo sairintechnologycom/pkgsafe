@@ -47,7 +47,7 @@ inputs:
     default: "main"
 
   sandbox:
-    description: "Enable sandboxed lifecycle behavior analysis"
+    description: "Run lifecycle scripts for heuristic behavior analysis (executes on the runner host without OS isolation; not a security sandbox)"
     required: false
     default: "false"
 

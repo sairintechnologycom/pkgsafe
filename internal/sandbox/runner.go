@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+// SandboxRunner performs heuristic behavior analysis of package lifecycle
+// scripts. NOTE: despite the name, the current ProcessRunner does NOT provide
+// OS-level isolation — scripts execute on the host as the current user with
+// only a redirected fake HOME and a cleaned environment. It observes behavior
+// (file/network/process heuristics); it does not contain it.
 type SandboxRunner interface {
 	Available(ctx context.Context) bool
 	RunLifecycleScript(ctx context.Context, req SandboxRequest) (*SandboxResult, error)
@@ -49,9 +54,15 @@ func (pr *ProcessRunner) RunLifecycleScript(ctx context.Context, req SandboxRequ
 	beforeFileInfo := RecordFileInfo(sandboxRoot)
 	env := CleanEnv(sandboxRoot)
 
-	fmt.Fprintln(os.Stderr, "Sandbox isolation is best-effort for this runner.")
+	// Be explicit and honest: this runner does NOT isolate. Lifecycle scripts
+	// execute on the host as the current user. The only mitigations are a
+	// redirected fake HOME and a cleaned environment; the real filesystem,
+	// network, and processes are fully reachable. This is heuristic behavior
+	// analysis, not a security sandbox — never rely on it to contain malicious
+	// code; run it only in a disposable environment.
+	fmt.Fprintln(os.Stderr, "WARNING: lifecycle scripts run on the host WITHOUT isolation (no container, namespace, or network sandbox). This is heuristic behavior analysis, not containment.")
 	if req.NetworkMode == "disabled" {
-		fmt.Fprintln(os.Stderr, "Warning: Network isolation is best-effort for runner fake-home-process.")
+		fmt.Fprintln(os.Stderr, "WARNING: network_mode=disabled is NOT enforced by this runner; network access is not actually blocked.")
 	}
 
 	timeout := req.Timeout

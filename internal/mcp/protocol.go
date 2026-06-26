@@ -134,18 +134,18 @@ func GetToolsList() ToolListResult {
 						},
 						"sandbox": map[string]any{
 							"type":        "boolean",
-							"description": "Run the installation scripts in a sandbox to analyze behaviors",
+							"description": "Execute the install lifecycle scripts for heuristic behavior analysis. NOTE: scripts run on the host without OS isolation; this is not a security sandbox.",
 							"default":     false,
 						},
 						"sandbox_timeout_seconds": map[string]any{
 							"type":        "integer",
-							"description": "Custom timeout duration for sandbox script execution",
+							"description": "Timeout for lifecycle-script behavior analysis, in seconds",
 							"default":     10,
 						},
 						"network_mode": map[string]any{
 							"type":        "string",
 							"enum":        []string{"disabled", "limited", "host"},
-							"description": "Sandbox network isolation level",
+							"description": "Declared network mode for behavior analysis (advisory only; not enforced — network is not actually isolated)",
 							"default":     "disabled",
 						},
 					},

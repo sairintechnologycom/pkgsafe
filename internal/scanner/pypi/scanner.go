@@ -178,7 +178,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 			Enabled:       true,
 			Available:     false,
 			NotPerformed:  true,
-			NotPerfReason: "PyPI sandbox execution is not implemented yet. Static analysis completed only.",
+			NotPerfReason: "PyPI behavior analysis is not implemented yet. Static analysis completed only.",
 		}
 		res.Artifact.SandboxNote = res.Sandbox.NotPerfReason
 	}
