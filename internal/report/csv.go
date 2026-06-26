@@ -5,6 +5,8 @@ import (
 	"encoding/csv"
 	"fmt"
 	"strconv"
+
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 )
 
 // ExportCSV formats reports/metadata as CSV strings.
@@ -113,5 +115,8 @@ func ExportCSV(r *RepositoryRiskReport, csvType string) (string, error) {
 	if err := w.Error(); err != nil {
 		return "", err
 	}
-	return buf.String(), nil
+	// Scrub any secrets (tokens, credentials, basic-auth URLs) that may have
+	// surfaced in free-text fields such as messages or registry URLs. CSV is the
+	// last exporter to gain this; every other format already redacts its output.
+	return registry.RedactSecrets(buf.String()), nil
 }

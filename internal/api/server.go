@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -232,7 +233,10 @@ func (s *Server) tokenAuth(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		const prefix = "Bearer "
-		if len(auth) < len(prefix) || auth[:len(prefix)] != prefix || auth[len(prefix):] != token {
+		// Compare the presented token in constant time to avoid a timing side-channel
+		// that could let a caller recover the token byte-by-byte.
+		presented := strings.TrimPrefix(auth, prefix)
+		if !strings.HasPrefix(auth, prefix) || subtle.ConstantTimeCompare([]byte(presented), []byte(token)) != 1 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized: invalid or missing bearer token"})
@@ -252,4 +256,3 @@ func Serve(cfg Config) error {
 	fmt.Printf("Starting PkgSafe REST API server on http://127.0.0.1:%s...\n", port)
 	return http.ListenAndServe("127.0.0.1:"+port, s.Router())
 }
-
