@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/niyam-ai/pkgsafe/internal/db"
 )
 
 // InstallPolicyPack verifies (with the default trusted keys) and installs a pack.
@@ -46,18 +44,14 @@ func InstallPolicyPackWithKeys(tarGzPath string, trustedKeys []ed25519.PublicKey
 		return fmt.Errorf("create install directory: %w", err)
 	}
 
-	// Write files
+	// Write files. Every pack file — including any bundled pkgsafe.db — is
+	// written only inside the pack's sandboxed install directory. A pack must
+	// never be able to silently replace the active vulnerability database
+	// (which would let a pack blind the scanner), so pkgsafe.db is quarantined
+	// here, not applied; importing it is a separate, explicit operator action.
 	for fname, content := range files {
 		if fname == "pkgsafe.db" {
-			// Extract local vulnerability DB to active db location
-			dbPath := db.DefaultDBPath()
-			if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
-				return err
-			}
-			if err := os.WriteFile(dbPath, content, 0o644); err != nil {
-				return fmt.Errorf("install bundled db failed: %w", err)
-			}
-			continue
+			fmt.Fprintf(os.Stderr, "Note: policy pack %s bundles a pkgsafe.db; it is stored in the pack directory and does NOT replace the active vulnerability database.\n", meta.Name)
 		}
 		fpath := filepath.Join(installDir, fname)
 		rel, err := filepath.Rel(installDir, fpath)
@@ -162,14 +156,9 @@ func ExportBundle(outputPath string) error {
 		}
 	}
 
-	// 1. Add local vulnerability DB if present
-	dbPath := db.DefaultDBPath()
-	if _, err := os.Stat(dbPath); err == nil {
-		dbContent, err := os.ReadFile(dbPath)
-		if err == nil {
-			filesToPack["pkgsafe.db"] = dbContent
-		}
-	}
+	// The active vulnerability database is intentionally NOT bundled into policy
+	// packs: a pack must not be able to ship (and thereby replace) the vuln DB.
+	// Offline DB distribution is a separate, explicit concern.
 
 	// Compute checksums for all packed files (except checksums.txt itself)
 	var checksumsBuf bytes.Buffer
