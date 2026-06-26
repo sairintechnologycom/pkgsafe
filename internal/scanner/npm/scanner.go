@@ -316,7 +316,15 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 	d, dbErr := db.Open(s.DBPath)
 
-	if err == nil && len(rawVulns) > 0 {
+	if err != nil {
+		// Fail closed: the OSV lookup did not complete, so this package was not
+		// checked for known vulnerabilities. Surface it instead of scoring clean.
+		fmt.Fprintf(os.Stderr, "Warning: OSV vulnerability lookup failed for npm/%s@%s: %v; failing closed (advisory data unavailable)\n", res.Package.Name, res.Package.Version, err)
+		vulnFindings = append(vulnFindings, risk.VulnDataUnavailableReason(err))
+		if dbErr == nil {
+			d.Close()
+		}
+	} else if len(rawVulns) > 0 {
 		var dbVulns []db.Vulnerability
 		for _, v := range rawVulns {
 			dbV := osv.MapVulnerability(v, res.Package.Name, "npm")

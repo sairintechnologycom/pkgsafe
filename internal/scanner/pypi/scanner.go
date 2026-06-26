@@ -226,7 +226,14 @@ func (s Scanner) lookupOnlineVulnerabilities(ctx context.Context, name, version 
 	})
 	var out []types.Vulnerability
 	var findings []types.Reason
-	if err != nil || len(rawVulns) == 0 {
+	if err != nil {
+		// Fail closed: the OSV lookup did not complete, so this package was not
+		// checked for known vulnerabilities. Surface it instead of scoring clean.
+		fmt.Fprintf(os.Stderr, "Warning: OSV vulnerability lookup failed for PyPI/%s@%s: %v; failing closed (advisory data unavailable)\n", name, version, err)
+		findings = append(findings, risk.VulnDataUnavailableReason(err))
+		return out, findings
+	}
+	if len(rawVulns) == 0 {
 		return out, findings
 	}
 	d, dbErr := db.Open(s.DBPath)

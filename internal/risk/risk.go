@@ -147,6 +147,26 @@ func AddReason(findings []types.Reason, id, message, evidence string) []types.Re
 	return append(findings, types.Reason{ID: id, Description: message, Evidence: evidence})
 }
 
+// ReasonVulnDataUnavailable is the finding ID emitted when an online OSV
+// advisory lookup fails, so the package could not be checked for known
+// vulnerabilities. It exists so the scan fails closed instead of silently
+// scoring the package as having zero advisories.
+const ReasonVulnDataUnavailable = "vulnerability_data_unavailable"
+
+// VulnDataUnavailableReason builds the fail-closed finding for a failed OSV
+// lookup. The underlying error is carried as evidence.
+func VulnDataUnavailableReason(err error) types.Reason {
+	evidence := ""
+	if err != nil {
+		evidence = err.Error()
+	}
+	return types.Reason{
+		ID:          ReasonVulnDataUnavailable,
+		Description: "Vulnerability advisory lookup failed; package was not checked against OSV (failing closed)",
+		Evidence:    evidence,
+	}
+}
+
 func NewPackageFinding(ageDays int) types.Reason {
 	return types.Reason{
 		ID:          "new_package",

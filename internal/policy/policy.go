@@ -156,6 +156,11 @@ func Default() Policy {
 			"known_vulnerability_high":               {Enabled: true, Severity: "high", Score: 50},
 			"known_vulnerability_medium":             {Enabled: true, Severity: "medium", Score: 25},
 			"known_vulnerability_low":                {Enabled: true, Severity: "low", Score: 10},
+			// Fail-closed marker: emitted when the OSV advisory lookup could not
+			// complete, so the package was NOT checked for known vulnerabilities.
+			// Scores into the warn band on its own and blocks in strict/block
+			// mode. Disable this rule to opt back into fail-open behavior.
+			"vulnerability_data_unavailable":         {Enabled: true, Severity: "high", Score: 50, BlockInStrictMode: true},
 			"known_malware_indicator":                {Enabled: true, Severity: "critical", Score: 100},
 			"ai_package_squatting_candidate":         {Enabled: true, Severity: "high", Score: 25},
 			"ai_agent_requested_suspicious_package":  {Enabled: true, Severity: "high", Score: 15},
