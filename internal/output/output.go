@@ -112,7 +112,7 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 		}
 		fmt.Fprintln(w)
 
-		fmt.Fprintln(w, "Sandbox Analysis:")
+		fmt.Fprintln(w, "Behavior Analysis (heuristic; scripts run on host, not isolated):")
 		if result.Sandbox.NotPerformed {
 			fmt.Fprintln(w, "- Not performed")
 			fmt.Fprintf(w, "- Reason: %s\n", result.Sandbox.NotPerfReason)
@@ -121,7 +121,7 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 				fmt.Fprintf(w, "- Script: %s\n", run.Name)
 				fmt.Fprintf(w, "- Duration: %d ms\n", run.DurationMs)
 				fmt.Fprintf(w, "- Exit Code: %d\n", run.ExitCode)
-				fmt.Fprintf(w, "- Network Mode: %s\n", result.Sandbox.NetworkMode)
+				fmt.Fprintf(w, "- Network Mode (declared, not enforced): %s\n", result.Sandbox.NetworkMode)
 			}
 			if len(result.Sandbox.ScriptsExecuted) == 0 {
 				fmt.Fprintln(w, "- No lifecycle scripts defined to run")
@@ -138,7 +138,7 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 			}
 		}
 		if sandboxCount == 0 {
-			fmt.Fprintln(w, "- No findings detected in sandbox")
+			fmt.Fprintln(w, "- No behavioral findings detected")
 		}
 		fmt.Fprintln(w)
 
@@ -165,7 +165,7 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 	fmt.Fprintf(w, "Package: %s/%s@%s\n", result.Package.Ecosystem, result.Package.Name, emptyLatest(result.Package.Version))
 	fmt.Fprintf(w, "Risk Score: %d/100\n", result.Score)
 	if result.Package.Ecosystem == "pypi" && result.Sandbox.Enabled {
-		fmt.Fprintln(w, "\nPyPI sandbox execution is not implemented yet. Static analysis completed only.")
+		fmt.Fprintln(w, "\nPyPI behavior analysis is not implemented yet. Static analysis completed only.")
 	}
 	if len(result.Lifecycle) > 0 {
 		fmt.Fprintf(w, "Lifecycle Scripts: %s\n", strings.Join(result.Lifecycle, ", "))
@@ -194,7 +194,7 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 		}
 		fmt.Fprintf(w, "- setup.py present: %v\n", result.Artifact.SetupPyPresent)
 		if result.Artifact.SandboxNote != "" {
-			fmt.Fprintf(w, "- Sandbox: %s\n", result.Artifact.SandboxNote)
+			fmt.Fprintf(w, "- Behavior analysis: %s\n", result.Artifact.SandboxNote)
 		}
 	}
 	if len(result.Vulnerabilities) > 0 {
@@ -236,7 +236,7 @@ func emptyLatest(v string) string {
 
 func RecommendedAction(result types.ScanResult) string {
 	if result.Sandbox.Enabled && result.Sandbox.NotPerformed && result.Package.Ecosystem != "pypi" {
-		return "Review package before installing. Run sandbox analysis on a supported Linux or Docker-enabled environment."
+		return "Review package before installing. Heuristic behavior analysis runs only on Linux/macOS; note it executes lifecycle scripts on the host without isolation, so use a disposable environment."
 	}
 	if result.Recommended != "" {
 		return result.Recommended
