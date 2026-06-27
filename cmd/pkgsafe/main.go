@@ -113,6 +113,8 @@ func run(args []string) error {
 			return cmdDBStatus(args[2:])
 		}
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe db status")
+	case "doctor":
+		return cmdDoctor(args[1:])
 	case "inventory":
 		if len(args) > 1 && args[1] == "diff" {
 			return cmdInventoryDiff(args[2:])
@@ -128,7 +130,10 @@ func run(args []string) error {
 		if len(args) > 1 && args[1] == "rollout-readiness" {
 			return cmdTestRolloutReadiness(args[2:])
 		}
-		return fmt.Errorf("unknown subcommand. usage: pkgsafe test [corpus|benchmark|rollout-readiness]")
+		if len(args) > 1 && args[1] == "production-readiness" {
+			return cmdTestProductionReadiness(args[2:])
+		}
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe test [corpus|benchmark|rollout-readiness|production-readiness]")
 	case "ci":
 		if len(args) > 1 && args[1] == "scan" {
 			return cmdCIScan(args[2:])
@@ -167,8 +172,10 @@ Usage:
   pkgsafe inventory <repo-path> [--json]
   pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
   pkgsafe test corpus [--json] [--explain-misses]
-  pkgsafe test benchmark [--json] [--fixtures <dir>]
+  pkgsafe test benchmark [--json] [--fixtures <dir>] [--offline] [--repo <path>]
   pkgsafe test rollout-readiness [--json]
+  pkgsafe test production-readiness [--json] [--fixtures <dir>] [--repo <path>]
+  pkgsafe doctor [--json] [--policy <path>] [--registry-config <path>] [--skip-network]
   pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe npm-install <name> [--version <version>] [--policy-pack <name>] [--mode warn|block|audit]
@@ -907,6 +914,23 @@ func cmdDBStatus(args []string) error {
 	return cli.DBStatus("")
 }
 
+func cmdDoctor(args []string) error {
+	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	skipNetwork := fs.Bool("skip-network", false, "skip OSV network availability check")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	return cli.Doctor(cli.DoctorOptions{
+		PolicyPath:     *policyPath,
+		RegistryConfig: *registryConfig,
+		SkipNetwork:    *skipNetwork,
+		JSON:           *asJSON,
+	})
+}
+
 func policyStatus(pol policy.Policy, pkg types.PackageIdentity) string {
 	switch {
 	case policy.IsBlocked(pol, pkg.Ecosystem, pkg.Name):
@@ -1245,6 +1269,35 @@ func cmdTestRolloutReadiness(args []string) error {
 		return err
 	}
 	if err := validation.WriteRolloutReadiness(os.Stdout, rep, *asJSON); err != nil {
+		return err
+	}
+	if !rep.Pass {
+		return exitError{code: 1}
+	}
+	return nil
+}
+
+func cmdTestProductionReadiness(args []string) error {
+	fs := flag.NewFlagSet("test-production-readiness", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	fixturesDir := fs.String("fixtures", "testdata/benchmarks", "directory for benchmark fixtures")
+	repo := fs.String("repo", "", "optional real repository path to validate (feeds real_repo_validation_count)")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	opts := validation.ProductionReadinessOptions{
+		CorpusDir:    "testdata/corpus",
+		GoldenFile:   "testdata/corpus-golden.json",
+		BenchmarkDir: *fixturesDir,
+	}
+	if *repo != "" {
+		opts.RealRepos = []string{*repo}
+	}
+	rep, err := validation.RunProductionReadinessWithOptions(opts)
+	if err != nil {
+		return err
+	}
+	if err := validation.WriteProductionReadiness(os.Stdout, rep, *asJSON); err != nil {
 		return err
 	}
 	if !rep.Pass {

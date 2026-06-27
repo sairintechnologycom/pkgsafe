@@ -29,6 +29,8 @@ import (
 const (
 	ReadinessInternalAlpha = "INTERNAL_ALPHA_READY"
 	ReadinessPrivateBeta   = "PRIVATE_BETA_READY"
+	ReadinessPublicBeta    = "PUBLIC_BETA_READY"
+	ReadinessProductionGA  = "PRODUCTION_GA_READY"
 	ReadinessBlocked       = "BLOCKED"
 )
 

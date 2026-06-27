@@ -1,0 +1,60 @@
+name: False negative
+description: PkgSafe allowed a package that you believe is risky or malicious.
+title: "[false-negative] "
+labels: ["false-negative", "beta", "security-relevant"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Use this when PkgSafe returned **allow** (or only **warn**) for a
+        package you believe should have been **blocked** or escalated. If this
+        is a vulnerability IN PkgSafe itself, follow the private disclosure in
+        SECURITY.md instead.
+  - type: input
+    id: package
+    attributes:
+      label: Package name and version
+      description: The exact package and version that was allowed.
+      placeholder: "example-package@1.2.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: ecosystem
+    attributes:
+      label: Ecosystem
+      options:
+        - npm
+        - pypi
+        - go
+        - cargo
+    validations:
+      required: true
+  - type: dropdown
+    id: decision
+    attributes:
+      label: Decision PkgSafe gave
+      description: The decision returned (the too-permissive one you are disputing).
+      options:
+        - allow
+        - warn
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence of risk
+      description: >-
+        Advisory IDs (CVE/GHSA/OSV), observed malicious behavior,
+        exfiltration/credential access, typosquat target, or other indicators.
+    validations:
+      required: true
+  - type: textarea
+    id: scan-output
+    attributes:
+      label: Scan output
+      description: >-
+        Paste the full scan output, ideally `--json`, including `decision`,
+        `risk_score`, and any `reasons`.
+      render: shell
+    validations:
+      required: true

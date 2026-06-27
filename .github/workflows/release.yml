@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write   # create the GitHub release + upload artifacts
   id-token: write   # keyless cosign signing via OIDC
+  attestations: write
 
 jobs:
   goreleaser:
@@ -30,6 +31,13 @@ jobs:
       - name: Install syft (SBOM)
         uses: anchore/sbom-action/download-syft@v0
 
+      - name: Validate release readiness
+        run: |
+          go test ./...
+          go vet ./...
+          make package
+          ./dist/pkgsafe test benchmark --offline
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -38,3 +46,9 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest build provenance
+        if: always()
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"

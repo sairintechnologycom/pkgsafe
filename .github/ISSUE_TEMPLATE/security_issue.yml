@@ -1,0 +1,55 @@
+name: Security-relevant report
+description: A security-relevant observation that is NOT a sensitive vulnerability in PkgSafe itself.
+title: "[security] "
+labels: ["security", "beta"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        ⚠️ **If this is a vulnerability IN PkgSafe itself** (e.g. the firewall
+        can be bypassed, the extractor can be exploited, the loopback REST API
+        leaks data, a policy pack signature can be forged), **do NOT file it
+        here.** Follow the private disclosure instructions in
+        [SECURITY.md](https://github.com/niyam-ai/pkgsafe/blob/main/SECURITY.md)
+        so maintainers can triage it before public disclosure.
+
+
+        Use this template for non-sensitive security-relevant reports: detection
+        gaps, hardening suggestions, advisory-coverage requests, or questions
+        about the documented security model. For a specific risky package that
+        was allowed, prefer the **False negative** template.
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: >-
+            This is NOT a sensitive, exploitable vulnerability in PkgSafe
+            itself. (If it is, I will use SECURITY.md private disclosure.)
+          required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is the security-relevant concern?
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details / evidence
+      description: >-
+        Relevant context, advisory IDs, affected command or surface (CLI, REST
+        API, MCP stdio, policy engine, extractor), and any output. Use `--json`
+        for scan results where applicable.
+      render: shell
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: PkgSafe version
+      description: Output of `pkgsafe version`.
+      placeholder: "v0.2.0-beta.1"
+    validations:
+      required: false
