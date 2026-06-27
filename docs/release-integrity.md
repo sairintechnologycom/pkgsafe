@@ -99,6 +99,12 @@ that this exact binary was produced by the pkgsafe release workflow running in
 GitHub Actions against the repository's source — not built locally and uploaded
 by hand.
 
+> Availability: GitHub Artifact Attestations require a **public** repository (or
+> GitHub Enterprise with the feature). While the repository is private the
+> attestation step is non-blocking and skipped — releases still ship signed
+> checksums and SBOMs, and provenance resumes automatically once the repo is
+> public.
+
 Verify with the GitHub CLI (`gh auth login` first if needed):
 
 ```bash

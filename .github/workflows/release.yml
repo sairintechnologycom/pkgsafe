@@ -35,7 +35,8 @@ jobs:
         run: |
           go test ./...
           go vet ./...
-          make package
+          make build          # produces dist/pkgsafe for the validation run
+          make package        # cross binaries + checksums + SBOM
           ./dist/pkgsafe test benchmark --offline
 
       - name: Run GoReleaser
@@ -47,8 +48,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Build provenance attestation requires a public repo (or GitHub
+      # Enterprise with the feature). Non-blocking so a private-beta release
+      # still ships signed checksums and SBOMs; provenance resumes once public.
       - name: Attest build provenance
         if: always()
+        continue-on-error: true
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: "dist/*"
