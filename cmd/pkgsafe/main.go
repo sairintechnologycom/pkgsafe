@@ -31,10 +31,14 @@ import (
 	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 	"github.com/niyam-ai/pkgsafe/internal/validation"
+	versionpkg "github.com/niyam-ai/pkgsafe/internal/version"
 )
 
-var version = "0.1.0"
-var commit = "local"
+// version/commit mirror the build-injected values in internal/version so the
+// existing `version` command and tests keep working. The real source of truth
+// is internal/version, populated via -ldflags.
+var version = versionpkg.Version
+var commit = versionpkg.Commit
 
 var apiServeFunc = api.Serve
 

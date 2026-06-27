@@ -1,0 +1,78 @@
+# GoReleaser configuration for pkgsafe.
+# Docs: https://goreleaser.com
+version: 2
+
+project_name: pkgsafe
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: pkgsafe
+    main: ./cmd/pkgsafe
+    binary: pkgsafe
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/niyam-ai/pkgsafe/internal/version.Version={{ .Version }}
+      - -X github.com/niyam-ai/pkgsafe/internal/version.Commit={{ .ShortCommit }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# SBOM per archive (requires syft on the runner).
+sboms:
+  - artifacts: archive
+
+# Keyless cosign signing of the checksums file (requires cosign + OIDC).
+# Verify with:
+#   cosign verify-blob --certificate checksums.txt.pem \
+#     --signature checksums.txt.sig \
+#     --certificate-identity-regexp 'https://github.com/.*/pkgsafe/.*' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+#     checksums.txt
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    certificate: "${artifact}.pem"
+    output: true
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+
+release:
+  draft: true
+  prerelease: auto
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

@@ -1,7 +1,8 @@
 APP := pkgsafe
-VERSION ?= 0.1.0
-COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo local)
-LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+VERPKG := github.com/niyam-ai/pkgsafe/internal/version
+LDFLAGS := -s -w -X $(VERPKG).Version=$(VERSION) -X $(VERPKG).Commit=$(COMMIT)
 DIST := dist
 
 .PHONY: test build package clean cross

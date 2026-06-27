@@ -4,6 +4,42 @@ PkgSafe is a local-first package safety CLI for developer and AI-agent workflows
 
 > MVP focus: npm packages and `package-lock.json` scanning.
 
+## Install
+
+PkgSafe is a single static binary (CGo-free). Pick one:
+
+**Pre-built release** (recommended once a release is tagged):
+
+```bash
+# Download the archive for your OS/arch from the Releases page, then:
+tar -xzf pkgsafe_<version>_<os>_<arch>.tar.gz
+sudo mv pkgsafe /usr/local/bin/
+pkgsafe version
+```
+
+Release archives ship a `checksums.txt` (SHA-256) plus a cosign signature and
+per-archive SBOMs. Verify before trusting a binary:
+
+```bash
+sha256sum -c checksums.txt
+cosign verify-blob \
+  --certificate checksums.txt.pem --signature checksums.txt.sig \
+  --certificate-identity-regexp 'https://github.com/.*/pkgsafe/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+```
+
+**From source** (Go 1.25+):
+
+```bash
+go install github.com/niyam-ai/pkgsafe/cmd/pkgsafe@latest
+# or, from a clone, with version metadata baked in:
+make build && ./dist/pkgsafe version
+```
+
+> Platform note: the firewall/CLI runs on Linux, macOS, and Windows. The
+> lifecycle behavior-analysis runner is Unix-only (Linux/macOS).
+
 ## Commands
 
 ```bash

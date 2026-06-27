@@ -40,12 +40,12 @@ as a general installable security tool.
 Ordered by what unblocks the next tier. Security items (S#/M#) cross-reference
 `REMEDIATION.md`; rollout-specific items are R#.
 
-### M0 — Make it installable (blocks **all** external rollout) 🔴
+### M0 — Make it installable (blocks **all** external rollout) ✅ landed (tag push pending)
 
-- [ ] **R1 — Cut a real release.** No git tags exist; `release.yml` (GoReleaser) has never run. Tag `v0.1.0`, verify binaries publish for linux/macos/windows × amd64/arm64.
-- [ ] **R2 — Wire version from build.** `version` is hardcoded `0.1.0` in `cmd/pkgsafe/main.go:36` *and* `internal/enterprise/metadata.go:52`. Inject via `-ldflags`; remove the duplicate literal. (= S7)
-- [ ] **R3 — Install instructions in README.** Currently none — no `go install`, binary download, or `brew`. Add an Install section + supported-platform note (sandbox is Unix-only).
-- [ ] **R4 — Sign release artifacts + publish checksums / SLSA provenance.** An unsigned supply-chain *security* tool is itself a supply-chain gap. (= M1)
+- [x] **R1 — Release pipeline.** Added `.goreleaser.yaml` (was missing entirely — `release.yml` referenced GoReleaser with no config) building linux/macos/windows × amd64/arm64, and upgraded the workflow to goreleaser-action@v6 / GoReleaser v2 with cosign + syft installers and `id-token` permission. **Owner action remaining:** push a `v0.1.0` tag to trigger the first real release.
+- [x] **R2 — Wire version from build.** New `internal/version` package is the single source of truth; injected via `-ldflags` in the Makefile and GoReleaser. Removed the hardcoded `0.1.0` from `cmd/pkgsafe/main.go` and `internal/enterprise/metadata.go`; the min-version gate now reads the real version and skips for dev builds. (= S7)
+- [x] **R3 — Install instructions in README.** Added an Install section (release archive, `go install`, `make build`) with checksum + cosign verification steps and the Unix-only-runner platform note.
+- [x] **R4 — Sign release artifacts + SBOM + checksums.** GoReleaser now emits `checksums.txt`, keyless cosign signatures, and per-archive SBOMs (syft). SLSA provenance still optional follow-up.
 
 ### M1 — Honest UX (blocks T1 external users) 🟠
 
