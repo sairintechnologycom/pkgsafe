@@ -47,12 +47,12 @@ Ordered by what unblocks the next tier. Security items (S#/M#) cross-reference
 - [x] **R3 — Install instructions in README.** Added an Install section (release archive, `go install`, `make build`) with checksum + cosign verification steps and the Unix-only-runner platform note.
 - [x] **R4 — Sign release artifacts + SBOM + checksums.** GoReleaser now emits `checksums.txt`, keyless cosign signatures, and per-archive SBOMs (syft). SLSA provenance still optional follow-up.
 
-### M1 — Honest UX (blocks T1 external users) 🟠
+### M1 — Honest UX (blocks T1 external users) ✅ landed
 
-- [ ] **R5 — Document the offline caveat prominently.** "Local-first" but offline scanning still needs a prior *online* cached scan of the target package. Surface this in README + CLI help; consider a seeded/bootstrapped cache.
-- [ ] **R6 — Fix stale README "Notes."** Still claims it "avoids … external Go modules" (false — uses `modernc.org/sqlite` et al.). Add a "What works / what's metadata-only / what's stubbed" capability matrix. (= M3)
-- [ ] **R7 — Document API exposure policy.** Make explicit it is loopback-only and unauthenticated by default; tell users not to expose it until M2 lands.
-- [ ] **R8 — Resolve the perpetually-red self-scan CI gate.** "PkgSafe Package Gate Self-Scan" fails on every PR because CI scans the intentional `axois@1.0.0` typosquat fixture online. Point it at a real lockfile or run it `offline:true` so the signal is meaningful.
+- [x] **R5 — Document the offline caveat prominently.** README "Operational notes" now states local-first still needs an online OSV sync first, points to `update-db --ecosystem all`, and notes OSV fails closed.
+- [x] **R6 — Fix stale README "Notes."** Removed the false "no external Go modules" claim; added a per-ecosystem capability matrix (npm full / PyPI partial / Go+Cargo metadata-only) and an accurate dependency note.
+- [x] **R7 — Document API exposure policy.** README states the API is loopback-only, unauthenticated by default, no TLS/rate-limit/body-cap — do not expose until M2.
+- [x] **R8 — Resolve the perpetually-red self-scan CI gate.** Added a clean `testdata/npm/self-scan/package-lock.json` (is-number@7.0.0) and pointed CI at it; the malware fixture stays for unit tests. Verified `pkgsafe ci scan` exits 0 on it locally.
 
 ### M2 — Safe to operate (blocks T2 / exposable service) 🟡
 
