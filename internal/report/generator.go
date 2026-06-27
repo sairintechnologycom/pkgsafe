@@ -170,11 +170,18 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 		}
 
 		if !hasCached {
-			// Stub a safe scan result if offline and not cached
+			// The package could not be scanned (offline with no cached result,
+			// or a scan error). Mark it UNKNOWN rather than silently passing it
+			// as ALLOW/0 — an un-scanned package is not a clean package.
 			res = types.ScanResult{
 				Package:  pkg,
-				Decision: types.DecisionAllow,
+				Decision: types.DecisionUnknown,
 				Score:    0,
+				Reasons: []types.Reason{{
+					ID:          "package_not_scanned",
+					Severity:    "medium",
+					Description: "Package could not be scanned (no cached result and scan unavailable); risk is unknown.",
+				}},
 			}
 		}
 
@@ -377,12 +384,15 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 	allowedCount := 0
 	warnCount := 0
 	blockCount := 0
+	unknownCount := 0
 	for _, f := range report.Findings {
 		switch f.Decision {
 		case "block":
 			blockCount++
 		case "warn":
 			warnCount++
+		case "unknown":
+			unknownCount++
 		default:
 			allowedCount++
 		}
@@ -393,6 +403,7 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 		Allowed:                     allowedCount,
 		Warnings:                    warnCount,
 		Blocked:                     blockCount,
+		Unknown:                     unknownCount,
 		CriticalVulnerabilities:     critVuln,
 		HighVulnerabilities:         highVuln,
 		ActiveExceptions:            activeExceptions,

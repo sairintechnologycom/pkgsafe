@@ -31,6 +31,7 @@ type Summary struct {
 	Allow           int `json:"allow"`
 	Warn            int `json:"warn"`
 	Block           int `json:"block"`
+	Unknown         int `json:"unknown"`
 }
 
 type ScanResult struct {

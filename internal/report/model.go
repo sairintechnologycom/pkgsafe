@@ -27,6 +27,7 @@ type RiskSummary struct {
 	Allowed                     int `json:"allowed"`
 	Warnings                    int `json:"warned"`
 	Blocked                     int `json:"blocked"`
+	Unknown                     int `json:"unknown"`
 	CriticalVulnerabilities     int `json:"critical_vulnerabilities"`
 	HighVulnerabilities         int `json:"high_vulnerabilities"`
 	ActiveExceptions            int `json:"active_exceptions"`

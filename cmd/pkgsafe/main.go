@@ -1112,6 +1112,9 @@ func cmdServeAPI(args []string) error {
 	policyPath := fs.String("policy", "", "default policy path")
 	mode := fs.String("mode", "", "default mode (audit, warn, block)")
 	offline := fs.Bool("offline", false, "run server offline")
+	bind := fs.String("bind", "127.0.0.1", "interface to bind (non-loopback requires --token and TLS)")
+	tlsCert := fs.String("tls-cert", "", "path to TLS certificate (enables HTTPS)")
+	tlsKey := fs.String("tls-key", "", "path to TLS private key (enables HTTPS)")
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
@@ -1129,6 +1132,9 @@ func cmdServeAPI(args []string) error {
 		Offline:       *offline,
 		Version:       version,
 		Commit:        commit,
+		BindAddress:   *bind,
+		TLSCertFile:   *tlsCert,
+		TLSKeyFile:    *tlsKey,
 	}
 
 	return apiServeFunc(cfg)

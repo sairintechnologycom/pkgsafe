@@ -8,6 +8,9 @@ const (
 	DecisionAllow Decision = "allow"
 	DecisionWarn  Decision = "warn"
 	DecisionBlock Decision = "block"
+	// DecisionUnknown marks a package that could not be scanned (e.g. offline
+	// with no cached result). It must never be treated as a clean pass.
+	DecisionUnknown Decision = "unknown"
 )
 
 type Reason struct {

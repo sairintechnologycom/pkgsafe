@@ -362,3 +362,48 @@ func TestPolicyEndpoint(t *testing.T) {
 		}
 	})
 }
+
+func TestRateLimitMiddleware(t *testing.T) {
+	// capacity = 2/min; the third immediate request from the same IP is limited.
+	server := NewServer(Config{RateLimitPerMinute: 2})
+	hit := func() int {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+		req.RemoteAddr = "127.0.0.1:5555"
+		rec := httptest.NewRecorder()
+		server.Router().ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if c := hit(); c != http.StatusOK {
+		t.Fatalf("request 1: expected 200, got %d", c)
+	}
+	if c := hit(); c != http.StatusOK {
+		t.Fatalf("request 2: expected 200, got %d", c)
+	}
+	if c := hit(); c != http.StatusTooManyRequests {
+		t.Fatalf("request 3: expected 429, got %d", c)
+	}
+}
+
+func TestBodySizeCap(t *testing.T) {
+	server := NewServer(Config{MaxBodyBytes: 16})
+	body := bytes.Repeat([]byte("a"), 1024)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/scan", bytes.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:5556"
+	rec := httptest.NewRecorder()
+	server.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("oversize body: expected 400, got %d", rec.Code)
+	}
+}
+
+func TestServeRefusesNonLoopbackWithoutAuthOrTLS(t *testing.T) {
+	// Missing token -> fail closed.
+	if err := Serve(Config{BindAddress: "0.0.0.0", Port: "0"}); err == nil {
+		t.Fatal("expected error binding 0.0.0.0 without token")
+	}
+	// Token present but no TLS -> still fail closed.
+	err := Serve(Config{BindAddress: "0.0.0.0", Port: "0", Token: "x"})
+	if err == nil {
+		t.Fatal("expected error binding 0.0.0.0 without TLS")
+	}
+}

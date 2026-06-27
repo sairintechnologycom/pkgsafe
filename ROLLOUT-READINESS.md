@@ -54,12 +54,12 @@ Ordered by what unblocks the next tier. Security items (S#/M#) cross-reference
 - [x] **R7 — Document API exposure policy.** README states the API is loopback-only, unauthenticated by default, no TLS/rate-limit/body-cap — do not expose until M2.
 - [x] **R8 — Resolve the perpetually-red self-scan CI gate.** Added a clean `testdata/npm/self-scan/package-lock.json` (is-number@7.0.0) and pointed CI at it; the malware fixture stays for unit tests. Verified `pkgsafe ci scan` exits 0 on it locally.
 
-### M2 — Safe to operate (blocks T2 / exposable service) 🟡
+### M2 — Safe to operate (blocks T2 / exposable service) ✅ landed
 
-- [ ] **S3 — API hardening:** require auth for non-loopback, TLS, server read/write/idle timeouts, request-body cap, basic rate limiting (`internal/api/server.go`).
-- [ ] **S4 — Parallelize scans:** bounded worker pool / `errgroup`; don't abort the whole scan on one dependency error; add registry retry/backoff (`internal/ci/scan.go`).
-- [ ] **S5 — Kill the fail-open report stub:** unknown/un-scannable packages must surface as "unknown," not `ALLOW / score 0` (`internal/report/generator.go:172`).
-- [ ] **S6 — Structured logging + decision audit trail** for SOC/enterprise use; stop swallowing errors.
+- [x] **S3 — API hardening.** Added server read/header/write/idle timeouts + `MaxHeaderBytes`, a 1 MiB request-body cap (`MaxBytesReader`), per-client-IP token-bucket rate limiting, and a fail-closed guard: binding a non-loopback address now requires both `--token` and TLS (`--tls-cert`/`--tls-key`), else `Serve` refuses to start. Tests added for rate-limit, body cap, and the non-loopback guard.
+- [x] **S4 — Parallelize scans.** New `internal/ci/concurrency.go` runs a bounded (8-wide) worker pool over dependencies for both npm and pypi, preserving order. A single dependency failure no longer aborts the scan — it surfaces as `DecisionUnknown`. Race-tested clean. *(Registry retry/backoff remains a follow-up; OSV already retries from S1.)*
+- [x] **S5 — Kill the fail-open report stub.** New `types.DecisionUnknown`. Un-scannable packages in `report/generator.go` are now `unknown` with a `package_not_scanned` reason (not `ALLOW/0`); both the report `RiskSummary` and CI `Summary` count `unknown` separately instead of lumping it into `allowed`.
+- [x] **S6 — Structured logging foundation.** New `internal/logging` (slog-based, leveled, env-configurable via `PKGSAFE_LOG_LEVEL`/`PKGSAFE_LOG_FORMAT` incl. JSON). Wired into the new scan-failure path and the OSV-sync failure (previously ad-hoc/swallowed). *(Full migration of remaining `fmt.Fprintln` sites + a scan-decision audit trail beyond the existing install-intercept log is a follow-up.)*
 
 ### M3 — Breadth & trust (T2 polish) 🟢
 

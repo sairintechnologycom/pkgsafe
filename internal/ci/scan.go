@@ -134,11 +134,17 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		PackagesScanned: len(depsToScan),
 	}
 
-	for _, dep := range depsToScan {
-		res, err := scanner.ScanPackage(dep.Name, dep.Version)
-		if err != nil {
-			return nil, ScanError{Err: fmt.Errorf("scan package %s@%s: %w", dep.Name, dep.Version, err), ExitCode: ExitInternalError}
-		}
+	// Scan dependencies concurrently (bounded). A per-dependency failure is
+	// surfaced as DecisionUnknown rather than aborting the entire scan.
+	scanned := parallelScan(depsToScan,
+		func(d Dependency) (string, string) { return d.Name, d.Version },
+		func(name, version string) (types.ScanResult, error) {
+			sc := scanner // copy per call so concurrent scans don't share mutable state
+			return sc.ScanPackage(name, version)
+		})
+
+	for i, dep := range depsToScan {
+		res := scanned[i]
 
 		// Save the result to cache so explain / other commands can access it
 		_ = saveResult(res)
@@ -169,6 +175,8 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 			summary.Block++
 		case types.DecisionWarn:
 			summary.Warn++
+		case types.DecisionUnknown:
+			summary.Unknown++
 		default:
 			summary.Allow++
 		}
@@ -315,16 +323,27 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 		if !dep.Pinned {
 			fmt.Fprintf(os.Stderr, "Warning: %s is unpinned in %s\n", dep.Name, dep.SourceFile)
 		}
-		res, err := scanner.ScanPackage(dep.Name, dep.Version)
-		if err != nil {
-			return nil, ScanError{Err: fmt.Errorf("scan package %s@%s: %w", dep.Name, dep.Version, err), ExitCode: ExitInternalError}
-		}
+	}
+
+	// Scan concurrently (bounded); a per-dependency failure becomes
+	// DecisionUnknown instead of aborting the whole scan.
+	scanned := parallelScan(deps,
+		func(d pydeps.Dependency) (string, string) { return d.Name, d.Version },
+		func(name, version string) (types.ScanResult, error) {
+			sc := scanner // copy per call to avoid shared mutable state
+			return sc.ScanPackage(name, version)
+		})
+
+	for i := range deps {
+		res := scanned[i]
 		_ = saveResult(res)
 		switch res.Decision {
 		case types.DecisionBlock:
 			summary.Block++
 		case types.DecisionWarn:
 			summary.Warn++
+		case types.DecisionUnknown:
+			summary.Unknown++
 		default:
 			summary.Allow++
 		}
