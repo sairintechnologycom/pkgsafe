@@ -26,6 +26,7 @@ package: cross
 	cd $(DIST) && tar -czf $(APP)_$(VERSION)_darwin_amd64.tar.gz $(APP)_darwin_amd64
 	cd $(DIST) && tar -czf $(APP)_$(VERSION)_darwin_arm64.tar.gz $(APP)_darwin_arm64
 	cd $(DIST) && zip -q $(APP)_$(VERSION)_windows_amd64.zip $(APP)_windows_amd64.exe
+	cd $(DIST) && rm -f checksums.txt && { command -v sha256sum >/dev/null && sha256sum $(APP)_* || shasum -a 256 $(APP)_*; } > checksums.txt
 
 clean:
 	rm -rf $(DIST)

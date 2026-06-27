@@ -122,7 +122,10 @@ func run(args []string) error {
 		if len(args) > 1 && args[1] == "corpus" {
 			return cmdTestCorpus(args[2:])
 		}
-		return fmt.Errorf("unknown subcommand. usage: pkgsafe test corpus")
+		if len(args) > 1 && args[1] == "rollout-readiness" {
+			return cmdTestRolloutReadiness(args[2:])
+		}
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe test [corpus|rollout-readiness]")
 	case "ci":
 		if len(args) > 1 && args[1] == "scan" {
 			return cmdCIScan(args[2:])
@@ -160,7 +163,8 @@ Usage:
   pkgsafe scan-lockfile <package-lock.json> [--json]
   pkgsafe inventory <repo-path> [--json]
   pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
-  pkgsafe test corpus [--json]
+  pkgsafe test corpus [--json] [--explain-misses]
+  pkgsafe test rollout-readiness [--json]
   pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe npm-install <name> [--version <version>] [--policy-pack <name>] [--mode warn|block|audit]
@@ -1185,13 +1189,34 @@ func cmdInventory(args []string) error {
 func cmdTestCorpus(args []string) error {
 	fs := flag.NewFlagSet("test-corpus", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
+	explainMisses := fs.Bool("explain-misses", false, "include detailed dependency miss explanations")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 
 	// We use "testdata/corpus" as the directory containing test cases
 	// and "testdata/corpus-golden.json" as the expected results file.
-	return validation.RunCorpus("testdata/corpus", "testdata/corpus-golden.json", *asJSON)
+	return validation.RunCorpus("testdata/corpus", "testdata/corpus-golden.json", *asJSON, *explainMisses)
+}
+
+func cmdTestRolloutReadiness(args []string) error {
+	fs := flag.NewFlagSet("test-rollout-readiness", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	rep, err := validation.RunRolloutReadiness("testdata/corpus", "testdata/corpus-golden.json")
+	if err != nil {
+		return err
+	}
+	if err := validation.WriteRolloutReadiness(os.Stdout, rep, *asJSON); err != nil {
+		return err
+	}
+	if !rep.Pass {
+		return exitError{code: 1}
+	}
+	return nil
 }
 
 func cmdInventoryDiff(args []string) error {

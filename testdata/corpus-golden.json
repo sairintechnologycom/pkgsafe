@@ -3358,6 +3358,11 @@
         "direct": true
       },
       {
+        "package_name": "axios",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
         "package_name": "follow-redirects",
         "dependency_type": "transitive",
         "direct": false
@@ -3428,6 +3433,11 @@
   },
   "scoped-packages": {
     "expected_dependencies": [
+      {
+        "package_name": "@babel/core",
+        "dependency_type": "production",
+        "direct": true
+      },
       {
         "package_name": "@babel/core",
         "dependency_type": "production",

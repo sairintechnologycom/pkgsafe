@@ -15,7 +15,7 @@ func TestValidationSuite(t *testing.T) {
 	goldenFile := tmp + "-golden.json"
 	defer os.Remove(goldenFile)
 
-	err = RunCorpus(tmp, goldenFile, false)
+	err = RunCorpus(tmp, goldenFile, false, false)
 	if err != nil {
 		t.Errorf("RunCorpus failed: %v", err)
 	}

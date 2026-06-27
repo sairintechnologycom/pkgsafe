@@ -1,7 +1,6 @@
 package npm
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -138,201 +137,35 @@ func ScanInventory(repoPath string) ([]types.Dependency, error) {
 		return nil, fmt.Errorf("walk repository: %w", err)
 	}
 
-	var results []types.Dependency
-	directDepsMap := make(map[string]string) // package_name -> dependency_type
-
-	// 1. Process package.json files
-	for _, relPath := range packageJSONPaths {
-		fullPath := filepath.Join(repoPath, relPath)
-		b, err := os.ReadFile(fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("read package.json: %w", err)
-		}
-		var pj PackageJSON
-		if err := json.Unmarshal(b, &pj); err != nil {
-			continue
-		}
-
-		bundledNames := parseBundled(pj.BundledDependencies)
-		if len(bundledNames) == 0 {
-			bundledNames = parseBundled(pj.BundleDependencies)
-		}
-		bundledSet := make(map[string]bool)
-		for _, name := range bundledNames {
-			bundledSet[name] = true
-		}
-
-		addDeps := func(deps map[string]string, depType string) {
-			for name, versionRange := range deps {
-				actualType := depType
-				if bundledSet[name] {
-					actualType = "bundled"
-				}
-				results = append(results, types.Dependency{
-					Ecosystem:      "npm",
-					Name:           name,
-					VersionRange:   versionRange,
-					SourceFile:     relPath,
-					DependencyType: actualType,
-					Direct:         true,
-				})
-				if current, ok := directDepsMap[name]; !ok || precedence(actualType) > precedence(current) {
-					directDepsMap[name] = actualType
-				}
+	// Read each discovered file from disk, then delegate parsing to the shared
+	// core (buildNPMInventory). Read errors are fatal here because Walk just
+	// confirmed the files exist.
+	readAll := func(paths []string, label string) ([]namedFile, error) {
+		files := make([]namedFile, 0, len(paths))
+		for _, relPath := range paths {
+			b, err := os.ReadFile(filepath.Join(repoPath, relPath))
+			if err != nil {
+				return nil, fmt.Errorf("read %s: %w", label, err)
 			}
+			files = append(files, namedFile{relPath: relPath, content: b})
 		}
-
-		addDeps(pj.Dependencies, "production")
-		addDeps(pj.DevDependencies, "dev")
-		addDeps(pj.PeerDependencies, "peer")
-		addDeps(pj.OptionalDependencies, "optional")
-
-		// Emit a pseudo-dependency to track presence of package.json
-		results = append(results, types.Dependency{
-			Ecosystem:      "npm",
-			Name:           "",
-			VersionRange:   "",
-			SourceFile:     relPath,
-			DependencyType: "package.json",
-			Direct:         true,
-		})
+		return files, nil
 	}
 
-	// 2. Process package-lock.json files
-	for _, relPath := range packageLockPaths {
-		fullPath := filepath.Join(repoPath, relPath)
-		b, err := os.ReadFile(fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("read package-lock.json: %w", err)
-		}
-		var lf packageLock
-		if err := json.Unmarshal(b, &lf); err != nil {
-			continue
-		}
-
-		// Emit a pseudo-dependency to track presence of package-lock.json
-		results = append(results, types.Dependency{
-			Ecosystem:      "npm",
-			Name:           "",
-			VersionRange:   "",
-			SourceFile:     relPath,
-			DependencyType: "package-lock.json",
-			Direct:         true,
-		})
-
-		if len(lf.Packages) > 0 {
-			lockDirectDeps := make(map[string]string)
-			for path, pkg := range lf.Packages {
-				if path == "" || !strings.HasPrefix(path, "node_modules/") {
-					collectDirectDeps(pkg.Dependencies, "production", lockDirectDeps)
-					collectDirectDeps(pkg.DevDependencies, "dev", lockDirectDeps)
-					collectDirectDeps(pkg.PeerDependencies, "peer", lockDirectDeps)
-					collectDirectDeps(pkg.OptionalDependencies, "optional", lockDirectDeps)
-				}
-			}
-
-			for path, pkg := range lf.Packages {
-				if path == "" || !strings.HasPrefix(path, "node_modules/") {
-					continue
-				}
-
-				name := extractNameFromPath(path)
-				if name == "" {
-					continue
-				}
-
-				depType := "transitive"
-				direct := false
-				if t, ok := lockDirectDeps[name]; ok {
-					depType = t
-					direct = true
-				} else if t, ok := directDepsMap[name]; ok {
-					depType = t
-					direct = true
-				}
-
-				results = append(results, types.Dependency{
-					Ecosystem:      "npm",
-					Name:           name,
-					VersionRange:   pkg.Version,
-					SourceFile:     relPath,
-					DependencyType: depType,
-					Direct:         direct,
-					Dev:            pkg.Dev,
-					Optional:       pkg.Optional,
-					Resolved:       pkg.Resolved,
-					Integrity:      pkg.Integrity,
-					PackagePath:    path,
-				})
-			}
-		} else if len(lf.Dependencies) > 0 {
-			var v1Out []types.Dependency
-			parseLockfileV1Deps(lf.Dependencies, "", directDepsMap, relPath, &v1Out)
-			results = append(results, v1Out...)
-		}
+	pjFiles, err := readAll(packageJSONPaths, "package.json")
+	if err != nil {
+		return nil, err
+	}
+	lockFiles, err := readAll(packageLockPaths, "package-lock.json")
+	if err != nil {
+		return nil, err
+	}
+	srcFiles, err := readAll(sourcePaths, "source file")
+	if err != nil {
+		return nil, err
 	}
 
-	// 3. Process source import scanning
-	for _, relPath := range sourcePaths {
-		fullPath := filepath.Join(repoPath, relPath)
-		b, err := os.ReadFile(fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("read source file: %w", err)
-		}
-		content := stripComments(string(b))
-
-		importedPkgs := make(map[string]bool)
-
-		// Regex for static imports/exports
-		findMatches := func(re *regexp.Regexp) {
-			matches := re.FindAllStringSubmatch(content, -1)
-			for _, m := range matches {
-				if len(m) > 1 {
-					pkgPath := m[1]
-					if pkg, ok := parseImportPackage(pkgPath); ok {
-						importedPkgs[pkg] = true
-					}
-				}
-			}
-		}
-
-		findMatches(importFromRegex)
-		findMatches(importSideRegex)
-
-		// Function call require(...) or import(...) arguments parsing
-		args := extractCallArguments(content)
-		for _, arg := range args {
-			if isQuoted(arg) {
-				cleanPkg := arg[1 : len(arg)-1]
-				if pkg, ok := parseImportPackage(cleanPkg); ok {
-					importedPkgs[pkg] = true
-				}
-			} else {
-				// Flag unresolved dynamic import
-				results = append(results, types.Dependency{
-					Ecosystem:      "npm",
-					Name:           arg,
-					VersionRange:   "",
-					SourceFile:     relPath,
-					DependencyType: "unresolved-dynamic-import",
-					Direct:         true,
-				})
-			}
-		}
-
-		for pkgName := range importedPkgs {
-			results = append(results, types.Dependency{
-				Ecosystem:      "npm",
-				Name:           pkgName,
-				VersionRange:   "",
-				SourceFile:     relPath,
-				DependencyType: "source-import",
-				Direct:         true,
-			})
-		}
-	}
-
-	return results, nil
+	return buildNPMInventory(pjFiles, lockFiles, srcFiles), nil
 }
 
 func precedence(depType string) int {
@@ -406,6 +239,9 @@ func parseLockfileV1Deps(deps map[string]packageLockDependency, parentPath strin
 			if t, ok := directMap[name]; ok {
 				depType = t
 				direct = true
+			} else {
+				depType = "production"
+				direct = true
 			}
 		}
 
@@ -416,8 +252,8 @@ func parseLockfileV1Deps(deps map[string]packageLockDependency, parentPath strin
 			SourceFile:     sourceFile,
 			DependencyType: depType,
 			Direct:         direct,
-			Dev:            dep.Dev,
-			Optional:       dep.Optional,
+			Dev:            dep.Dev || depType == "dev",
+			Optional:       dep.Optional || depType == "optional",
 			PackagePath:    pkgPath,
 		}
 		*out = append(*out, d)

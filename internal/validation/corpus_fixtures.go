@@ -692,6 +692,7 @@ func WriteGoldenResults(path string) error {
 		"npm-lock-transitive": {
 			ExpectedDeps: []GoldenDep{
 				{Name: "axios", DependencyType: "production", Direct: true},
+				{Name: "axios", DependencyType: "production", Direct: true},
 				{Name: "follow-redirects", DependencyType: "transitive", Direct: false},
 			},
 			ExpectedDecision: "allow",
@@ -758,6 +759,7 @@ func WriteGoldenResults(path string) error {
 		},
 		"scoped-packages": {
 			ExpectedDeps: []GoldenDep{
+				{Name: "@babel/core", DependencyType: "production", Direct: true},
 				{Name: "@babel/core", DependencyType: "production", Direct: true},
 			},
 			ExpectedDecision: "allow",

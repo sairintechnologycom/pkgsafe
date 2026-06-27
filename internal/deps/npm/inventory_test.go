@@ -138,3 +138,174 @@ func TestScanInventory_MalformedAndEmpty(t *testing.T) {
 		t.Fatalf("ScanInventory failed on malformed package.json: %v", err)
 	}
 }
+
+func TestScanInventoryPackageJSONDirectDependencyTypes(t *testing.T) {
+	tmp := t.TempDir()
+	writeFile(t, tmp, "package.json", `{
+  "dependencies": {"prod-pkg": "^1.0.0"},
+  "devDependencies": {"dev-pkg": "^1.0.0"},
+  "peerDependencies": {"peer-pkg": "^1.0.0"},
+  "optionalDependencies": {"optional-pkg": "^1.0.0"},
+  "bundledDependencies": ["bundled-only", "prod-pkg"],
+  "bundleDependencies": ["bundle-only"]
+}`)
+
+	deps, err := ScanInventory(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertDep(t, deps, "prod-pkg", "bundled", "package.json", true, false, false)
+	assertDep(t, deps, "dev-pkg", "dev", "package.json", true, true, false)
+	assertDep(t, deps, "peer-pkg", "peer", "package.json", true, false, false)
+	assertDep(t, deps, "optional-pkg", "optional", "package.json", true, false, true)
+	assertDep(t, deps, "bundled-only", "bundled", "package.json", true, false, false)
+	assertDep(t, deps, "bundle-only", "bundled", "package.json", true, false, false)
+}
+
+func TestScanInventoryWorkspacePackageDependenciesPreserveSource(t *testing.T) {
+	tmp := t.TempDir()
+	writeFile(t, tmp, "package.json", `{
+  "workspaces": ["packages/*"],
+  "dependencies": {"root-pkg": "^1.0.0"}
+}`)
+	writeFile(t, tmp, "packages/app/package.json", `{
+  "dependencies": {"workspace-prod": "^1.0.0"},
+  "devDependencies": {"workspace-dev": "^1.0.0"}
+}`)
+
+	deps, err := ScanInventory(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertDep(t, deps, "root-pkg", "production", "package.json", true, false, false)
+	assertDep(t, deps, "workspace-prod", "production", "packages/app/package.json", true, false, false)
+	assertDep(t, deps, "workspace-dev", "dev", "packages/app/package.json", true, true, false)
+}
+
+func TestScanInventoryScopedAliasAndLocalSpecs(t *testing.T) {
+	tmp := t.TempDir()
+	writeFile(t, tmp, "package.json", `{
+  "dependencies": {
+    "@scope/pkg": "^1.0.0",
+    "alias-name": "npm:real-package@1.0.0",
+    "file-dep": "file:../file-dep",
+    "workspace-dep": "workspace:*",
+    "link-dep": "link:../link-dep"
+  }
+}`)
+
+	deps, err := ScanInventory(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertDep(t, deps, "@scope/pkg", "production", "package.json", true, false, false)
+	assertVersionRange(t, deps, "alias-name", "npm:real-package@1.0.0")
+	assertVersionRange(t, deps, "file-dep", "file:../file-dep")
+	assertVersionRange(t, deps, "workspace-dep", "workspace:*")
+	assertVersionRange(t, deps, "link-dep", "link:../link-dep")
+}
+
+func TestScanInventoryPackageLockDirectMapping(t *testing.T) {
+	tests := []struct {
+		name     string
+		lockJSON string
+	}{
+		{
+			name: "v1 top-level direct",
+			lockJSON: `{
+  "lockfileVersion": 1,
+  "dependencies": {
+    "direct-pkg": {
+      "version": "1.0.0",
+      "dependencies": {
+        "nested-pkg": {"version": "2.0.0"}
+      }
+    }
+  }
+}`,
+		},
+		{
+			name: "v2 root package direct",
+			lockJSON: `{
+  "lockfileVersion": 2,
+  "packages": {
+    "": {"dependencies": {"direct-pkg": "^1.0.0"}},
+    "node_modules/direct-pkg": {"version": "1.0.0", "dependencies": {"nested-pkg": "^2.0.0"}},
+    "node_modules/nested-pkg": {"version": "2.0.0"}
+  }
+}`,
+		},
+		{
+			name: "v3 root dev optional direct",
+			lockJSON: `{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "devDependencies": {"direct-pkg": "^1.0.0"},
+      "optionalDependencies": {"optional-pkg": "^2.0.0"}
+    },
+    "node_modules/direct-pkg": {"version": "1.0.0"},
+    "node_modules/optional-pkg": {"version": "2.0.0"}
+  }
+}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			writeFile(t, tmp, "package-lock.json", tc.lockJSON)
+
+			deps, err := ScanInventory(tmp)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			switch tc.name {
+			case "v1 top-level direct":
+				assertDep(t, deps, "direct-pkg", "production", "package-lock.json", true, false, false)
+				assertDep(t, deps, "nested-pkg", "transitive", "package-lock.json", false, false, false)
+			case "v2 root package direct":
+				assertDep(t, deps, "direct-pkg", "production", "package-lock.json", true, false, false)
+				assertDep(t, deps, "nested-pkg", "transitive", "package-lock.json", false, false, false)
+			case "v3 root dev optional direct":
+				assertDep(t, deps, "direct-pkg", "dev", "package-lock.json", true, true, false)
+				assertDep(t, deps, "optional-pkg", "optional", "package-lock.json", true, false, true)
+			}
+		})
+	}
+}
+
+func writeFile(t *testing.T, root, rel, content string) {
+	t.Helper()
+	path := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertDep(t *testing.T, deps []types.Dependency, name, depType, sourceFile string, direct, dev, optional bool) {
+	t.Helper()
+	for _, dep := range deps {
+		if dep.Name == name && dep.DependencyType == depType && dep.SourceFile == sourceFile && dep.Direct == direct && dep.Dev == dev && dep.Optional == optional {
+			return
+		}
+	}
+	t.Fatalf("missing dependency %s type=%s source=%s direct=%t dev=%t optional=%t in %+v", name, depType, sourceFile, direct, dev, optional, deps)
+}
+
+func assertVersionRange(t *testing.T, deps []types.Dependency, name, versionRange string) {
+	t.Helper()
+	for _, dep := range deps {
+		if dep.Name == name && dep.VersionRange == versionRange && dep.DependencyType == "production" && dep.Direct {
+			return
+		}
+	}
+	t.Fatalf("missing dependency %s with version range %q in %+v", name, versionRange, deps)
+}

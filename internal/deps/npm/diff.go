@@ -1,10 +1,8 @@
 package npm
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/niyam-ai/pkgsafe/internal/git"
@@ -59,197 +57,19 @@ func ScanInventoryGit(repoPath, revision string) ([]types.Dependency, error) {
 		}
 	}
 
-	var results []types.Dependency
-	directDepsMap := make(map[string]string)
-
-	// 1. Process package.json files
-	for _, relPath := range packageJSONPaths {
-		bStr, err := git.RunGit(repoPath, "show", revision+":"+relPath)
-		if err != nil {
-			continue
-		}
-		b := []byte(bStr)
-		var pj PackageJSON
-		if err := json.Unmarshal(b, &pj); err != nil {
-			continue
-		}
-
-		bundledNames := parseBundled(pj.BundledDependencies)
-		if len(bundledNames) == 0 {
-			bundledNames = parseBundled(pj.BundleDependencies)
-		}
-		bundledSet := make(map[string]bool)
-		for _, name := range bundledNames {
-			bundledSet[name] = true
-		}
-
-		addDeps := func(deps map[string]string, depType string) {
-			for name, versionRange := range deps {
-				actualType := depType
-				if bundledSet[name] {
-					actualType = "bundled"
-				}
-				results = append(results, types.Dependency{
-					Ecosystem:      "npm",
-					Name:           name,
-					VersionRange:   versionRange,
-					SourceFile:     relPath,
-					DependencyType: actualType,
-					Direct:         true,
-				})
-				if current, ok := directDepsMap[name]; !ok || precedence(actualType) > precedence(current) {
-					directDepsMap[name] = actualType
-				}
+	readGitFiles := func(paths []string) []namedFile {
+		out := make([]namedFile, 0, len(paths))
+		for _, relPath := range paths {
+			bStr, err := git.RunGit(repoPath, "show", revision+":"+relPath)
+			if err != nil {
+				continue
 			}
+			out = append(out, namedFile{relPath: relPath, content: []byte(bStr)})
 		}
-
-		addDeps(pj.Dependencies, "production")
-		addDeps(pj.DevDependencies, "dev")
-		addDeps(pj.PeerDependencies, "peer")
-		addDeps(pj.OptionalDependencies, "optional")
-
-		// Emit a pseudo-dependency to track presence of package.json
-		results = append(results, types.Dependency{
-			Ecosystem:      "npm",
-			Name:           "",
-			VersionRange:   "",
-			SourceFile:     relPath,
-			DependencyType: "package.json",
-			Direct:         true,
-		})
+		return out
 	}
 
-	// 2. Process package-lock.json files
-	for _, relPath := range packageLockPaths {
-		bStr, err := git.RunGit(repoPath, "show", revision+":"+relPath)
-		if err != nil {
-			continue
-		}
-		b := []byte(bStr)
-		var lf packageLock
-		if err := json.Unmarshal(b, &lf); err != nil {
-			continue
-		}
-
-		// Emit a pseudo-dependency to track presence of package-lock.json
-		results = append(results, types.Dependency{
-			Ecosystem:      "npm",
-			Name:           "",
-			VersionRange:   "",
-			SourceFile:     relPath,
-			DependencyType: "package-lock.json",
-			Direct:         true,
-		})
-
-		if len(lf.Packages) > 0 {
-			lockDirectDeps := make(map[string]string)
-			for path, pkg := range lf.Packages {
-				if path == "" || !strings.HasPrefix(path, "node_modules/") {
-					collectDirectDeps(pkg.Dependencies, "production", lockDirectDeps)
-					collectDirectDeps(pkg.DevDependencies, "dev", lockDirectDeps)
-					collectDirectDeps(pkg.PeerDependencies, "peer", lockDirectDeps)
-					collectDirectDeps(pkg.OptionalDependencies, "optional", lockDirectDeps)
-				}
-			}
-
-			for path, pkg := range lf.Packages {
-				if path == "" || !strings.HasPrefix(path, "node_modules/") {
-					continue
-				}
-
-				name := extractNameFromPath(path)
-				if name == "" {
-					continue
-				}
-
-				depType := "transitive"
-				direct := false
-				if t, ok := lockDirectDeps[name]; ok {
-					depType = t
-					direct = true
-				} else if t, ok := directDepsMap[name]; ok {
-					depType = t
-					direct = true
-				}
-
-				results = append(results, types.Dependency{
-					Ecosystem:      "npm",
-					Name:           name,
-					VersionRange:   pkg.Version,
-					SourceFile:     relPath,
-					DependencyType: depType,
-					Direct:         direct,
-					Dev:            pkg.Dev,
-					Optional:       pkg.Optional,
-					Resolved:       pkg.Resolved,
-					Integrity:      pkg.Integrity,
-					PackagePath:    path,
-				})
-			}
-		} else if len(lf.Dependencies) > 0 {
-			var v1Out []types.Dependency
-			parseLockfileV1Deps(lf.Dependencies, "", directDepsMap, relPath, &v1Out)
-			results = append(results, v1Out...)
-		}
-	}
-
-	// 3. Process source import scanning
-	for _, relPath := range sourcePaths {
-		bStr, err := git.RunGit(repoPath, "show", revision+":"+relPath)
-		if err != nil {
-			continue
-		}
-		content := stripComments(bStr)
-
-		importedPkgs := make(map[string]bool)
-
-		findMatches := func(re *regexp.Regexp) {
-			matches := re.FindAllStringSubmatch(content, -1)
-			for _, m := range matches {
-				if len(m) > 1 {
-					pkgPath := m[1]
-					if pkg, ok := parseImportPackage(pkgPath); ok {
-						importedPkgs[pkg] = true
-					}
-				}
-			}
-		}
-
-		findMatches(importFromRegex)
-		findMatches(importSideRegex)
-
-		args := extractCallArguments(content)
-		for _, arg := range args {
-			if isQuoted(arg) {
-				cleanPkg := arg[1 : len(arg)-1]
-				if pkg, ok := parseImportPackage(cleanPkg); ok {
-					importedPkgs[pkg] = true
-				}
-			} else {
-				results = append(results, types.Dependency{
-					Ecosystem:      "npm",
-					Name:           arg,
-					VersionRange:   "",
-					SourceFile:     relPath,
-					DependencyType: "unresolved-dynamic-import",
-					Direct:         true,
-				})
-			}
-		}
-
-		for pkgName := range importedPkgs {
-			results = append(results, types.Dependency{
-				Ecosystem:      "npm",
-				Name:           pkgName,
-				VersionRange:   "",
-				SourceFile:     relPath,
-				DependencyType: "source-import",
-				Direct:         true,
-			})
-		}
-	}
-
-	return results, nil
+	return buildNPMInventory(readGitFiles(packageJSONPaths), readGitFiles(packageLockPaths), readGitFiles(sourcePaths)), nil
 }
 
 // DiffInventories compares dependency lists.
