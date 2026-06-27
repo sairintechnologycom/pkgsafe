@@ -1,0 +1,1 @@
+{"name":"react-vite-app","version":"1.0.0","license":"MIT","repository":"github:example/vite","dependencies":{"@vitejs/plugin-react":"latest","vite":"latest","react":"latest","react-dom":"latest"}}
