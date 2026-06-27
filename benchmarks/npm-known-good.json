@@ -1,0 +1,19 @@
+[
+  {
+    "ecosystem": "npm",
+    "name": "lodash",
+    "expected_decision": "allow",
+    "expected_score_max": 29,
+    "allow_warn_if_reason": ["known_vulnerability_low"],
+    "notes": "Mature package expected to be low risk unless current advisory data changes."
+  },
+  {"ecosystem": "npm", "name": "axios", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "react", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "express", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "typescript", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "eslint", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "prettier", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "vite", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "next", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "commander", "expected_decision": "allow", "expected_score_max": 29}
+]

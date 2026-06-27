@@ -27,11 +27,14 @@ type Finding struct {
 }
 
 type Summary struct {
-	PackagesScanned int `json:"packages_scanned"`
-	Allow           int `json:"allow"`
-	Warn            int `json:"warn"`
-	Block           int `json:"block"`
-	Unknown         int `json:"unknown"`
+	PackagesScanned             int            `json:"packages_scanned"`
+	Allow                       int            `json:"allow"`
+	Warn                        int            `json:"warn"`
+	Block                       int            `json:"block"`
+	Unknown                     int            `json:"unknown"`
+	VulnerabilityCount          int            `json:"vulnerability_count"`
+	VulnerabilitiesBySeverity   map[string]int `json:"vulnerabilities_by_severity,omitempty"`
+	FixedVersionRecommendations []string       `json:"fixed_version_recommendations,omitempty"`
 }
 
 type ScanResult struct {

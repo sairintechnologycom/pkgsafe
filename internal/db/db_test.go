@@ -45,7 +45,9 @@ func TestDBLifecycle(t *testing.T) {
 		ID:          "GHSA-123",
 		Ecosystem:   "npm",
 		PackageName: "lodash",
+		Version:     "4.17.20",
 		Summary:     "Test vulnerability",
+		Details:     "Detailed advisory text",
 		Severity:    "high",
 		Aliases:     []string{"CVE-456"},
 		AffectedRanges: []Range{
@@ -59,6 +61,8 @@ func TestDBLifecycle(t *testing.T) {
 		FixedVersions: []string{"4.17.21"},
 		References:    []string{"https://example.com/advisory"},
 		Source:        "OSV",
+		PublishedAt:   time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC),
+		ModifiedAt:    time.Date(2024, 2, 3, 4, 5, 6, 0, time.UTC),
 		FetchedAt:     time.Now(),
 	}
 
@@ -77,6 +81,9 @@ func TestDBLifecycle(t *testing.T) {
 	}
 	if vulns[0].ID != "GHSA-123" || len(vulns[0].Aliases) != 1 || vulns[0].Aliases[0] != "CVE-456" {
 		t.Errorf("unexpected vulnerability content: %+v", vulns[0])
+	}
+	if vulns[0].Details != "Detailed advisory text" || vulns[0].Version != "4.17.20" || vulns[0].PublishedAt.IsZero() || vulns[0].ModifiedAt.IsZero() {
+		t.Errorf("expected vulnerability metadata to round-trip, got %+v", vulns[0])
 	}
 
 	// 5. Test Vulnerability indexing

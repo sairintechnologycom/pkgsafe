@@ -23,6 +23,8 @@ type Vulnerability struct {
 	Severity   []OSVSeverity `json:"severity"`
 	Affected   []Affected    `json:"affected"`
 	References []Reference   `json:"references"`
+	Published  string        `json:"published"`
+	Modified   string        `json:"modified"`
 }
 
 type OSVSeverity struct {

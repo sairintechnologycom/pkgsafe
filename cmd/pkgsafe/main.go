@@ -122,10 +122,13 @@ func run(args []string) error {
 		if len(args) > 1 && args[1] == "corpus" {
 			return cmdTestCorpus(args[2:])
 		}
+		if len(args) > 1 && args[1] == "benchmark" {
+			return cmdTestBenchmark(args[2:])
+		}
 		if len(args) > 1 && args[1] == "rollout-readiness" {
 			return cmdTestRolloutReadiness(args[2:])
 		}
-		return fmt.Errorf("unknown subcommand. usage: pkgsafe test [corpus|rollout-readiness]")
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe test [corpus|benchmark|rollout-readiness]")
 	case "ci":
 		if len(args) > 1 && args[1] == "scan" {
 			return cmdCIScan(args[2:])
@@ -164,6 +167,7 @@ Usage:
   pkgsafe inventory <repo-path> [--json]
   pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
   pkgsafe test corpus [--json] [--explain-misses]
+  pkgsafe test benchmark [--json] [--fixtures <dir>]
   pkgsafe test rollout-readiness [--json]
   pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
@@ -988,7 +992,7 @@ func flagNeedsValue(arg string) bool {
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network",
 		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token",
-		"base", "repo":
+		"base", "repo", "fixtures", "definitions":
 		return true
 	default:
 		return false
@@ -1197,6 +1201,36 @@ func cmdTestCorpus(args []string) error {
 	// We use "testdata/corpus" as the directory containing test cases
 	// and "testdata/corpus-golden.json" as the expected results file.
 	return validation.RunCorpus("testdata/corpus", "testdata/corpus-golden.json", *asJSON, *explainMisses)
+}
+
+func cmdTestBenchmark(args []string) error {
+	fs := flag.NewFlagSet("test-benchmark", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	fixturesDir := fs.String("fixtures", "testdata/benchmarks", "directory for generated benchmark fixtures")
+	definitionsDir := fs.String("definitions", "benchmarks", "directory containing benchmark JSON definitions")
+	update := fs.Bool("update", false, "rewrite default benchmark definitions")
+	offline := fs.Bool("offline", false, "use cached package scan results only for package benchmarks")
+	repoPath := fs.String("repo", "", "additional repository path to inventory without golden expectations")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	rep, err := validation.RunBenchmarkPackWithOptions(validation.BenchmarkOptions{
+		FixturesDir:    *fixturesDir,
+		DefinitionsDir: *definitionsDir,
+		Update:         *update,
+		Offline:        *offline,
+		RepoPath:       *repoPath,
+	})
+	if err != nil {
+		return err
+	}
+	if err := validation.WriteBenchmarkReport(os.Stdout, rep, *asJSON); err != nil {
+		return err
+	}
+	if !rep.Pass {
+		return exitError{code: 1}
+	}
+	return nil
 }
 
 func cmdTestRolloutReadiness(args []string) error {

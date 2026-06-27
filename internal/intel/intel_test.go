@@ -144,6 +144,9 @@ func TestMapVulnerability(t *testing.T) {
 	rawJSON := `{
 		"id": "GHSA-123",
 		"summary": "Prototype pollution",
+		"details": "Detailed advisory text",
+		"published": "2024-01-02T03:04:05Z",
+		"modified": "2024-02-03T04:05:06Z",
 		"aliases": ["CVE-456"],
 		"affected": [
 			{
@@ -185,5 +188,11 @@ func TestMapVulnerability(t *testing.T) {
 	}
 	if len(mapped.AffectedRanges) != 1 || mapped.AffectedRanges[0].Type != "SEMVER" {
 		t.Errorf("unexpected ranges: %+v", mapped.AffectedRanges)
+	}
+	if mapped.Details != "Detailed advisory text" || mapped.PublishedAt.IsZero() || mapped.ModifiedAt.IsZero() {
+		t.Errorf("expected advisory metadata to be mapped, got %+v", mapped)
+	}
+	if len(mapped.FixedVersions) != 1 || mapped.FixedVersions[0] != "4.17.21" {
+		t.Errorf("expected fixed version 4.17.21, got %v", mapped.FixedVersions)
 	}
 }

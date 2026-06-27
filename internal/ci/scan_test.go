@@ -351,6 +351,70 @@ func TestCI_SeverityMapping(t *testing.T) {
 	}
 }
 
+func TestCI_VulnerabilitySummaryOutputs(t *testing.T) {
+	tmp := t.TempDir()
+	res := &ScanResult{
+		SchemaVersion: "1.0",
+		Tool:          "pkgsafe",
+		Command:       "ci scan",
+		Mode:          "warn",
+		FailOn:        "block",
+		Decision:      "warn",
+		Lockfile:      "package-lock.json",
+		Ecosystem:     "npm",
+		Summary: Summary{
+			PackagesScanned: 1,
+			Warn:            1,
+		},
+		Findings: []Finding{
+			{
+				Ecosystem: "npm",
+				Package:   "lodash",
+				Version:   "4.17.20",
+				Decision:  "warn",
+				RiskScore: 50,
+				Vulnerabilities: []types.Vulnerability{
+					{ID: "GHSA-test", Severity: "high", Summary: "Prototype pollution", FixedVersions: []string{"4.17.21"}},
+				},
+			},
+		},
+	}
+	enrichVulnerabilitySummary(&res.Summary, res.Findings)
+	if res.Summary.VulnerabilityCount != 1 {
+		t.Fatalf("expected one vulnerability, got %d", res.Summary.VulnerabilityCount)
+	}
+	if res.Summary.VulnerabilitiesBySeverity["high"] != 1 {
+		t.Fatalf("expected high severity count")
+	}
+	if len(res.Summary.FixedVersionRecommendations) != 1 {
+		t.Fatalf("expected fixed version recommendation")
+	}
+
+	summaryPath := filepath.Join(tmp, "summary.md")
+	if err := WriteSummaryOutput(summaryPath, res); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(summaryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "Fixed Version Recommendations") || !strings.Contains(string(b), "4.17.21") {
+		t.Fatalf("summary missing vulnerability recommendation:\n%s", string(b))
+	}
+
+	sarifPath := filepath.Join(tmp, "results.sarif")
+	if err := WriteSarifOutput(sarifPath, res); err != nil {
+		t.Fatal(err)
+	}
+	sb, err := os.ReadFile(sarifPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(sb), "GHSA-test") || !strings.Contains(string(sb), "4.17.21") {
+		t.Fatalf("SARIF missing vulnerability details:\n%s", string(sb))
+	}
+}
+
 func TestCI_FailOnBehavior(t *testing.T) {
 	tests := []struct {
 		failOn           string
