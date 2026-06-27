@@ -31,10 +31,14 @@ import (
 	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
 	"github.com/niyam-ai/pkgsafe/internal/types"
 	"github.com/niyam-ai/pkgsafe/internal/validation"
+	versionpkg "github.com/niyam-ai/pkgsafe/internal/version"
 )
 
-var version = "0.1.0"
-var commit = "local"
+// version/commit mirror the build-injected values in internal/version so the
+// existing `version` command and tests keep working. The real source of truth
+// is internal/version, populated via -ldflags.
+var version = versionpkg.Version
+var commit = versionpkg.Commit
 
 var apiServeFunc = api.Serve
 
@@ -109,13 +113,27 @@ func run(args []string) error {
 			return cmdDBStatus(args[2:])
 		}
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe db status")
+	case "doctor":
+		return cmdDoctor(args[1:])
 	case "inventory":
+		if len(args) > 1 && args[1] == "diff" {
+			return cmdInventoryDiff(args[2:])
+		}
 		return cmdInventory(args[1:])
 	case "test":
 		if len(args) > 1 && args[1] == "corpus" {
 			return cmdTestCorpus(args[2:])
 		}
-		return fmt.Errorf("unknown subcommand. usage: pkgsafe test corpus")
+		if len(args) > 1 && args[1] == "benchmark" {
+			return cmdTestBenchmark(args[2:])
+		}
+		if len(args) > 1 && args[1] == "rollout-readiness" {
+			return cmdTestRolloutReadiness(args[2:])
+		}
+		if len(args) > 1 && args[1] == "production-readiness" {
+			return cmdTestProductionReadiness(args[2:])
+		}
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe test [corpus|benchmark|rollout-readiness|production-readiness]")
 	case "ci":
 		if len(args) > 1 && args[1] == "scan" {
 			return cmdCIScan(args[2:])
@@ -152,7 +170,12 @@ Usage:
   pkgsafe scan-cargo-deps <Cargo.lock> [--json]
   pkgsafe scan-lockfile <package-lock.json> [--json]
   pkgsafe inventory <repo-path> [--json]
-  pkgsafe test corpus [--json]
+  pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
+  pkgsafe test corpus [--json] [--explain-misses]
+  pkgsafe test benchmark [--json] [--fixtures <dir>] [--offline] [--repo <path>]
+  pkgsafe test rollout-readiness [--json]
+  pkgsafe test production-readiness [--json] [--fixtures <dir>] [--repo <path>]
+  pkgsafe doctor [--json] [--policy <path>] [--registry-config <path>] [--skip-network]
   pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe npm-install <name> [--version <version>] [--policy-pack <name>] [--mode warn|block|audit]
@@ -891,6 +914,23 @@ func cmdDBStatus(args []string) error {
 	return cli.DBStatus("")
 }
 
+func cmdDoctor(args []string) error {
+	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	skipNetwork := fs.Bool("skip-network", false, "skip OSV network availability check")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	return cli.Doctor(cli.DoctorOptions{
+		PolicyPath:     *policyPath,
+		RegistryConfig: *registryConfig,
+		SkipNetwork:    *skipNetwork,
+		JSON:           *asJSON,
+	})
+}
+
 func policyStatus(pol policy.Policy, pkg types.PackageIdentity) string {
 	switch {
 	case policy.IsBlocked(pol, pkg.Ecosystem, pkg.Name):
@@ -975,7 +1015,8 @@ func flagNeedsValue(arg string) bool {
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network",
-		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token":
+		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token",
+		"base", "repo", "fixtures", "definitions":
 		return true
 	default:
 		return false
@@ -1103,6 +1144,9 @@ func cmdServeAPI(args []string) error {
 	policyPath := fs.String("policy", "", "default policy path")
 	mode := fs.String("mode", "", "default mode (audit, warn, block)")
 	offline := fs.Bool("offline", false, "run server offline")
+	bind := fs.String("bind", "127.0.0.1", "interface to bind (non-loopback requires --token and TLS)")
+	tlsCert := fs.String("tls-cert", "", "path to TLS certificate (enables HTTPS)")
+	tlsKey := fs.String("tls-key", "", "path to TLS private key (enables HTTPS)")
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
@@ -1120,6 +1164,9 @@ func cmdServeAPI(args []string) error {
 		Offline:       *offline,
 		Version:       version,
 		Commit:        commit,
+		BindAddress:   *bind,
+		TLSCertFile:   *tlsCert,
+		TLSKeyFile:    *tlsKey,
 	}
 
 	return apiServeFunc(cfg)
@@ -1141,16 +1188,23 @@ func cmdInventory(args []string) error {
 		return err
 	}
 
+	var cleanDeps []types.Dependency
+	for _, d := range deps {
+		if d.Name != "" {
+			cleanDeps = append(cleanDeps, d)
+		}
+	}
+
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(deps)
+		return enc.Encode(cleanDeps)
 	}
 
 	fmt.Printf("Inventory of dependencies in %s:\n\n", repoPath)
 	fmt.Printf("%-35s %-15s %-15s %-45s\n", "Package Name", "Type", "Direct/Trans", "Source File")
 	fmt.Println(strings.Repeat("-", 115))
-	for _, d := range deps {
+	for _, d := range cleanDeps {
 		dirStr := "transitive"
 		if d.Direct {
 			dirStr = "direct"
@@ -1163,13 +1217,160 @@ func cmdInventory(args []string) error {
 func cmdTestCorpus(args []string) error {
 	fs := flag.NewFlagSet("test-corpus", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
+	explainMisses := fs.Bool("explain-misses", false, "include detailed dependency miss explanations")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 
 	// We use "testdata/corpus" as the directory containing test cases
 	// and "testdata/corpus-golden.json" as the expected results file.
-	return validation.RunCorpus("testdata/corpus", "testdata/corpus-golden.json", *asJSON)
+	return validation.RunCorpus("testdata/corpus", "testdata/corpus-golden.json", *asJSON, *explainMisses)
 }
 
+func cmdTestBenchmark(args []string) error {
+	fs := flag.NewFlagSet("test-benchmark", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	fixturesDir := fs.String("fixtures", "testdata/benchmarks", "directory for generated benchmark fixtures")
+	definitionsDir := fs.String("definitions", "benchmarks", "directory containing benchmark JSON definitions")
+	update := fs.Bool("update", false, "rewrite default benchmark definitions")
+	offline := fs.Bool("offline", false, "use cached package scan results only for package benchmarks")
+	repoPath := fs.String("repo", "", "additional repository path to inventory without golden expectations")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	rep, err := validation.RunBenchmarkPackWithOptions(validation.BenchmarkOptions{
+		FixturesDir:    *fixturesDir,
+		DefinitionsDir: *definitionsDir,
+		Update:         *update,
+		Offline:        *offline,
+		RepoPath:       *repoPath,
+	})
+	if err != nil {
+		return err
+	}
+	if err := validation.WriteBenchmarkReport(os.Stdout, rep, *asJSON); err != nil {
+		return err
+	}
+	if !rep.Pass {
+		return exitError{code: 1}
+	}
+	return nil
+}
 
+func cmdTestRolloutReadiness(args []string) error {
+	fs := flag.NewFlagSet("test-rollout-readiness", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	rep, err := validation.RunRolloutReadiness("testdata/corpus", "testdata/corpus-golden.json")
+	if err != nil {
+		return err
+	}
+	if err := validation.WriteRolloutReadiness(os.Stdout, rep, *asJSON); err != nil {
+		return err
+	}
+	if !rep.Pass {
+		return exitError{code: 1}
+	}
+	return nil
+}
+
+func cmdTestProductionReadiness(args []string) error {
+	fs := flag.NewFlagSet("test-production-readiness", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	fixturesDir := fs.String("fixtures", "testdata/benchmarks", "directory for benchmark fixtures")
+	repo := fs.String("repo", "", "optional real repository path to validate (feeds real_repo_validation_count)")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	opts := validation.ProductionReadinessOptions{
+		CorpusDir:    "testdata/corpus",
+		GoldenFile:   "testdata/corpus-golden.json",
+		BenchmarkDir: *fixturesDir,
+	}
+	if *repo != "" {
+		opts.RealRepos = []string{*repo}
+	}
+	rep, err := validation.RunProductionReadinessWithOptions(opts)
+	if err != nil {
+		return err
+	}
+	if err := validation.WriteProductionReadiness(os.Stdout, rep, *asJSON); err != nil {
+		return err
+	}
+	if !rep.Pass {
+		return exitError{code: 1}
+	}
+	return nil
+}
+
+func cmdInventoryDiff(args []string) error {
+	fs := flag.NewFlagSet("inventory-diff", flag.ContinueOnError)
+	baseBranch := fs.String("base", "main", "base git branch to compare against")
+	repoPath := fs.String("repo", ".", "path to the repository")
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	currentDeps, err := npminventory.ScanInventory(*repoPath)
+	if err != nil {
+		return fmt.Errorf("scan current inventory: %w", err)
+	}
+
+	baseDeps, err := npminventory.ScanInventoryGit(*repoPath, *baseBranch)
+	if err != nil {
+		return fmt.Errorf("scan base inventory for branch %q: %w", *baseBranch, err)
+	}
+
+	report := npminventory.DiffInventories(baseDeps, currentDeps)
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(report)
+	}
+
+	fmt.Printf("Dependency Inventory Diff (Base: %s vs Working Tree: %s)\n", *baseBranch, *repoPath)
+	fmt.Println(strings.Repeat("=", 80))
+
+	fmt.Println("\nAdded Dependencies:")
+	if len(report.Added) == 0 {
+		fmt.Println("  (None)")
+	} else {
+		for _, d := range report.Added {
+			fmt.Printf("  + %s (%s, direct=%t) in %s\n", d.Name, d.DependencyType, d.Direct, d.SourceFile)
+		}
+	}
+
+	fmt.Println("\nRemoved Dependencies:")
+	if len(report.Removed) == 0 {
+		fmt.Println("  (None)")
+	} else {
+		for _, d := range report.Removed {
+			fmt.Printf("  - %s (%s, direct=%t) from %s\n", d.Name, d.DependencyType, d.Direct, d.SourceFile)
+		}
+	}
+
+	fmt.Println("\nModified/Changed Dependencies:")
+	if len(report.Changed) == 0 {
+		fmt.Println("  (None)")
+	} else {
+		for _, c := range report.Changed {
+			fmt.Printf("  * %s in %s:\n", c.Name, c.SourceFile)
+			if c.BaseVersion != c.CurVersion {
+				fmt.Printf("    Version: %s -> %s\n", c.BaseVersion, c.CurVersion)
+			}
+			if c.BaseType != c.CurType {
+				fmt.Printf("    Type:    %s -> %s\n", c.BaseType, c.CurType)
+			}
+			if c.BaseDirect != c.CurDirect {
+				fmt.Printf("    Direct:  %t -> %t\n", c.BaseDirect, c.CurDirect)
+			}
+		}
+	}
+
+	return nil
+}

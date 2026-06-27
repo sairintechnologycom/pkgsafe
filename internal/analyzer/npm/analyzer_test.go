@@ -106,7 +106,6 @@ func hasReason(reasons []types.Reason, id string) bool {
 	return false
 }
 
-
 func TestLockfileTyposquat(t *testing.T) {
 	res, err := AnalyzeLockfile(filepath.Join("..", "..", "..", "testdata", "npm", "package-lock.json"), policy.Default())
 	if err != nil {

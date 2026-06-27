@@ -1,0 +1,9 @@
+{
+  "name": "lockfile-missing-integrity",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "^4.0.0"
+  }
+}

@@ -60,18 +60,23 @@ func MapVulnerability(v Vulnerability, packageName, ecosystem string) db.Vulnera
 	}
 
 	severity := intel.NormalizeSeverity(osvSeverities, dbSpecific, ecoSpecific)
+	publishedAt, _ := time.Parse(time.RFC3339, v.Published)
+	modifiedAt, _ := time.Parse(time.RFC3339, v.Modified)
 
 	return db.Vulnerability{
 		ID:             v.ID,
 		Ecosystem:      ecosystem,
 		PackageName:    packageName,
 		Summary:        v.Summary,
+		Details:        v.Details,
 		Severity:       severity,
 		Aliases:        aliases,
 		AffectedRanges: affectedRanges,
 		FixedVersions:  fixedVersions,
 		References:     references,
 		Source:         "OSV",
+		PublishedAt:    publishedAt,
+		ModifiedAt:     modifiedAt,
 		FetchedAt:      time.Now().UTC(),
 	}
 }

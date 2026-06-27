@@ -8,6 +8,9 @@ const (
 	DecisionAllow Decision = "allow"
 	DecisionWarn  Decision = "warn"
 	DecisionBlock Decision = "block"
+	// DecisionUnknown marks a package that could not be scanned (e.g. offline
+	// with no cached result). It must never be treated as a clean pass.
+	DecisionUnknown Decision = "unknown"
 )
 
 type Reason struct {
@@ -26,11 +29,19 @@ type PackageIdentity struct {
 
 type Vulnerability struct {
 	ID            string   `json:"id"`
+	Source        string   `json:"source,omitempty"`
+	Ecosystem     string   `json:"ecosystem,omitempty"`
+	PackageName   string   `json:"package_name,omitempty"`
+	Version       string   `json:"version,omitempty"`
 	Aliases       []string `json:"aliases,omitempty"`
 	Severity      string   `json:"severity"`
 	Summary       string   `json:"summary"`
+	Details       string   `json:"details,omitempty"`
 	FixedVersions []string `json:"fixed_versions,omitempty"`
 	References    []string `json:"references,omitempty"`
+	PublishedAt   string   `json:"published_at,omitempty"`
+	ModifiedAt    string   `json:"modified_at,omitempty"`
+	FetchedAt     string   `json:"fetched_at,omitempty"`
 }
 
 type ScanResult struct {

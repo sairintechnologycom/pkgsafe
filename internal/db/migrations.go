@@ -24,13 +24,17 @@ func (d *DB) Migrate() error {
 			id TEXT NOT NULL,
 			ecosystem TEXT NOT NULL,
 			package_name TEXT NOT NULL,
+			version TEXT,
 			summary TEXT,
+			details TEXT,
 			severity TEXT,
 			aliases TEXT,
 			affected_ranges TEXT,
 			fixed_versions TEXT,
 			references_json TEXT,
 			source TEXT NOT NULL,
+			published_at TEXT,
+			modified_at TEXT,
 			fetched_at TEXT NOT NULL,
 			PRIMARY KEY (id, ecosystem, package_name)
 		);`,
@@ -53,6 +57,19 @@ func (d *DB) Migrate() error {
 	for _, q := range schema {
 		if _, err := d.Exec(q); err != nil {
 			return fmt.Errorf("executing migration query %q: %w", q, err)
+		}
+	}
+	for _, col := range []struct {
+		name string
+		def  string
+	}{
+		{"version", "TEXT"},
+		{"details", "TEXT"},
+		{"published_at", "TEXT"},
+		{"modified_at", "TEXT"},
+	} {
+		if _, err := d.Exec(fmt.Sprintf(`ALTER TABLE vulnerability_records ADD COLUMN %s %s`, col.name, col.def)); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+			return fmt.Errorf("add vulnerability_records.%s: %w", col.name, err)
 		}
 	}
 	return nil

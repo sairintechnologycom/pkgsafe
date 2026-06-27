@@ -9,6 +9,7 @@ import (
 
 	"github.com/niyam-ai/pkgsafe/internal/db"
 	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
+	"github.com/niyam-ai/pkgsafe/internal/logging"
 )
 
 // saveBatchSize bounds how many advisory rows are written per transaction.
@@ -74,6 +75,7 @@ func updateDB(dbPath, ecosystem, source string, silent bool) error {
 		n, err := syncEcosystem(ctx, d, bucket)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %v", bucket, err))
+			logging.Warn("OSV sync failed for ecosystem", "ecosystem", bucket, "error", err)
 			if !silent {
 				fmt.Fprintf(os.Stderr, "Warning: OSV sync for %s failed: %v\n", bucket, err)
 			}

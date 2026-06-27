@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/db"
 	"github.com/niyam-ai/pkgsafe/internal/intel"
@@ -103,14 +104,7 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 			}
 			for _, v := range vulns {
 				if intel.IsVersionAffected(ver, v) {
-					resultVulns = append(resultVulns, types.Vulnerability{
-						ID:            v.ID,
-						Aliases:       v.Aliases,
-						Severity:      v.Severity,
-						Summary:       v.Summary,
-						FixedVersions: v.FixedVersions,
-						References:    v.References,
-					})
+					resultVulns = append(resultVulns, typeVuln(v))
 
 					if intel.IsMalware(v) {
 						reasons = append(reasons, types.Reason{
@@ -133,6 +127,32 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 	evalRes := risk.Evaluate(pkg, reasons, nil, nil, unique(alts), pol)
 	evalRes.Vulnerabilities = dedupeVulnerabilities(resultVulns)
 	return evalRes, nil
+}
+
+func typeVuln(v db.Vulnerability) types.Vulnerability {
+	return types.Vulnerability{
+		ID:            v.ID,
+		Source:        v.Source,
+		Ecosystem:     v.Ecosystem,
+		PackageName:   v.PackageName,
+		Version:       v.Version,
+		Aliases:       v.Aliases,
+		Severity:      v.Severity,
+		Summary:       v.Summary,
+		Details:       v.Details,
+		FixedVersions: v.FixedVersions,
+		References:    v.References,
+		PublishedAt:   formatVulnTime(v.PublishedAt),
+		ModifiedAt:    formatVulnTime(v.ModifiedAt),
+		FetchedAt:     formatVulnTime(v.FetchedAt),
+	}
+}
+
+func formatVulnTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 func extractModuleName(path string) string {

@@ -1,0 +1,12 @@
+[
+  {"ecosystem": "pypi", "name": "requests", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "fastapi", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "flask", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "django", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "pydantic", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "pytest", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "numpy", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "pandas", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "sqlalchemy", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "pypi", "name": "boto3", "expected_decision": "allow", "expected_score_max": 29}
+]

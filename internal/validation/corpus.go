@@ -16,7 +16,10 @@ import (
 type GoldenDep struct {
 	Name           string `json:"package_name"`
 	DependencyType string `json:"dependency_type"`
+	SourceFile     string `json:"source_file,omitempty"`
 	Direct         bool   `json:"direct"`
+	Dev            bool   `json:"dev,omitempty"`
+	Optional       bool   `json:"optional,omitempty"`
 }
 
 type GoldenExpectation struct {
@@ -34,6 +37,30 @@ type FixtureReport struct {
 	ExpectedScoreRange []int    `json:"expected_score_range"`
 	ActualScore        int      `json:"actual_score"`
 	Details            []string `json:"details"`
+	FalseNegatives     []Miss   `json:"false_negatives"`
+}
+
+type Miss struct {
+	Fixture                string            `json:"fixture"`
+	ExpectedName           string            `json:"expected_dependency_name"`
+	ExpectedDependencyType string            `json:"expected_dependency_type"`
+	ExpectedSourceFile     string            `json:"expected_source_file,omitempty"`
+	ExpectedDirect         bool              `json:"expected_direct"`
+	ExpectedDev            bool              `json:"expected_dev"`
+	ExpectedOptional       bool              `json:"expected_optional"`
+	ActualCandidates       []ActualCandidate `json:"actual_matched_candidates,omitempty"`
+	MissReason             string            `json:"miss_reason"`
+}
+
+type ActualCandidate struct {
+	Name           string `json:"package_name"`
+	DependencyType string `json:"dependency_type"`
+	SourceFile     string `json:"source_file"`
+	Direct         bool   `json:"direct"`
+	Dev            bool   `json:"dev"`
+	Optional       bool   `json:"optional"`
+	VersionRange   string `json:"version_range,omitempty"`
+	PackagePath    string `json:"package_path,omitempty"`
 }
 
 type ValidationReport struct {
@@ -50,30 +77,85 @@ type ValidationReport struct {
 	Results []FixtureReport `json:"results"`
 }
 
-func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
+func RunCorpus(corpusDir, goldenFile string, asJSON bool, explainMisses bool) error {
+	report, err := RunCorpusReport(corpusDir, goldenFile)
+	if err != nil {
+		return err
+	}
+
+	// Output report
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(report)
+	}
+
+	// Human-readable format
+	fmt.Println("PkgSafe Validation Suite Results")
+	fmt.Println("=================================")
+	fmt.Printf("Dependency Precision:            %.2f%%\n", report.Metrics.DependencyPrecision*100)
+	fmt.Printf("Dependency Recall:               %.2f%%\n", report.Metrics.DependencyRecall*100)
+	fmt.Printf("Direct Dependency Recall:        %.2f%%\n", report.Metrics.DirectDependencyRecall*100)
+	fmt.Printf("Transitive Dependency Recall:    %.2f%%\n", report.Metrics.TransitiveDependencyRecall*100)
+	fmt.Printf("Source Import Recall:            %.2f%%\n", report.Metrics.SourceImportRecall*100)
+	fmt.Printf("False Warn Rate:                 %.2f%%\n", report.Metrics.FalseWarnRate*100)
+	fmt.Printf("False Block Rate:                %.2f%%\n", report.Metrics.FalseBlockRate*100)
+	fmt.Printf("Critical Detection Rate:         %.2f%%\n", report.Metrics.CriticalDetectionRate*100)
+	fmt.Println()
+	fmt.Println("Fixture Details:")
+	fmt.Println("----------------")
+	allPassed := true
+	for _, res := range report.Results {
+		status := "PASSED"
+		if !res.Passed {
+			status = "FAILED"
+			allPassed = false
+		}
+		fmt.Printf("[%s] %s (Decision: %s, Score: %d)\n", status, res.Fixture, res.ActualDecision, res.ActualScore)
+		for _, detail := range res.Details {
+			fmt.Printf("  - %s\n", detail)
+		}
+		if explainMisses {
+			for _, miss := range res.FalseNegatives {
+				fmt.Printf("  - MISS %s (%s, direct=%t, source=%s): %s\n", miss.ExpectedName, miss.ExpectedDependencyType, miss.ExpectedDirect, miss.ExpectedSourceFile, miss.MissReason)
+				for _, candidate := range miss.ActualCandidates {
+					fmt.Printf("    candidate: %s (%s, direct=%t, source=%s, dev=%t, optional=%t)\n", candidate.Name, candidate.DependencyType, candidate.Direct, candidate.SourceFile, candidate.Dev, candidate.Optional)
+				}
+			}
+		}
+	}
+
+	if !allPassed {
+		return fmt.Errorf("some validation suite tests failed")
+	}
+	return nil
+}
+
+func RunCorpusReport(corpusDir, goldenFile string) (ValidationReport, error) {
+	var report ValidationReport
+
 	// 1. Ensure fixtures and golden file exist (generate them if not present)
 	if _, err := os.Stat(filepath.Join(corpusDir, "npm-simple-deps")); os.IsNotExist(err) {
 		if err := WriteCorpusFixtures(corpusDir); err != nil {
-			return fmt.Errorf("write corpus fixtures: %w", err)
+			return report, fmt.Errorf("write corpus fixtures: %w", err)
 		}
 	}
 	if _, err := os.Stat(goldenFile); os.IsNotExist(err) {
 		if err := WriteGoldenResults(goldenFile); err != nil {
-			return fmt.Errorf("write golden results: %w", err)
+			return report, fmt.Errorf("write golden results: %w", err)
 		}
 	}
 
 	// 2. Read golden results
 	b, err := os.ReadFile(goldenFile)
 	if err != nil {
-		return fmt.Errorf("read golden file: %w", err)
+		return report, fmt.Errorf("read golden file: %w", err)
 	}
 	var golden map[string]GoldenExpectation
 	if err := json.Unmarshal(b, &golden); err != nil {
-		return fmt.Errorf("parse golden file: %w", err)
+		return report, fmt.Errorf("parse golden file: %w", err)
 	}
 
-	report := ValidationReport{}
 	pol := policy.Default()
 	scanner := snpm.New()
 	scanner.Policy = pol
@@ -107,12 +189,11 @@ func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
 			continue
 		}
 
-		// Deduplicate expected and actual dependencies using helper unique keys
-		expectedKeys := make(map[string]GoldenDep)
+		// Match expected and actual dependencies by consuming actual candidates.
+		// This preserves duplicate expectations from different surfaces, e.g. a
+		// package.json declaration and a package-lock direct entry for the same
+		// package/type/direct tuple.
 		for _, ed := range expected.ExpectedDeps {
-			key := fmt.Sprintf("%s:%s:%t", ed.Name, ed.DependencyType, ed.Direct)
-			expectedKeys[key] = ed
-
 			// Count expected metrics totals
 			if ed.Direct && ed.DependencyType != "source-import" {
 				totalDirectExpected++
@@ -123,15 +204,19 @@ func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
 			}
 		}
 
-		actualKeys := make(map[string]types.Dependency)
+		actualCandidates := make([]types.Dependency, 0, len(actualDeps))
 		for _, ad := range actualDeps {
-			key := fmt.Sprintf("%s:%s:%t", ad.Name, ad.DependencyType, ad.Direct)
-			actualKeys[key] = ad
+			if ad.Name == "" {
+				continue
+			}
+			actualCandidates = append(actualCandidates, ad)
 		}
+		consumed := make([]bool, len(actualCandidates))
 
 		// Compare expected vs actual
-		for key, ed := range expectedKeys {
-			if _, ok := actualKeys[key]; ok {
+		for _, ed := range expected.ExpectedDeps {
+			if idx := findActualMatch(ed, actualCandidates, consumed); idx >= 0 {
+				consumed[idx] = true
 				totalTP++
 				if ed.Direct && ed.DependencyType != "source-import" {
 					totalDirectTP++
@@ -140,17 +225,20 @@ func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
 				} else if ed.DependencyType == "source-import" {
 					totalSourceTP++
 				}
-				// Remove matched from actualKeys to find False Positives later
-				delete(actualKeys, key)
 			} else {
 				totalFN++
 				fixtureReport.Passed = false
+				miss := explainMiss(fixtureName, ed, actualCandidates)
+				fixtureReport.FalseNegatives = append(fixtureReport.FalseNegatives, miss)
 				fixtureReport.Details = append(fixtureReport.Details, fmt.Sprintf("Missing expected dependency: %s (%s, direct=%t)", ed.Name, ed.DependencyType, ed.Direct))
 			}
 		}
 
 		// Remaining actual keys are False Positives
-		for _, ad := range actualKeys {
+		for i, ad := range actualCandidates {
+			if consumed[i] {
+				continue
+			}
 			totalFP++
 			fixtureReport.Passed = false
 			fixtureReport.Details = append(fixtureReport.Details, fmt.Sprintf("Unexpected dependency found: %s (%s, direct=%t)", ad.Name, ad.DependencyType, ad.Direct))
@@ -160,20 +248,17 @@ func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
 		var actualScore int
 		var actualDecision string
 		if fixtureName == "malformed-package-json" || fixtureName == "malformed-lockfile" {
-			// Malformed fixtures should not crash and should resolve to allow / 0 score
 			actualScore = 0
 			actualDecision = "allow"
 		} else {
 			res, err := scanner.ScanLocalPackage(fixturePath)
 			if err != nil {
-				// If ScanLocalPackage fails (e.g. no package.json or other issues), let's fall back to lockfile if package-lock exists
 				lockPath := filepath.Join(fixturePath, "package-lock.json")
 				if _, statErr := os.Stat(lockPath); statErr == nil {
 					res, err = anpm.AnalyzeLockfile(lockPath, pol)
 				}
 			}
 			if err != nil {
-				// Fallback to allow if scanner fails cleanly
 				actualScore = 0
 				actualDecision = "allow"
 			} else {
@@ -270,45 +355,77 @@ func RunCorpus(corpusDir, goldenFile string, asJSON bool) error {
 	} else {
 		report.Metrics.CriticalDetectionRate = 1.0
 	}
-
-	// Output report
-	if asJSON {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(report)
-	}
-
-	// Human-readable format
-	fmt.Println("PkgSafe Validation Suite Results")
-	fmt.Println("=================================")
-	fmt.Printf("Dependency Precision:            %.2f%%\n", report.Metrics.DependencyPrecision*100)
-	fmt.Printf("Dependency Recall:               %.2f%%\n", report.Metrics.DependencyRecall*100)
-	fmt.Printf("Direct Dependency Recall:        %.2f%%\n", report.Metrics.DirectDependencyRecall*100)
-	fmt.Printf("Transitive Dependency Recall:    %.2f%%\n", report.Metrics.TransitiveDependencyRecall*100)
-	fmt.Printf("Source Import Recall:            %.2f%%\n", report.Metrics.SourceImportRecall*100)
-	fmt.Printf("False Warn Rate:                 %.2f%%\n", report.Metrics.FalseWarnRate*100)
-	fmt.Printf("False Block Rate:                %.2f%%\n", report.Metrics.FalseBlockRate*100)
-	fmt.Printf("Critical Detection Rate:         %.2f%%\n", report.Metrics.CriticalDetectionRate*100)
-	fmt.Println()
-	fmt.Println("Fixture Details:")
-	fmt.Println("----------------")
-	allPassed := true
-	for _, res := range report.Results {
-		status := "PASSED"
-		if !res.Passed {
-			status = "FAILED"
-			allPassed = false
-		}
-		fmt.Printf("[%s] %s (Decision: %s, Score: %d)\n", status, res.Fixture, res.ActualDecision, res.ActualScore)
-		for _, detail := range res.Details {
-			fmt.Printf("  - %s\n", detail)
-		}
-	}
-
-	if !allPassed {
-		return fmt.Errorf("some validation suite tests failed")
-	}
-	return nil
+	return report, nil
 }
 
+func findActualMatch(expected GoldenDep, actual []types.Dependency, consumed []bool) int {
+	for i, candidate := range actual {
+		if consumed[i] {
+			continue
+		}
+		if !matchesExpected(expected, candidate) {
+			continue
+		}
+		return i
+	}
+	return -1
+}
 
+func matchesExpected(expected GoldenDep, actual types.Dependency) bool {
+	if actual.Name != expected.Name || actual.DependencyType != expected.DependencyType || actual.Direct != expected.Direct {
+		return false
+	}
+	if expected.SourceFile != "" && actual.SourceFile != expected.SourceFile {
+		return false
+	}
+	if expected.DependencyType == "dev" && !actual.Dev {
+		return false
+	}
+	if expected.DependencyType == "optional" && !actual.Optional {
+		return false
+	}
+	if expected.Dev && !actual.Dev {
+		return false
+	}
+	if expected.Optional && !actual.Optional {
+		return false
+	}
+	return true
+}
+
+func explainMiss(fixture string, expected GoldenDep, actual []types.Dependency) Miss {
+	candidates := make([]ActualCandidate, 0)
+	for _, candidate := range actual {
+		if candidate.Name == expected.Name {
+			candidates = append(candidates, toActualCandidate(candidate))
+		}
+	}
+	reason := "dependency was not emitted by inventory"
+	if len(candidates) > 0 {
+		reason = "dependency was emitted with different type, directness, source, or flags"
+	}
+	return Miss{
+		Fixture:                fixture,
+		ExpectedName:           expected.Name,
+		ExpectedDependencyType: expected.DependencyType,
+		ExpectedSourceFile:     expected.SourceFile,
+		ExpectedDirect:         expected.Direct,
+		ExpectedDev:            expected.Dev || expected.DependencyType == "dev",
+		ExpectedOptional:       expected.Optional || expected.DependencyType == "optional",
+		ActualCandidates:       candidates,
+		MissReason:             reason,
+	}
+}
+
+func toActualCandidate(dep types.Dependency) ActualCandidate {
+	return ActualCandidate{
+		Name:           dep.Name,
+		DependencyType: dep.DependencyType,
+		SourceFile:     dep.SourceFile,
+		Direct:         dep.Direct,
+		Dev:            dep.Dev,
+		Optional:       dep.Optional,
+		VersionRange:   dep.VersionRange,
+		PackagePath:    dep.PackagePath,
+	}
+}

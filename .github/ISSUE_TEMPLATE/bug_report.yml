@@ -1,0 +1,88 @@
+name: Bug report
+description: Something in PkgSafe behaved incorrectly, crashed, or produced wrong output.
+title: "[bug] "
+labels: ["bug", "beta"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Thanks for testing the private beta. For a package that was flagged but
+        should be safe use the **False positive** template; for a risky package
+        that was allowed use the **False negative** template. Suspected
+        vulnerabilities IN PkgSafe itself go through SECURITY.md private
+        disclosure, not here.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the actual behavior you observed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect PkgSafe to do instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands and inputs. Include the package/lockfile if relevant.
+      placeholder: |
+        1. pkgsafe scan-npm-package some-package --version 1.2.3
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PkgSafe version
+      description: Output of `pkgsafe version`.
+      placeholder: "v0.2.0-beta.1"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS / platform
+      description: Operating system and architecture (e.g. macOS arm64, Linux amd64, Windows amd64).
+    validations:
+      required: true
+  - type: dropdown
+    id: ecosystem
+    attributes:
+      label: Ecosystem
+      description: Which package ecosystem was involved? Select N/A if not ecosystem-specific.
+      options:
+        - npm
+        - pypi
+        - go
+        - cargo
+        - N/A
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Offline or connected
+      description: >-
+        Connected scans fetch registry/OSV metadata; offline scans rely on
+        synced/cached advisory data.
+      options:
+        - Connected (network available)
+        - Offline (--offline)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / output
+      description: >-
+        Paste any error output or logs. JSON output (`--json`) is preferred for
+        scan results. This field is automatically formatted as code.
+      render: shell
+    validations:
+      required: false

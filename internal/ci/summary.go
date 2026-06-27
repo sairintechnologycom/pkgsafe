@@ -36,6 +36,14 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 	fmt.Fprintf(w, "- Allow: %d\n", result.Summary.Allow)
 	fmt.Fprintf(w, "- Warn: %d\n", result.Summary.Warn)
 	fmt.Fprintf(w, "- Block: %d\n", result.Summary.Block)
+	fmt.Fprintf(w, "- Vulnerabilities: %d\n", result.Summary.VulnerabilityCount)
+	if len(result.Summary.VulnerabilitiesBySeverity) > 0 {
+		for _, sev := range []string{"critical", "high", "medium", "low"} {
+			if count := result.Summary.VulnerabilitiesBySeverity[sev]; count > 0 {
+				fmt.Fprintf(w, "  - %s: %d\n", sev, count)
+			}
+		}
+	}
 	fmt.Fprintln(w)
 
 	// Filter and sort top findings (warn or block)
@@ -66,6 +74,27 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 			fmt.Fprintf(w, "   Reason: %s\n", topReason)
 			fmt.Fprintln(w)
 		}
+	}
+
+	if result.Summary.VulnerabilityCount > 0 {
+		fmt.Fprintln(w, "Vulnerability Summary:")
+		for _, f := range topVulnerableFindings(result.Findings, 5) {
+			fmt.Fprintf(w, "- %s@%s: %d advisory(s)\n", f.Package, f.Version, len(f.Vulnerabilities))
+			for _, v := range f.Vulnerabilities {
+				fixed := ""
+				if len(v.FixedVersions) > 0 {
+					fixed = fmt.Sprintf(" fixed in %s", strings.Join(v.FixedVersions, ", "))
+				}
+				fmt.Fprintf(w, "  - %s [%s]%s: %s\n", v.ID, v.Severity, fixed, v.Summary)
+			}
+		}
+		if len(result.Summary.FixedVersionRecommendations) > 0 {
+			fmt.Fprintln(w, "Fixed Version Recommendations:")
+			for _, rec := range result.Summary.FixedVersionRecommendations {
+				fmt.Fprintf(w, "- %s\n", rec)
+			}
+		}
+		fmt.Fprintln(w)
 	}
 
 	var registryMismatches []string
@@ -219,7 +248,14 @@ func WriteSarifOutput(path string, result *ScanResult) error {
 
 		// Also report vulnerabilities
 		for _, v := range f.Vulnerabilities {
-			ruleID := "known_vulnerability_" + v.Severity
+			ruleID := v.ID
+			if ruleID == "" {
+				ruleID = "known_vulnerability_" + v.Severity
+			}
+			fixed := ""
+			if len(v.FixedVersions) > 0 {
+				fixed = " Fixed in: " + strings.Join(v.FixedVersions, ", ") + "."
+			}
 			addRule(ruleID, "Known Vulnerability: "+v.Summary)
 			level := severityToSarifLevel(v.Severity)
 
@@ -227,7 +263,7 @@ func WriteSarifOutput(path string, result *ScanResult) error {
 				RuleID: ruleID,
 				Level:  level,
 				Message: SarifMessage{
-					Text: fmt.Sprintf("Known advisory %s (%s) affects %s@%s: %s", v.ID, v.Severity, f.Package, f.Version, v.Summary),
+					Text: fmt.Sprintf("Known advisory %s (%s) affects %s@%s: %s.%s", v.ID, v.Severity, f.Package, f.Version, v.Summary, fixed),
 				},
 				Locations: []SarifLocation{
 					{
@@ -309,6 +345,15 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 		fmt.Fprintf(&sb, "**Exceptions Used:** %s  \n", strings.Join(result.ExceptionsUsed, ", "))
 	}
 	fmt.Fprintf(&sb, "**Packages Scanned:** %d  \n\n", result.Summary.PackagesScanned)
+	if result.Summary.VulnerabilityCount > 0 {
+		fmt.Fprintf(&sb, "**Vulnerabilities:** %d  \n", result.Summary.VulnerabilityCount)
+		for _, sev := range []string{"critical", "high", "medium", "low"} {
+			if count := result.Summary.VulnerabilitiesBySeverity[sev]; count > 0 {
+				fmt.Fprintf(&sb, "- %s: %d\n", sev, count)
+			}
+		}
+		sb.WriteString("\n")
+	}
 
 	var issues []Finding
 	for _, f := range result.Findings {
@@ -338,6 +383,25 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 		sb.WriteString("\n")
 	} else {
 		sb.WriteString("No blocked or warning dependencies found.\n\n")
+	}
+
+	if result.Summary.VulnerabilityCount > 0 {
+		sb.WriteString("### Vulnerabilities\n\n")
+		sb.WriteString("| Package | Version | Advisory | Severity | Fixed Versions |\n")
+		sb.WriteString("|---|---:|---|---|---|\n")
+		for _, f := range topVulnerableFindings(result.Findings, 10) {
+			for _, v := range f.Vulnerabilities {
+				fmt.Fprintf(&sb, "| %s | %s | %s | %s | %s |\n", f.Package, f.Version, v.ID, v.Severity, strings.Join(v.FixedVersions, ", "))
+			}
+		}
+		sb.WriteString("\n")
+		if len(result.Summary.FixedVersionRecommendations) > 0 {
+			sb.WriteString("### Fixed Version Recommendations\n\n")
+			for _, rec := range result.Summary.FixedVersionRecommendations {
+				fmt.Fprintf(&sb, "- %s\n", rec)
+			}
+			sb.WriteString("\n")
+		}
 	}
 
 	sb.WriteString("### Recommended Action\n\n")
@@ -379,4 +443,23 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 	}
 
 	return os.WriteFile(path, []byte(sb.String()), 0o644)
+}
+
+func topVulnerableFindings(findings []Finding, limit int) []Finding {
+	var out []Finding
+	for _, f := range findings {
+		if len(f.Vulnerabilities) > 0 {
+			out = append(out, f)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if len(out[i].Vulnerabilities) == len(out[j].Vulnerabilities) {
+			return out[i].RiskScore > out[j].RiskScore
+		}
+		return len(out[i].Vulnerabilities) > len(out[j].Vulnerabilities)
+	})
+	if limit > 0 && len(out) > limit {
+		return out[:limit]
+	}
+	return out
 }

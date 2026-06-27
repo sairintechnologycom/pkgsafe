@@ -1,0 +1,1 @@
+{"name":"nextjs-app","version":"1.0.0","license":"MIT","repository":"github:example/next","dependencies":{"next":"latest","react":"latest","react-dom":"latest","swr":"latest"}}

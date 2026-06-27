@@ -19,6 +19,7 @@ import (
 	"github.com/niyam-ai/pkgsafe/internal/registry"
 	"github.com/niyam-ai/pkgsafe/internal/risk"
 	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/niyam-ai/pkgsafe/internal/version"
 	"gopkg.in/yaml.v3"
 )
 
@@ -245,6 +246,12 @@ func TestPolicyPackExtractedSizeLimit(t *testing.T) {
 }
 
 func TestPolicyPackExpiredAndMinVersion(t *testing.T) {
+	// The min-version gate is skipped for dev builds, so pin a concrete
+	// version below the pack's required 0.8.0 to exercise the comparison.
+	prevVersion := version.Version
+	version.Version = "0.1.0"
+	t.Cleanup(func() { version.Version = prevVersion })
+
 	// 1. Expired pack check
 	expiredMeta := enterprise.Metadata{
 		SchemaVersion: "1.0",

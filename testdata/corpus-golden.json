@@ -17,6 +17,12 @@
     "min_score": 0,
     "max_score": 10
   },
+  "empty-package-json": {
+    "expected_dependencies": [],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 15
+  },
   "huge-lockfile": {
     "expected_dependencies": [
       {
@@ -3040,6 +3046,186 @@
         "package_name": "axios",
         "dependency_type": "source-import",
         "direct": true
+      },
+      {
+        "package_name": "pkg-default",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-type",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-export-all",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-export-some",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-require",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-dynamic",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "@scope/pkg-scoped",
+        "dependency_type": "source-import",
+        "direct": true
+      },
+      {
+        "package_name": "varName",
+        "dependency_type": "unresolved-dynamic-import",
+        "direct": true
+      },
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "express",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "axios",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-default",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-type",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-export-all",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-export-some",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-require",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "pkg-dynamic",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "@scope/pkg-scoped",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "warn",
+    "min_score": 25,
+    "max_score": 30
+  },
+  "lockfile-missing-integrity": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "lockfile-missing-resolved": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "lockfile-optional-dev": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "lockfile-v1": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "foo",
+        "dependency_type": "transitive",
+        "direct": false
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "lockfile-v2": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
       }
     ],
     "expected_decision": "allow",
@@ -3054,6 +3240,88 @@
   },
   "malformed-package-json": {
     "expected_dependencies": [],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
+  },
+  "mismatch-missing-lockfile": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      },
+      {
+        "package_name": "lodash",
+        "dependency_type": "source-import",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 10,
+    "max_score": 15
+  },
+  "mismatch-missing-pkgjson": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 10,
+    "max_score": 15
+  },
+  "mismatch-transitive": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "transitive",
+        "direct": false
+      },
+      {
+        "package_name": "lodash",
+        "dependency_type": "source-import",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 15,
+    "max_score": 20
+  },
+  "mismatch-undeclared": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "source-import",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 15,
+    "max_score": 20
+  },
+  "mismatch-unresolved": {
+    "expected_dependencies": [
+      {
+        "package_name": "dynamicPackageName",
+        "dependency_type": "unresolved-dynamic-import",
+        "direct": true
+      }
+    ],
+    "expected_decision": "warn",
+    "min_score": 25,
+    "max_score": 30
+  },
+  "mismatch-unused": {
+    "expected_dependencies": [
+      {
+        "package_name": "lodash",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
     "expected_decision": "allow",
     "min_score": 0,
     "max_score": 10
@@ -3084,6 +3352,11 @@
   },
   "npm-lock-transitive": {
     "expected_dependencies": [
+      {
+        "package_name": "axios",
+        "dependency_type": "production",
+        "direct": true
+      },
       {
         "package_name": "axios",
         "dependency_type": "production",
@@ -3164,6 +3437,11 @@
         "package_name": "@babel/core",
         "dependency_type": "production",
         "direct": true
+      },
+      {
+        "package_name": "@babel/core",
+        "dependency_type": "production",
+        "direct": true
       }
     ],
     "expected_decision": "allow",
@@ -3175,6 +3453,18 @@
     "expected_decision": "warn",
     "min_score": 25,
     "max_score": 50
+  },
+  "unsupported-dependency-spec": {
+    "expected_dependencies": [
+      {
+        "package_name": "foo",
+        "dependency_type": "production",
+        "direct": true
+      }
+    ],
+    "expected_decision": "allow",
+    "min_score": 0,
+    "max_score": 10
   },
   "workspace-references": {
     "expected_dependencies": [

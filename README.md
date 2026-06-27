@@ -4,6 +4,42 @@ PkgSafe is a local-first package safety CLI for developer and AI-agent workflows
 
 > MVP focus: npm packages and `package-lock.json` scanning.
 
+## Install
+
+PkgSafe is a single static binary (CGo-free). Pick one:
+
+**Pre-built release** (recommended once a release is tagged):
+
+```bash
+# Download the archive for your OS/arch from the Releases page, then:
+tar -xzf pkgsafe_<version>_<os>_<arch>.tar.gz
+sudo mv pkgsafe /usr/local/bin/
+pkgsafe version
+```
+
+Release archives ship a `checksums.txt` (SHA-256) plus a cosign signature and
+per-archive SBOMs. Verify before trusting a binary:
+
+```bash
+sha256sum -c checksums.txt
+cosign verify-blob \
+  --certificate checksums.txt.pem --signature checksums.txt.sig \
+  --certificate-identity-regexp 'https://github.com/.*/pkgsafe/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+```
+
+**From source** (Go 1.25+):
+
+```bash
+go install github.com/niyam-ai/pkgsafe/cmd/pkgsafe@latest
+# or, from a clone, with version metadata baked in:
+make build && ./dist/pkgsafe version
+```
+
+> Platform note: the firewall/CLI runs on Linux, macOS, and Windows. The
+> lifecycle behavior-analysis runner is Unix-only (Linux/macOS).
+
 ## Commands
 
 ```bash
@@ -114,6 +150,39 @@ CLI JSON output uses the stable scan contract:
 }
 ```
 
-## Notes
+## Capability matrix
 
-This scaffold intentionally avoids cloud dependencies and external Go modules. The first iteration uses local JSON cache and deterministic policy scoring. SQLite vulnerability storage and OSV ingestion are implemented. Lifecycle-script behavior analysis is heuristic only — it executes scripts on the host without OS isolation and is not a security sandbox; real isolation and IDE extensions are planned for later phases.
+PkgSafe is alpha (`v0.1.0`). Maturity varies by ecosystem and surface:
+
+| Ecosystem | Metadata + OSV | Lockfile parsing | Artifact/content analysis |
+|-----------|:--:|:--:|:--:|
+| **npm** | ✅ | ✅ `package-lock.json` | ✅ tarball + lifecycle heuristics |
+| **PyPI** | ✅ | ⚠️ `requirements.txt` only (poetry/uv/Pipfile/conda are stubs) | ⚠️ no behavior analysis |
+| **Go** | ✅ | ✅ `go.mod`/`go.sum` | ❌ metadata-only |
+| **Cargo** | ✅ | ✅ `Cargo.lock` | ❌ metadata-only |
+
+Surfaces: CLI, REST API, MCP stdio server, GitHub Action, policy engine,
+ed25519-signed policy packs, evidence packs.
+
+## Operational notes
+
+**Local-first, but advisory data needs the network.** OSV advisory data is
+fetched online and cached in a local SQLite DB. `pkgsafe update-db --ecosystem all`
+performs a real bulk OSV sync so you can scan offline afterward; until a package
+has been synced/cached, an `--offline` scan of it will fail or warn rather than
+silently pass. OSV lookups **fail closed** — a network/rate-limit error surfaces
+`vulnerability_data_unavailable` rather than scoring the package clean.
+
+**Lifecycle behavior analysis is heuristic, not a sandbox.** Scripts run on the
+host **without OS isolation**; detection is pattern/canary based and `network_mode`
+is not enforced. Do not point it at code you wouldn't run yourself. Real OS
+isolation is a planned milestone.
+
+**The REST API is loopback-only and unauthenticated by default.** It binds to
+localhost and is intended for local tooling. There is currently no TLS, request
+rate limiting, or body-size cap — **do not expose it on a non-loopback interface**
+until the service-hardening milestone lands. Set a bearer token (`--token`) for
+defense in depth even on localhost.
+
+**Dependencies.** Pure-Go, CGo-free build. Uses a small set of vetted external
+modules (e.g. `modernc.org/sqlite`, `gopkg.in/yaml.v3`); see `go.mod`.

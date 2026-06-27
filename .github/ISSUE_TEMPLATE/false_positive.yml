@@ -1,0 +1,69 @@
+name: False positive
+description: PkgSafe flagged a package (warn/block) that you believe is actually safe.
+title: "[false-positive] "
+labels: ["false-positive", "beta"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Use this when PkgSafe returned **warn** or **block** for a package you
+        believe should be **allow**. Please include the scan output so we can
+        see which rules fired.
+  - type: input
+    id: package
+    attributes:
+      label: Package name and version
+      description: The exact package and version that was flagged.
+      placeholder: "example-package@1.2.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: ecosystem
+    attributes:
+      label: Ecosystem
+      options:
+        - npm
+        - pypi
+        - go
+        - cargo
+    validations:
+      required: true
+  - type: dropdown
+    id: decision
+    attributes:
+      label: Decision PkgSafe gave
+      description: The decision returned (the over-strict one you are disputing).
+      options:
+        - warn
+        - block
+    validations:
+      required: true
+  - type: textarea
+    id: why-safe
+    attributes:
+      label: Why you believe it is safe
+      description: >-
+        Evidence the package is legitimate (maintainer reputation, source
+        review, expected lifecycle behavior, etc.).
+    validations:
+      required: true
+  - type: textarea
+    id: scan-output
+    attributes:
+      label: Scan output / risk reasons
+      description: >-
+        Paste the full scan output, ideally `--json`, including the `reasons`
+        array and `risk_score`.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: policy
+    attributes:
+      label: Policy or policy pack used
+      description: >-
+        `--policy` file or signed policy pack, or "embedded default" if none
+        was specified.
+      placeholder: "embedded default"
+    validations:
+      required: true

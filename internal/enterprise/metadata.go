@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/niyam-ai/pkgsafe/internal/version"
 )
 
 type Compatibility struct {
@@ -47,10 +49,11 @@ func ValidateMetadata(meta Metadata) error {
 	if meta.Version == "" {
 		return fmt.Errorf("version is required")
 	}
-	// Check min pkgsafe version - pkgsafe version is 0.1.0 in our main.go, but standard minimum version could be checked.
-	// For testing, let's support version validation. If PkgSafe version is below min_pkgsafe_version, return error.
-	currentVersion := "0.1.0" // We'll hardcode or read from main, but since it's 0.1.0, and min_pkgsafe_version is 0.8.0 in the example, we should return an error if it's below.
-	if meta.Compatibility.MinPkgSafeVersion != "" {
+	// Enforce min pkgsafe version against the real build version. Dev builds
+	// (unversioned "dev") can't be meaningfully compared, so the gate is
+	// skipped for them rather than failing every pack.
+	if meta.Compatibility.MinPkgSafeVersion != "" && !version.IsDev() {
+		currentVersion := version.Version
 		if compareVersions(currentVersion, meta.Compatibility.MinPkgSafeVersion) < 0 {
 			return fmt.Errorf("PkgSafe version %s is below the minimum required version %s", currentVersion, meta.Compatibility.MinPkgSafeVersion)
 		}

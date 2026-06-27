@@ -105,8 +105,8 @@ func CreateEvidencePack(outputPath string, r *RepositoryRiskReport, pol policy.P
 		SchemaVersion: "1.0",
 		Tool:          "pkgsafe",
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
-		Repository:    r.Repository.Name,
-		PolicyPack:    r.Policy.PackName + "@" + r.Policy.PackVersion,
+		Repository:    registry.RedactSecrets(r.Repository.Name),
+		PolicyPack:    registry.RedactSecrets(r.Policy.PackName + "@" + r.Policy.PackVersion),
 		Files:         manifestFiles,
 	}
 

@@ -13,6 +13,7 @@ import (
 	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
 	"github.com/niyam-ai/pkgsafe/internal/cache"
 	"github.com/niyam-ai/pkgsafe/internal/db"
+	npminventory "github.com/niyam-ai/pkgsafe/internal/deps/npm"
 	"github.com/niyam-ai/pkgsafe/internal/intel"
 	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
@@ -119,14 +120,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 		for _, v := range vulns {
 			if intel.IsVersionAffected(res.Package.Version, v) {
-				affectedVulns = append(affectedVulns, types.Vulnerability{
-					ID:            v.ID,
-					Aliases:       v.Aliases,
-					Severity:      v.Severity,
-					Summary:       v.Summary,
-					FixedVersions: v.FixedVersions,
-					References:    v.References,
-				})
+				affectedVulns = append(affectedVulns, typeVuln(v))
 
 				if intel.IsMalware(v) {
 					findings = append(findings, types.Reason{
@@ -330,14 +324,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 			dbV := osv.MapVulnerability(v, res.Package.Name, "npm")
 			dbVulns = append(dbVulns, dbV)
 
-			typesVulns = append(typesVulns, types.Vulnerability{
-				ID:            dbV.ID,
-				Aliases:       dbV.Aliases,
-				Severity:      dbV.Severity,
-				Summary:       dbV.Summary,
-				FixedVersions: dbV.FixedVersions,
-				References:    dbV.References,
-			})
+			typesVulns = append(typesVulns, typeVuln(dbV))
 
 			if intel.IsMalware(dbV) {
 				vulnFindings = append(vulnFindings, types.Reason{
@@ -376,6 +363,32 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 func ScanPackage(name, version string) (types.ScanResult, error) {
 	return New().ScanPackage(name, version)
+}
+
+func typeVuln(v db.Vulnerability) types.Vulnerability {
+	return types.Vulnerability{
+		ID:            v.ID,
+		Source:        v.Source,
+		Ecosystem:     v.Ecosystem,
+		PackageName:   v.PackageName,
+		Version:       v.Version,
+		Aliases:       v.Aliases,
+		Severity:      v.Severity,
+		Summary:       v.Summary,
+		Details:       v.Details,
+		FixedVersions: v.FixedVersions,
+		References:    v.References,
+		PublishedAt:   formatVulnTime(v.PublishedAt),
+		ModifiedAt:    formatVulnTime(v.ModifiedAt),
+		FetchedAt:     formatVulnTime(v.FetchedAt),
+	}
+}
+
+func formatVulnTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
@@ -469,6 +482,11 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 
 	baseFindings := stripPolicyGeneratedReasons(res.Reasons)
 	allFindings := append(baseFindings, sandboxFindings...)
+
+	if deps, scanErr := npminventory.ScanInventory(dir); scanErr == nil {
+		mismatches := npminventory.CheckMismatches(deps)
+		allFindings = append(allFindings, mismatches...)
+	}
 
 	finalRes := risk.Evaluate(res.Package, allFindings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 	finalRes.Sandbox = res.Sandbox

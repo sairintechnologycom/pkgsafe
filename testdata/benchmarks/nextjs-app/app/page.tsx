@@ -1,0 +1,1 @@
+import Link from "next/link"; import useSWR from "swr"; import React from "react"; export default function Page(){ return <Link href="/">home</Link>; }

@@ -38,6 +38,11 @@ func runGit(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(out.String()), nil
 }
 
+// RunGit exposes git command execution to other packages.
+func RunGit(dir string, args ...string) (string, error) {
+	return runGit(dir, args...)
+}
+
 // DetectMetadata extracts git details from the repository path.
 func DetectMetadata(repoPath string) (Metadata, error) {
 	var meta Metadata

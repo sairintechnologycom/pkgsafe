@@ -270,12 +270,27 @@ func selectArtifacts(vm rpypi.VersionMetadata) []rpypi.File {
 func typeVuln(v db.Vulnerability) types.Vulnerability {
 	return types.Vulnerability{
 		ID:            v.ID,
+		Source:        v.Source,
+		Ecosystem:     v.Ecosystem,
+		PackageName:   v.PackageName,
+		Version:       v.Version,
 		Aliases:       v.Aliases,
 		Severity:      v.Severity,
 		Summary:       v.Summary,
+		Details:       v.Details,
 		FixedVersions: v.FixedVersions,
 		References:    v.References,
+		PublishedAt:   formatVulnTime(v.PublishedAt),
+		ModifiedAt:    formatVulnTime(v.ModifiedAt),
+		FetchedAt:     formatVulnTime(v.FetchedAt),
 	}
+}
+
+func formatVulnTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 func vulnFinding(v db.Vulnerability) types.Reason {

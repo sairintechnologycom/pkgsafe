@@ -134,11 +134,17 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		PackagesScanned: len(depsToScan),
 	}
 
-	for _, dep := range depsToScan {
-		res, err := scanner.ScanPackage(dep.Name, dep.Version)
-		if err != nil {
-			return nil, ScanError{Err: fmt.Errorf("scan package %s@%s: %w", dep.Name, dep.Version, err), ExitCode: ExitInternalError}
-		}
+	// Scan dependencies concurrently (bounded). A per-dependency failure is
+	// surfaced as DecisionUnknown rather than aborting the entire scan.
+	scanned := parallelScan(depsToScan,
+		func(d Dependency) (string, string) { return d.Name, d.Version },
+		func(name, version string) (types.ScanResult, error) {
+			sc := scanner // copy per call so concurrent scans don't share mutable state
+			return sc.ScanPackage(name, version)
+		})
+
+	for i, dep := range depsToScan {
+		res := scanned[i]
 
 		// Save the result to cache so explain / other commands can access it
 		_ = saveResult(res)
@@ -169,6 +175,8 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 			summary.Block++
 		case types.DecisionWarn:
 			summary.Warn++
+		case types.DecisionUnknown:
+			summary.Unknown++
 		default:
 			summary.Allow++
 		}
@@ -190,11 +198,19 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		for _, v := range res.Vulnerabilities {
 			vulnerabilities = append(vulnerabilities, types.Vulnerability{
 				ID:            v.ID,
+				Source:        v.Source,
+				Ecosystem:     v.Ecosystem,
+				PackageName:   v.PackageName,
+				Version:       v.Version,
 				Aliases:       v.Aliases,
 				Severity:      v.Severity,
 				Summary:       v.Summary,
+				Details:       v.Details,
 				FixedVersions: v.FixedVersions,
 				References:    v.References,
+				PublishedAt:   v.PublishedAt,
+				ModifiedAt:    v.ModifiedAt,
+				FetchedAt:     v.FetchedAt,
 			})
 		}
 
@@ -269,6 +285,7 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		}
 		exceptionsUsed = uniqueStrings(exceptionsUsed)
 	}
+	enrichVulnerabilitySummary(&summary, findings)
 
 	return &ScanResult{
 		SchemaVersion:     "1.0",
@@ -315,16 +332,27 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 		if !dep.Pinned {
 			fmt.Fprintf(os.Stderr, "Warning: %s is unpinned in %s\n", dep.Name, dep.SourceFile)
 		}
-		res, err := scanner.ScanPackage(dep.Name, dep.Version)
-		if err != nil {
-			return nil, ScanError{Err: fmt.Errorf("scan package %s@%s: %w", dep.Name, dep.Version, err), ExitCode: ExitInternalError}
-		}
+	}
+
+	// Scan concurrently (bounded); a per-dependency failure becomes
+	// DecisionUnknown instead of aborting the whole scan.
+	scanned := parallelScan(deps,
+		func(d pydeps.Dependency) (string, string) { return d.Name, d.Version },
+		func(name, version string) (types.ScanResult, error) {
+			sc := scanner // copy per call to avoid shared mutable state
+			return sc.ScanPackage(name, version)
+		})
+
+	for i := range deps {
+		res := scanned[i]
 		_ = saveResult(res)
 		switch res.Decision {
 		case types.DecisionBlock:
 			summary.Block++
 		case types.DecisionWarn:
 			summary.Warn++
+		case types.DecisionUnknown:
+			summary.Unknown++
 		default:
 			summary.Allow++
 		}
@@ -375,6 +403,7 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 		}
 		exceptionsUsed = uniqueStrings(exceptionsUsed)
 	}
+	enrichVulnerabilitySummary(&summary, findings)
 
 	return &ScanResult{
 		SchemaVersion:     "1.0",
@@ -501,6 +530,28 @@ func recommendedActionForFinding(res types.ScanResult) string {
 		return "Review package before installing."
 	default:
 		return "Package appears safe to install."
+	}
+}
+
+func enrichVulnerabilitySummary(summary *Summary, findings []Finding) {
+	bySeverity := map[string]int{}
+	var recommendations []string
+	for _, f := range findings {
+		for _, v := range f.Vulnerabilities {
+			summary.VulnerabilityCount++
+			if v.Severity != "" {
+				bySeverity[v.Severity]++
+			}
+			if len(v.FixedVersions) > 0 {
+				recommendations = append(recommendations, fmt.Sprintf("%s@%s -> %s", f.Package, f.Version, strings.Join(uniqueStrings(v.FixedVersions), ", ")))
+			}
+		}
+	}
+	if len(bySeverity) > 0 {
+		summary.VulnerabilitiesBySeverity = bySeverity
+	}
+	if len(recommendations) > 0 {
+		summary.FixedVersionRecommendations = uniqueStrings(recommendations)
 	}
 }
 

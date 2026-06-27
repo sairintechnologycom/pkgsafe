@@ -19,10 +19,10 @@ const (
 )
 
 type Rule struct {
-	Enabled            bool
-	Severity           string
-	Score              int
-	MaxAgeDays         int
+	Enabled           bool
+	Severity          string
+	Score             int
+	MaxAgeDays        int
 	BlockInStrictMode bool
 }
 
@@ -142,6 +142,10 @@ func Default() Policy {
 		BlockedPackages: PackageLists{NPM: []string{}, PyPI: []string{}},
 		Rules: map[string]Rule{
 			"lifecycle_script_present":               {Enabled: true, Severity: "medium", Score: 20},
+			"undeclared_source_import":               {Enabled: true, Severity: "medium", Score: 15},
+			"direct_use_of_transitive_dependency":    {Enabled: true, Severity: "medium", Score: 15},
+			"package_json_lockfile_mismatch":         {Enabled: true, Severity: "low", Score: 10},
+			"unresolved_dynamic_import":              {Enabled: true, Severity: "high", Score: 30},
 			"network_command_in_lifecycle":           {Enabled: true, Severity: "high", Score: 30, BlockInStrictMode: true},
 			"credential_path_reference":              {Enabled: true, Severity: "critical", Score: 100},
 			"secret_keyword_reference":               {Enabled: true, Severity: "high", Score: 35},

@@ -1,0 +1,9 @@
+{
+  "name": "unsupported-spec",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "github:user/repo",
+  "dependencies": {
+    "foo": "git+ssh://git@github.com:user/foo.git"
+  }
+}

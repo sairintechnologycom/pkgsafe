@@ -2,5 +2,17 @@
   "name": "js-ts-imports",
   "version": "1.0.0",
   "license": "MIT",
-  "repository": "github:user/repo"
+  "repository": "github:user/repo",
+  "dependencies": {
+    "lodash": "*",
+    "express": "*",
+    "axios": "*",
+    "pkg-default": "*",
+    "pkg-type": "*",
+    "pkg-export-all": "*",
+    "pkg-export-some": "*",
+    "pkg-require": "*",
+    "pkg-dynamic": "*",
+    "@scope/pkg-scoped": "*"
+  }
 }

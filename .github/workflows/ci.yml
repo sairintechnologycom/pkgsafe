@@ -38,7 +38,10 @@ jobs:
       - name: Run PkgSafe Dependency Gate
         uses: ./
         with:
-          lockfile: testdata/npm/package-lock.json
+          # Dogfood against a CLEAN lockfile so a red gate means a real
+          # regression. testdata/npm/package-lock.json intentionally contains a
+          # typosquat fixture and is reserved for unit tests, not this gate.
+          lockfile: testdata/npm/self-scan/package-lock.json
           fail-on: block
           changed-only: false
           sandbox: false
