@@ -580,14 +580,17 @@ func TestMCPServer(t *testing.T) {
 		if !valRes.Sandbox.Available {
 			t.Error("expected sandbox.available to be true")
 		}
-		if valRes.Sandbox.FindingsCount == 0 {
-			t.Error("expected sandbox.findings_count to be > 0")
+		if valRes.Sandbox.BehaviorMode != types.BehaviorHeuristic {
+			t.Errorf("expected behavior_mode heuristic, got %q", valRes.Sandbox.BehaviorMode)
 		}
-		if valRes.Sandbox.CriticalFindingsCount == 0 {
-			t.Error("expected sandbox.critical_findings_count to be > 0")
+		if valRes.Sandbox.NotPerformedReason == "" {
+			t.Error("expected blocked package to skip behavior execution with a reason")
+		}
+		if valRes.Sandbox.FindingsCount != 0 {
+			t.Errorf("expected sandbox.findings_count to be 0 because BLOCK package was not executed, got %d", valRes.Sandbox.FindingsCount)
 		}
 		if valRes.InstallAllowed {
-			t.Error("expected install_allowed to be false for AI agent with critical findings")
+			t.Error("expected install_allowed to be false for AI agent with blocking findings")
 		}
 	})
 

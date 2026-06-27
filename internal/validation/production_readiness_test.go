@@ -61,11 +61,43 @@ func TestComputeReadinessStageProductionGA(t *testing.T) {
 		SBOMStatus:              "present",
 		ProvenanceStatus:        "verified",
 		DocsStatus:              "complete",
-		RealRepoValidationCount: 3,
+		RealRepoValidationCount: 15,
+		NPMRepoCount:            5,
+		PyPIRepoCount:           3,
+		AverageScanDurationMs:   100,
+		P95ScanDurationMs:       200,
+		CriticalDetectionRate:   1,
+		EcosystemDepthStatus:    "npm-equivalent",
+		IsolatedBackendStatus:   "available",
 	}
 	computeReadinessStage(&rep, false)
 	if rep.FinalStatus != ReadinessProductionGA {
 		t.Errorf("expected PRODUCTION_GA_READY, got %q", rep.FinalStatus)
+	}
+}
+
+func TestProductionReadinessGABlockedWhenRepoCountLow(t *testing.T) {
+	rep := ProductionReadinessReport{
+		OnlineBenchmarkStatus:   "pass",
+		GitHubActionStatus:      "valid",
+		SignedReleaseStatus:     "signed",
+		SBOMStatus:              "present",
+		ProvenanceStatus:        "verified",
+		DocsStatus:              "complete",
+		RealRepoValidationCount: 2,
+		NPMRepoCount:            2,
+		AverageScanDurationMs:   100,
+		P95ScanDurationMs:       200,
+		CriticalDetectionRate:   1,
+		EcosystemDepthStatus:    "npm-strong-other-ecosystems-experimental",
+		IsolatedBackendStatus:   "unavailable",
+	}
+	computeReadinessStage(&rep, false)
+	if rep.GAReady {
+		t.Fatal("GA should be blocked when real repo count is below threshold")
+	}
+	if len(rep.GABlockers) == 0 {
+		t.Fatal("expected GA blockers")
 	}
 }
 

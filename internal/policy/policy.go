@@ -40,6 +40,7 @@ type MCPSettings struct {
 
 type SandboxSettings struct {
 	Enabled                 bool
+	BehaviorMode            string
 	DefaultTimeoutSeconds   int
 	NetworkMode             string
 	KeepSandbox             bool
@@ -141,25 +142,25 @@ func Default() Policy {
 		},
 		BlockedPackages: PackageLists{NPM: []string{}, PyPI: []string{}},
 		Rules: map[string]Rule{
-			"lifecycle_script_present":               {Enabled: true, Severity: "medium", Score: 20},
-			"undeclared_source_import":               {Enabled: true, Severity: "medium", Score: 15},
-			"direct_use_of_transitive_dependency":    {Enabled: true, Severity: "medium", Score: 15},
-			"package_json_lockfile_mismatch":         {Enabled: true, Severity: "low", Score: 10},
-			"unresolved_dynamic_import":              {Enabled: true, Severity: "high", Score: 30},
-			"network_command_in_lifecycle":           {Enabled: true, Severity: "high", Score: 30, BlockInStrictMode: true},
-			"credential_path_reference":              {Enabled: true, Severity: "critical", Score: 100},
-			"secret_keyword_reference":               {Enabled: true, Severity: "high", Score: 35},
-			"obfuscated_script":                      {Enabled: true, Severity: "high", Score: 25},
-			"typosquat_candidate":                    {Enabled: true, Severity: "high", Score: 25},
-			"missing_repository":                     {Enabled: true, Severity: "low", Score: 10},
-			"missing_license":                        {Enabled: true, Severity: "low", Score: 5},
-			"new_package":                            {Enabled: true, Severity: "medium", Score: 15, MaxAgeDays: 14},
-			"trusted_package_reduction":              {Enabled: true, Severity: "informational", Score: -20},
-			"blocked_package":                        {Enabled: true, Severity: "critical", Score: 100},
-			"known_vulnerability_critical":           {Enabled: true, Severity: "critical", Score: 70},
-			"known_vulnerability_high":               {Enabled: true, Severity: "high", Score: 50},
-			"known_vulnerability_medium":             {Enabled: true, Severity: "medium", Score: 25},
-			"known_vulnerability_low":                {Enabled: true, Severity: "low", Score: 10},
+			"lifecycle_script_present":            {Enabled: true, Severity: "medium", Score: 20},
+			"undeclared_source_import":            {Enabled: true, Severity: "medium", Score: 15},
+			"direct_use_of_transitive_dependency": {Enabled: true, Severity: "medium", Score: 15},
+			"package_json_lockfile_mismatch":      {Enabled: true, Severity: "low", Score: 10},
+			"unresolved_dynamic_import":           {Enabled: true, Severity: "high", Score: 30},
+			"network_command_in_lifecycle":        {Enabled: true, Severity: "high", Score: 30, BlockInStrictMode: true},
+			"credential_path_reference":           {Enabled: true, Severity: "critical", Score: 100},
+			"secret_keyword_reference":            {Enabled: true, Severity: "high", Score: 35},
+			"obfuscated_script":                   {Enabled: true, Severity: "high", Score: 25},
+			"typosquat_candidate":                 {Enabled: true, Severity: "high", Score: 25},
+			"missing_repository":                  {Enabled: true, Severity: "low", Score: 10},
+			"missing_license":                     {Enabled: true, Severity: "low", Score: 5},
+			"new_package":                         {Enabled: true, Severity: "medium", Score: 15, MaxAgeDays: 14},
+			"trusted_package_reduction":           {Enabled: true, Severity: "informational", Score: -20},
+			"blocked_package":                     {Enabled: true, Severity: "critical", Score: 100},
+			"known_vulnerability_critical":        {Enabled: true, Severity: "critical", Score: 70},
+			"known_vulnerability_high":            {Enabled: true, Severity: "high", Score: 50},
+			"known_vulnerability_medium":          {Enabled: true, Severity: "medium", Score: 25},
+			"known_vulnerability_low":             {Enabled: true, Severity: "low", Score: 10},
 			// Fail-closed marker: emitted when the OSV advisory lookup could not
 			// complete, so the package was NOT checked for known vulnerabilities.
 			// Scores into the warn band on its own and blocks in strict/block
@@ -212,6 +213,7 @@ func Default() Policy {
 		},
 		Sandbox: SandboxSettings{
 			Enabled:                 false,
+			BehaviorMode:            string(types.BehaviorDisabled),
 			DefaultTimeoutSeconds:   10,
 			NetworkMode:             "disabled",
 			KeepSandbox:             false,
@@ -522,6 +524,14 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			switch key {
 			case "enabled":
 				pol.Sandbox.Enabled = strings.EqualFold(unquote(val), "true")
+			case "behavior", "behavior_mode":
+				mode := unquote(val)
+				switch types.BehaviorMode(mode) {
+				case types.BehaviorDisabled, types.BehaviorHeuristic, types.BehaviorIsolated:
+					pol.Sandbox.BehaviorMode = mode
+				default:
+					return fmt.Errorf("line %d: behavior_mode must be disabled, heuristic, or isolated", lineNo+1)
+				}
 			case "default_timeout_seconds":
 				n, err := strconv.Atoi(unquote(val))
 				if err != nil {

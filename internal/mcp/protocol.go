@@ -132,9 +132,15 @@ func GetToolsList() ToolListResult {
 							"description": "Run the validation offline using cached database and metadata",
 							"default":     false,
 						},
+						"behavior_mode": map[string]any{
+							"type":        "string",
+							"enum":        []string{"disabled", "heuristic", "isolated"},
+							"description": "Behavior analysis mode. Heuristic runs lifecycle scripts on the host without isolation; isolated requires a real isolation backend.",
+							"default":     "disabled",
+						},
 						"sandbox": map[string]any{
 							"type":        "boolean",
-							"description": "Execute the install lifecycle scripts for heuristic behavior analysis. NOTE: scripts run on the host without OS isolation; this is not a security sandbox.",
+							"description": "Deprecated compatibility alias for behavior_mode=heuristic. NOTE: scripts run on the host without OS isolation; this is not a security sandbox.",
 							"default":     false,
 						},
 						"sandbox_timeout_seconds": map[string]any{

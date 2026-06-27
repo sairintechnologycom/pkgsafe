@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PkgSafe real repository benchmark list",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["name", "path", "ecosystems", "repo_type"],
+    "additionalProperties": false,
+    "properties": {
+      "name": { "type": "string", "minLength": 1 },
+      "path": { "type": "string", "minLength": 1 },
+      "ecosystems": {
+        "type": "array",
+        "items": { "type": "string", "enum": ["npm", "pypi", "go", "cargo"] },
+        "minItems": 1,
+        "uniqueItems": true
+      },
+      "repo_type": {
+        "type": "string",
+        "enum": [
+          "npm-simple-app",
+          "react-vite-app",
+          "nextjs-app",
+          "npm-workspace-monorepo",
+          "node-backend-api",
+          "python-requirements-app",
+          "python-poetry-app",
+          "go-module-app",
+          "cargo-rust-app",
+          "mixed-js-python-repo"
+        ]
+      },
+      "expected_min_direct_dependencies": { "type": "integer", "minimum": 0 },
+      "expected_min_transitive_dependencies": { "type": "integer", "minimum": 0 },
+      "expected_no_false_block": { "type": "boolean" },
+      "expected_max_false_warn_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+      "behavior_mode": { "type": "string", "enum": ["disabled", "heuristic", "isolated"] },
+      "offline": { "type": "boolean" },
+      "notes": { "type": "string" }
+    }
+  }
+}

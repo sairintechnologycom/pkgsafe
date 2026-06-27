@@ -16,11 +16,16 @@ claimed at this stage:
 
 ## General limitations
 
-- Lifecycle behavior analysis is heuristic and best-effort. It redirects home,
-  temp, and XDG paths and drops secret-like environment variables, but it is not
-  a container, namespace, or VM sandbox.
+- Behavior analysis is disabled by default. `heuristic` mode is best-effort: it
+  redirects home, temp, and XDG paths and drops secret-like environment variables,
+  but still runs scripts on the host and is not a container, namespace, or VM
+  sandbox. `isolated` mode must not be claimed unless a real isolation backend is
+  active.
 - npm has the deepest artifact and lifecycle analysis coverage. PyPI, Go, and
   Cargo support is useful but not equivalent across every package format.
+- GA requires real repository validation. `production-readiness --json` reports
+  `ga_ready=false` and explicit `ga_blockers` while repo counts, ecosystem depth,
+  isolated behavior backend, or release verification are below threshold.
 - Offline scans require advisory and registry metadata to be synced or cached
   first. Missing advisory data fails closed rather than silently allowing a
   package.

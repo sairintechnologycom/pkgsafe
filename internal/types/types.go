@@ -13,6 +13,25 @@ const (
 	DecisionUnknown Decision = "unknown"
 )
 
+type BehaviorMode string
+
+const (
+	BehaviorDisabled  BehaviorMode = "disabled"
+	BehaviorHeuristic BehaviorMode = "heuristic"
+	BehaviorIsolated  BehaviorMode = "isolated"
+)
+
+func NormalizeBehaviorMode(mode string, legacyEnabled bool) BehaviorMode {
+	switch BehaviorMode(mode) {
+	case BehaviorDisabled, BehaviorHeuristic, BehaviorIsolated:
+		return BehaviorMode(mode)
+	}
+	if legacyEnabled {
+		return BehaviorHeuristic
+	}
+	return BehaviorDisabled
+}
+
 type Reason struct {
 	ID          string `json:"rule_id"`
 	Severity    string `json:"severity"`
@@ -105,12 +124,15 @@ type ArtifactSummary struct {
 type SandboxSummary struct {
 	Enabled         bool                  `json:"enabled"`
 	Available       bool                  `json:"available"`
+	BehaviorMode    BehaviorMode          `json:"behavior_mode,omitempty"`
+	Isolated        bool                  `json:"isolated"`
 	Runner          string                `json:"runner,omitempty"`
 	NetworkMode     string                `json:"network_mode,omitempty"`
 	TimeoutSeconds  int                   `json:"timeout_seconds,omitempty"`
 	ScriptsExecuted []SandboxScriptResult `json:"scripts_executed,omitempty"`
-	NotPerformed    bool                  `json:"-"`
-	NotPerfReason   string                `json:"-"`
+	Warning         string                `json:"warning,omitempty"`
+	NotPerformed    bool                  `json:"not_performed,omitempty"`
+	NotPerfReason   string                `json:"not_performed_reason,omitempty"`
 }
 
 type SandboxScriptResult struct {

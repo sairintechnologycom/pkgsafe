@@ -17,24 +17,41 @@ import (
 )
 
 type ProductionReadinessReport struct {
-	GeneratedAt string `json:"generated_at"`
-	FinalStatus string `json:"final_status"`
+	GeneratedAt  string `json:"generated_at"`
+	FinalStatus  string `json:"final_status"`
+	CurrentStage string `json:"current_stage"`
 	// Recommendation is a human-readable GO/NO-GO summary for the stage.
-	Recommendation string `json:"recommendation"`
-	Pass           bool   `json:"pass"`
+	Recommendation   string   `json:"recommendation"`
+	Pass             bool     `json:"pass"`
+	PrivateBetaReady bool     `json:"private_beta_ready"`
+	GAReady          bool     `json:"ga_ready"`
+	GABlockers       []string `json:"ga_blockers,omitempty"`
 
 	// Stage-aware status fields. Each is explicit (never silently omitted) so
 	// the readiness verdict is auditable. Statuses are conservative: a gate is
 	// only "verified"/"pass"/"signed" when actually confirmed, otherwise it is
 	// "configured" (infrastructure present) or a failure state.
-	OnlineBenchmarkStatus     string `json:"online_benchmark_status"`
-	GitHubActionStatus        string `json:"github_action_status"`
-	SignedReleaseStatus       string `json:"signed_release_status"`
-	SBOMStatus                string `json:"sbom_status"`
-	ProvenanceStatus          string `json:"provenance_status"`
-	DocsStatus                string `json:"docs_status"`
-	RealRepoValidationCount   int    `json:"real_repo_validation_count"`
-	PrivateBetaRecommendation bool   `json:"private_beta_recommendation"`
+	OnlineBenchmarkStatus           string  `json:"online_benchmark_status"`
+	GitHubActionStatus              string  `json:"github_action_status"`
+	SignedReleaseStatus             string  `json:"signed_release_status"`
+	SBOMStatus                      string  `json:"sbom_status"`
+	ProvenanceStatus                string  `json:"provenance_status"`
+	DocsStatus                      string  `json:"docs_status"`
+	RealRepoValidationCount         int     `json:"real_repo_validation_count"`
+	RequiredRealRepoValidationCount int     `json:"required_real_repo_validation_count"`
+	EcosystemDepthStatus            string  `json:"ecosystem_depth_status"`
+	IsolatedBackendStatus           string  `json:"isolated_backend_status"`
+	NPMRepoCount                    int     `json:"npm_repo_count"`
+	PyPIRepoCount                   int     `json:"pypi_repo_count"`
+	GoRepoCount                     int     `json:"go_repo_count"`
+	CargoRepoCount                  int     `json:"cargo_repo_count"`
+	FalseBlockCount                 int     `json:"false_block_count"`
+	ScannerCrashCount               int     `json:"scanner_crash_count"`
+	AverageScanDurationMs           int64   `json:"average_scan_duration_ms"`
+	P95ScanDurationMs               int64   `json:"p95_scan_duration_ms"`
+	CriticalDetectionRate           float64 `json:"critical_detection_rate"`
+	KnownGoodFalseBlockRate         float64 `json:"known_good_false_block_rate"`
+	PrivateBetaRecommendation       bool    `json:"private_beta_recommendation"`
 
 	Gates []RolloutReadinessGate `json:"gates"`
 }
@@ -47,6 +64,7 @@ type ProductionReadinessOptions struct {
 	GoldenFile   string
 	BenchmarkDir string
 	RealRepos    []string
+	RepoListPath string
 }
 
 func RunProductionReadiness(corpusDir, goldenFile, benchmarkDir string) (ProductionReadinessReport, error) {
@@ -71,6 +89,7 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 		FixturesDir:    opts.BenchmarkDir,
 		DefinitionsDir: "benchmarks",
 		RepoPath:       firstOrEmpty(opts.RealRepos),
+		RepoListPath:   opts.RepoListPath,
 	})
 
 	rep.Gates = append(rep.Gates,
@@ -121,7 +140,20 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 	rep.DocsStatus = gateStatusString(rep, "documentation", "complete", "incomplete")
 	if benchErr == nil {
 		rep.RealRepoValidationCount = countRealRepos(benchReport, opts.RealRepos)
+		rep.NPMRepoCount = benchReport.Metrics.NPMRepoCount
+		rep.PyPIRepoCount = benchReport.Metrics.PyPIRepoCount
+		rep.GoRepoCount = benchReport.Metrics.GoRepoCount
+		rep.CargoRepoCount = benchReport.Metrics.CargoRepoCount
+		rep.FalseBlockCount = benchReport.Metrics.FalseBlockCount
+		rep.ScannerCrashCount = benchReport.Metrics.ScannerCrashCount
+		rep.AverageScanDurationMs = benchReport.Metrics.RealRepoAverageScanDurationMs
+		rep.P95ScanDurationMs = benchReport.Metrics.RealRepoP95ScanDurationMs
+		rep.CriticalDetectionRate = benchReport.Metrics.CriticalFixtureBlockRate
+		rep.KnownGoodFalseBlockRate = benchReport.Metrics.KnownGoodFalseBlockRate
 	}
+	rep.RequiredRealRepoValidationCount = 15
+	rep.EcosystemDepthStatus = ecosystemDepthStatus(rep)
+	rep.IsolatedBackendStatus = isolatedBackendStatus(benchReport, benchErr)
 
 	computeReadinessStage(&rep, blockingFailed)
 	return rep, nil
@@ -135,21 +167,24 @@ func computeReadinessStage(rep *ProductionReadinessReport, blockingFailed bool) 
 	if blockingFailed {
 		rep.Pass = false
 		rep.FinalStatus = ReadinessBlocked
+		rep.CurrentStage = rep.FinalStatus
 		rep.Recommendation = "NO-GO: production-readiness has blocking failures."
 		rep.PrivateBetaRecommendation = false
+		rep.PrivateBetaReady = false
+		rep.GAReady = false
+		rep.GABlockers = gaBlockers(rep)
 		return
 	}
 
 	rep.Pass = true
 	rep.PrivateBetaRecommendation = true
+	rep.PrivateBetaReady = privateBetaReady(rep)
+	rep.GABlockers = gaBlockers(rep)
 
 	publicBetaReady := rep.OnlineBenchmarkStatus == "pass" &&
 		rep.GitHubActionStatus == "valid" &&
 		rep.RealRepoValidationCount >= 1
-	productionGAReady := publicBetaReady &&
-		rep.SignedReleaseStatus == "signed" &&
-		rep.ProvenanceStatus == "verified" &&
-		rep.SBOMStatus == "present"
+	productionGAReady := len(rep.GABlockers) == 0
 
 	switch {
 	case productionGAReady:
@@ -162,6 +197,76 @@ func computeReadinessStage(rep *ProductionReadinessReport, blockingFailed bool) 
 		rep.FinalStatus = ReadinessPrivateBeta
 		rep.Recommendation = "PRIVATE_BETA_READY: foundation gates passed; continue GA hardening (online benchmark, signed release, provenance, real-repo validation)."
 	}
+	rep.CurrentStage = rep.FinalStatus
+	rep.GAReady = productionGAReady
+}
+
+func privateBetaReady(rep *ProductionReadinessReport) bool {
+	if rep.FalseBlockCount != 0 || rep.ScannerCrashCount != 0 {
+		return false
+	}
+	if rep.RealRepoValidationCount == 0 {
+		return true
+	}
+	return rep.RealRepoValidationCount >= 3 && rep.NPMRepoCount >= 2
+}
+
+func gaBlockers(rep *ProductionReadinessReport) []string {
+	var blockers []string
+	if rep.RealRepoValidationCount < 15 {
+		blockers = append(blockers, "real_repo_validation_count below GA threshold")
+	}
+	if rep.NPMRepoCount < 5 {
+		blockers = append(blockers, "npm real repository count below GA threshold")
+	}
+	if rep.PyPIRepoCount < 3 {
+		blockers = append(blockers, "PyPI real repository count below GA threshold")
+	}
+	if rep.ScannerCrashCount != 0 {
+		blockers = append(blockers, "scanner crashes observed during real repo validation")
+	}
+	if rep.FalseBlockCount != 0 {
+		blockers = append(blockers, "false block count must be zero for GA")
+	}
+	if rep.CriticalDetectionRate != 1 {
+		blockers = append(blockers, "critical detection rate must be 100% for GA")
+	}
+	if rep.KnownGoodFalseBlockRate != 0 {
+		blockers = append(blockers, "known-good false block rate must be 0% for GA")
+	}
+	if rep.AverageScanDurationMs == 0 {
+		blockers = append(blockers, "average scan duration is not reported")
+	}
+	if rep.P95ScanDurationMs == 0 {
+		blockers = append(blockers, "p95 scan duration is not reported")
+	}
+	if rep.SignedReleaseStatus != "signed" {
+		blockers = append(blockers, "signed release artifacts not verified locally")
+	}
+	if rep.ProvenanceStatus != "verified" {
+		blockers = append(blockers, "build provenance not verified locally")
+	}
+	if rep.IsolatedBackendStatus != "available" {
+		blockers = append(blockers, "isolated behavior backend unavailable")
+	}
+	if rep.EcosystemDepthStatus != "npm-equivalent" {
+		blockers = append(blockers, "PyPI/Go/Cargo depth not npm-equivalent")
+	}
+	return blockers
+}
+
+func ecosystemDepthStatus(rep ProductionReadinessReport) string {
+	if rep.PyPIRepoCount >= 3 && rep.GoRepoCount >= 2 && rep.CargoRepoCount >= 2 {
+		return "multi-ecosystem-validated"
+	}
+	return "npm-strong-other-ecosystems-experimental"
+}
+
+func isolatedBackendStatus(rep BenchmarkReport, err error) string {
+	if err == nil && rep.Metrics.IsolatedBackendAvailable {
+		return "available"
+	}
+	return "unavailable"
 }
 
 func WriteProductionReadiness(w io.Writer, rep ProductionReadinessReport, asJSON bool) error {
@@ -197,6 +302,16 @@ func WriteProductionReadiness(w io.Writer, rep ProductionReadinessReport, asJSON
 	fmt.Fprintf(w, "  build provenance:        %s\n", rep.ProvenanceStatus)
 	fmt.Fprintf(w, "  docs:                    %s\n", rep.DocsStatus)
 	fmt.Fprintf(w, "  real repo validations:   %d\n", rep.RealRepoValidationCount)
+	fmt.Fprintf(w, "  required real repos:     %d\n", rep.RequiredRealRepoValidationCount)
+	fmt.Fprintf(w, "  ecosystem depth:         %s\n", rep.EcosystemDepthStatus)
+	fmt.Fprintf(w, "  isolated backend:        %s\n", rep.IsolatedBackendStatus)
+	fmt.Fprintf(w, "  GA ready:                %t\n", rep.GAReady)
+	if len(rep.GABlockers) > 0 {
+		fmt.Fprintln(w, "  GA blockers:")
+		for _, blocker := range rep.GABlockers {
+			fmt.Fprintf(w, "    - %s\n", blocker)
+		}
+	}
 	fmt.Fprintf(w, "  private beta recommended: %t\n", rep.PrivateBetaRecommendation)
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "Final Status: %s\n", rep.FinalStatus)
@@ -343,7 +458,7 @@ func onlineBenchmarkGate(rep BenchmarkReport, err error) (bool, string, []string
 	// actually ran and a package drifted; skipped/no_network is reported as a
 	// pass-through so an offline runner is not penalized but is never silent.
 	passed := status != "fail" && status != "error"
-	return passed, "online benchmark: "+status, details
+	return passed, "online benchmark: " + status, details
 }
 
 // gateStatusString returns okStatus when the named gate passed, else failStatus.

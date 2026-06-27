@@ -1,0 +1,28 @@
+[
+  {
+    "name": "sample-nextjs-app",
+    "path": "./benchmarks/repos/sample-nextjs-app",
+    "ecosystems": ["npm"],
+    "repo_type": "nextjs-app",
+    "expected_min_direct_dependencies": 3,
+    "expected_min_transitive_dependencies": 0,
+    "expected_no_false_block": true,
+    "expected_max_false_warn_rate": 0,
+    "behavior_mode": "disabled",
+    "offline": true,
+    "notes": "Use a checked-out local repository path; private beta defaults behavior analysis to disabled."
+  },
+  {
+    "name": "sample-mixed-js-python-repo",
+    "path": "./benchmarks/repos/sample-mixed-js-python-repo",
+    "ecosystems": ["npm", "pypi"],
+    "repo_type": "mixed-js-python-repo",
+    "expected_min_direct_dependencies": 4,
+    "expected_min_transitive_dependencies": 0,
+    "expected_no_false_block": true,
+    "expected_max_false_warn_rate": 0,
+    "behavior_mode": "disabled",
+    "offline": true,
+    "notes": "Example only; replace with a real local repo before using as evidence."
+  }
+]

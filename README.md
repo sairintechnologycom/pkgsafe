@@ -3,6 +3,7 @@
 PkgSafe is a local-first package safety CLI for developer and AI-agent workflows. It validates open-source packages before installation using registry metadata, lifecycle-script analysis, suspicious-pattern detection, typosquat heuristics, policy scoring, and MCP-compatible JSON-RPC tools.
 
 > MVP focus: npm packages and `package-lock.json` scanning.
+> Private beta focus: npm is strongest; PyPI, Go, and Cargo are early ecosystem coverage and are not npm-equivalent yet.
 
 ## Install
 
@@ -173,10 +174,18 @@ has been synced/cached, an `--offline` scan of it will fail or warn rather than
 silently pass. OSV lookups **fail closed** — a network/rate-limit error surfaces
 `vulnerability_data_unavailable` rather than scoring the package clean.
 
-**Lifecycle behavior analysis is heuristic, not a sandbox.** Scripts run on the
-host **without OS isolation**; detection is pattern/canary based and `network_mode`
-is not enforced. Do not point it at code you wouldn't run yourself. Real OS
-isolation is a planned milestone.
+**Behavior analysis is disabled by default and must be requested explicitly.**
+Use `--behavior heuristic` only in disposable environments: it runs lifecycle
+scripts on the host **without OS isolation**; detection is pattern/canary based
+and `network_mode` is not enforced. `--behavior isolated` is reserved for a real
+isolation backend and reports unavailable until that backend exists. Do not call
+heuristic mode a secure sandbox.
+
+**Real repo validation gates GA.** Use
+`pkgsafe test benchmark --repo-list benchmarks/real-repos.json --json` and
+`pkgsafe report beta-evidence --repo-list benchmarks/real-repos.json` to build
+private-beta evidence. Production readiness reports GA blockers explicitly when
+real repository validation is below threshold.
 
 **The REST API is loopback-only and unauthenticated by default.** It binds to
 localhost and is intended for local tooling. There is currently no TLS, request

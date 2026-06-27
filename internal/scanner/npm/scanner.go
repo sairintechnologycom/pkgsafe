@@ -31,6 +31,7 @@ type Scanner struct {
 	Offline        bool
 	DBPath         string
 	SandboxEnabled bool
+	BehaviorMode   types.BehaviorMode
 	SandboxTimeout time.Duration
 	NetworkMode    string
 	KeepSandbox    bool
@@ -204,20 +205,33 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	}
 	_ = json.Unmarshal(pkgJSONData, &pj)
 
-	sandboxAvailable := sandbox.IsAvailable(ctx)
+	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
+	behaviorEnabled := behaviorMode != types.BehaviorDisabled
+	sandboxAvailable := behaviorMode == types.BehaviorHeuristic && sandbox.IsAvailable(ctx)
 	res.Sandbox = types.SandboxSummary{
-		Enabled:        s.SandboxEnabled,
+		Enabled:        behaviorEnabled,
 		Available:      sandboxAvailable,
-		Runner:         "fake-home-process",
+		BehaviorMode:   behaviorMode,
+		Isolated:       false,
 		NetworkMode:    s.NetworkMode,
 		TimeoutSeconds: int(s.SandboxTimeout.Seconds()),
 	}
+	if behaviorMode == types.BehaviorHeuristic {
+		res.Sandbox.Runner = "fake-home-process"
+		res.Sandbox.Warning = "Heuristic behavior analysis runs lifecycle scripts on the host without OS isolation; use only in disposable environments."
+	}
 
 	var sandboxFindings []types.Reason
-	if s.SandboxEnabled {
-		if !sandboxAvailable {
+	if behaviorEnabled {
+		if behaviorMode == types.BehaviorIsolated {
 			res.Sandbox.NotPerformed = true
-			res.Sandbox.NotPerfReason = "No supported behavior-analysis runner available on this platform"
+			res.Sandbox.NotPerfReason = "isolated behavior analysis backend is not implemented or unavailable"
+		} else if res.Decision == types.DecisionBlock {
+			res.Sandbox.NotPerformed = true
+			res.Sandbox.NotPerfReason = "behavior analysis skipped because static analysis already blocked the package"
+		} else if !sandboxAvailable {
+			res.Sandbox.NotPerformed = true
+			res.Sandbox.NotPerfReason = "No supported heuristic behavior-analysis runner available on this platform"
 		} else {
 			runner := &sandbox.ProcessRunner{}
 			var scriptsExecuted []types.SandboxScriptResult
@@ -413,21 +427,34 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 	}
 	_ = json.Unmarshal(pkgJSONData, &pj)
 
-	sandboxAvailable := sandbox.IsAvailable(ctx)
+	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
+	behaviorEnabled := behaviorMode != types.BehaviorDisabled
+	sandboxAvailable := behaviorMode == types.BehaviorHeuristic && sandbox.IsAvailable(ctx)
 	res.Sandbox = types.SandboxSummary{
-		Enabled:        s.SandboxEnabled,
+		Enabled:        behaviorEnabled,
 		Available:      sandboxAvailable,
-		Runner:         "fake-home-process",
+		BehaviorMode:   behaviorMode,
+		Isolated:       false,
 		NetworkMode:    s.NetworkMode,
 		TimeoutSeconds: int(s.SandboxTimeout.Seconds()),
+	}
+	if behaviorMode == types.BehaviorHeuristic {
+		res.Sandbox.Runner = "fake-home-process"
+		res.Sandbox.Warning = "Heuristic behavior analysis runs lifecycle scripts on the host without OS isolation; use only in disposable environments."
 	}
 
 	var sandboxFindings []types.Reason
 	var scriptsExecuted []types.SandboxScriptResult
-	if s.SandboxEnabled {
-		if !sandboxAvailable {
+	if behaviorEnabled {
+		if behaviorMode == types.BehaviorIsolated {
 			res.Sandbox.NotPerformed = true
-			res.Sandbox.NotPerfReason = "No supported behavior-analysis runner available on this platform"
+			res.Sandbox.NotPerfReason = "isolated behavior analysis backend is not implemented or unavailable"
+		} else if res.Decision == types.DecisionBlock {
+			res.Sandbox.NotPerformed = true
+			res.Sandbox.NotPerfReason = "behavior analysis skipped because static analysis already blocked the package"
+		} else if !sandboxAvailable {
+			res.Sandbox.NotPerformed = true
+			res.Sandbox.NotPerfReason = "No supported heuristic behavior-analysis runner available on this platform"
 		} else {
 			runner := &sandbox.ProcessRunner{}
 			for _, scriptName := range []string{"preinstall", "install", "postinstall", "prepare"} {

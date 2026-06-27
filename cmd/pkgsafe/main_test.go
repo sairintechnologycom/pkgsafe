@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/niyam-ai/pkgsafe/internal/api"
+	"github.com/niyam-ai/pkgsafe/internal/validation"
 )
 
 func TestReorderFlagsAllowsTrailingCommandFlags(t *testing.T) {
@@ -30,6 +32,54 @@ func TestCIScanCommandRouting(t *testing.T) {
 	}
 	if eErr.code != 5 {
 		t.Fatalf("expected exit code 5 (lockfile error), got %d", eErr.code)
+	}
+}
+
+func TestBetaEvidenceRenderAndJSONDoNotLeakSecrets(t *testing.T) {
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "SHOULD_NOT_LEAK_TEST_SECRET")
+	evidence := betaEvidenceReport{
+		GeneratedAt: "2026-06-27T00:00:00Z",
+		ProductionReadiness: validation.ProductionReadinessReport{
+			CurrentStage:                    "PRIVATE_BETA_READY",
+			PrivateBetaReady:                true,
+			GAReady:                         false,
+			RealRepoValidationCount:         0,
+			RequiredRealRepoValidationCount: 15,
+			GABlockers:                      []string{"real_repo_validation_count below GA threshold"},
+		},
+		BenchmarkSummary: validation.BenchmarkMetrics{},
+		EcosystemDepth: map[string]string{
+			"npm":   "strongest private-beta coverage",
+			"pypi":  "early coverage; not npm-equivalent",
+			"go":    "metadata and OSV-oriented; not npm-equivalent",
+			"cargo": "metadata and OSV-oriented; not npm-equivalent",
+		},
+		BehaviorModeSummary:   "behavior analysis disabled by default",
+		SecurityGateStatus:    map[string]string{"rollout_readiness": "pass"},
+		ReleaseArtifactStatus: map[string]string{"sbom": "present"},
+		KnownLimitations:      []string{"isolated behavior backend is not implemented"},
+		Recommendation:        "PRIVATE_BETA_READY",
+	}
+	md := []byte(renderBetaEvidenceMarkdown(evidence))
+	if !bytes.Contains(md, []byte("PkgSafe Private Beta Evidence")) {
+		t.Fatalf("markdown evidence missing title:\n%s", string(md))
+	}
+	if bytes.Contains(md, []byte("SHOULD_NOT_LEAK_TEST_SECRET")) {
+		t.Fatal("markdown evidence leaked environment secret")
+	}
+	rawJSON, err := json.Marshal(evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(rawJSON, []byte("SHOULD_NOT_LEAK_TEST_SECRET")) {
+		t.Fatal("json evidence leaked environment secret")
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(rawJSON, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["recommendation"] == "" {
+		t.Fatal("json evidence missing recommendation")
 	}
 }
 

@@ -17,6 +17,7 @@ type ScanOptions struct {
 	Baseline             string
 	SandboxSpecified     bool
 	Sandbox              bool
+	BehaviorMode         string
 	Offline              bool
 	Timeout              time.Duration
 	PolicyPack           string
