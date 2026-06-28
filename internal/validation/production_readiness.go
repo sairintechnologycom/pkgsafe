@@ -25,6 +25,7 @@ type ProductionReadinessReport struct {
 	Pass             bool     `json:"pass"`
 	PrivateBetaReady bool     `json:"private_beta_ready"`
 	GAReady          bool     `json:"ga_ready"`
+	ProductionReady  bool     `json:"production_ready"`
 	GABlockers       []string `json:"ga_blockers,omitempty"`
 
 	// Stage-aware status fields. Each is explicit (never silently omitted) so
@@ -34,6 +35,8 @@ type ProductionReadinessReport struct {
 	OnlineBenchmarkStatus           string  `json:"online_benchmark_status"`
 	GitHubActionStatus              string  `json:"github_action_status"`
 	SignedReleaseStatus             string  `json:"signed_release_status"`
+	SigningConfigured               bool    `json:"signing_configured"`
+	SigningVerified                 bool    `json:"signing_verified"`
 	SBOMStatus                      string  `json:"sbom_status"`
 	ProvenanceStatus                string  `json:"provenance_status"`
 	DocsStatus                      string  `json:"docs_status"`
@@ -41,6 +44,8 @@ type ProductionReadinessReport struct {
 	RequiredRealRepoValidationCount int     `json:"required_real_repo_validation_count"`
 	EcosystemDepthStatus            string  `json:"ecosystem_depth_status"`
 	IsolatedBackendStatus           string  `json:"isolated_backend_status"`
+	IsolatedBackendAvailable        bool    `json:"isolated_backend_available"`
+	BehaviorAnalysisDefaultMode     string  `json:"behavior_analysis_default_mode"`
 	NPMRepoCount                    int     `json:"npm_repo_count"`
 	PyPIRepoCount                   int     `json:"pypi_repo_count"`
 	GoRepoCount                     int     `json:"go_repo_count"`
@@ -135,6 +140,8 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 	rep.OnlineBenchmarkStatus = onlineBenchmarkStatus(benchReport, benchErr)
 	rep.GitHubActionStatus = gateStatusString(rep, "github action", "valid", "incomplete")
 	rep.SignedReleaseStatus = signedReleaseStatus()
+	rep.SigningConfigured = rep.SignedReleaseStatus == "configured" || rep.SignedReleaseStatus == "signed"
+	rep.SigningVerified = rep.SignedReleaseStatus == "signed"
 	rep.SBOMStatus = sbomStatus()
 	rep.ProvenanceStatus = provenanceStatus()
 	rep.DocsStatus = gateStatusString(rep, "documentation", "complete", "incomplete")
@@ -154,6 +161,8 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 	rep.RequiredRealRepoValidationCount = 15
 	rep.EcosystemDepthStatus = ecosystemDepthStatus(rep)
 	rep.IsolatedBackendStatus = isolatedBackendStatus(benchReport, benchErr)
+	rep.IsolatedBackendAvailable = rep.IsolatedBackendStatus == "available"
+	rep.BehaviorAnalysisDefaultMode = policy.Default().Sandbox.BehaviorMode
 
 	computeReadinessStage(&rep, blockingFailed)
 	return rep, nil
@@ -172,6 +181,7 @@ func computeReadinessStage(rep *ProductionReadinessReport, blockingFailed bool) 
 		rep.PrivateBetaRecommendation = false
 		rep.PrivateBetaReady = false
 		rep.GAReady = false
+		rep.ProductionReady = false
 		rep.GABlockers = gaBlockers(rep)
 		return
 	}
@@ -199,6 +209,7 @@ func computeReadinessStage(rep *ProductionReadinessReport, blockingFailed bool) 
 	}
 	rep.CurrentStage = rep.FinalStatus
 	rep.GAReady = productionGAReady
+	rep.ProductionReady = productionGAReady
 }
 
 func privateBetaReady(rep *ProductionReadinessReport) bool {
@@ -450,8 +461,16 @@ func onlineBenchmarkStatus(rep BenchmarkReport, err error) string {
 func onlineBenchmarkGate(rep BenchmarkReport, err error) (bool, string, []string) {
 	status := onlineBenchmarkStatus(rep, err)
 	details := []string{
-		fmt.Sprintf("mode=%s attempted=%d passed=%d failed=%d network_failures=%d",
-			rep.Online.Mode, rep.Online.Attempted, rep.Online.Passed, rep.Online.Failed, rep.Online.NetworkFailures),
+		fmt.Sprintf("mode=%s attempted=%d passed=%d failed=%d network_unavailable=%d registry_unavailable=%d package_not_found=%d scanner_failure=%d expectation_mismatch=%d",
+			rep.Online.Mode,
+			rep.Online.Attempted,
+			rep.Online.Passed,
+			rep.Online.Failed,
+			rep.Online.NetworkUnavailable,
+			rep.Online.RegistryUnavailable,
+			rep.Online.PackageNotFound,
+			rep.Online.ScannerFailures,
+			rep.Online.ExpectationMismatches),
 	}
 	details = append(details, rep.Online.Details...)
 	// The gate is non-blocking. It only fails (visibly) when connected checks

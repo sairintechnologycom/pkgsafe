@@ -12,7 +12,7 @@ PkgSafe behavior analysis has three explicit modes:
 
 Use "heuristic behavior analysis" for host execution.
 
-Do not describe heuristic mode as secure sandboxing, safe execution, contained execution, or isolated execution.
+Do not describe heuristic mode as containment, isolation, or a protected execution environment.
 
 ## Execution Rules
 

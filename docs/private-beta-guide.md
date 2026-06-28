@@ -7,7 +7,7 @@ PkgSafe private beta is strongest for npm dependency scanning, OSV vulnerability
 - npm has the deepest artifact, lifecycle-script, inventory, and policy coverage.
 - PyPI, Go, and Cargo support are available for early validation, but they are not npm-equivalent yet.
 - Behavior analysis defaults to `disabled`.
-- `heuristic` behavior mode runs lifecycle scripts on the host and is not sandboxing.
+- `heuristic` behavior mode runs lifecycle scripts on the host and is not containment.
 - `isolated` behavior mode reports unavailable until a real isolation backend lands.
 
 ## Real Repo Validation

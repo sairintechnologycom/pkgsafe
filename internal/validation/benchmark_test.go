@@ -180,6 +180,20 @@ func TestRunBenchmarkRepoListMissingPathFails(t *testing.T) {
 	}
 }
 
+func TestClassifyPackageScanError(t *testing.T) {
+	cases := map[string]string{
+		`Get "https://registry.npmjs.org/axios": dial tcp: lookup registry.npmjs.org: no such host`: "network_unavailable",
+		`registry returned 503 service unavailable`:                                                 "registry_unavailable",
+		`package not found`:                         "package_not_found",
+		`parse package metadata: invalid character`: "scanner_failure",
+	}
+	for msg, want := range cases {
+		if got := classifyPackageScanError(errTestType(msg)); got != want {
+			t.Fatalf("classifyPackageScanError(%q) = %q, want %q", msg, got, want)
+		}
+	}
+}
+
 func TestRunBenchmarkRepoListEmptyRepoHandled(t *testing.T) {
 	root := t.TempDir()
 	repo := filepath.Join(root, "empty")

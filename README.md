@@ -179,7 +179,7 @@ Use `--behavior heuristic` only in disposable environments: it runs lifecycle
 scripts on the host **without OS isolation**; detection is pattern/canary based
 and `network_mode` is not enforced. `--behavior isolated` is reserved for a real
 isolation backend and reports unavailable until that backend exists. Do not call
-heuristic mode a secure sandbox.
+heuristic mode sandboxing or containment.
 
 **Real repo validation gates GA.** Use
 `pkgsafe test benchmark --repo-list benchmarks/real-repos.json --json` and

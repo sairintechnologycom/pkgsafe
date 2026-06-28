@@ -44,11 +44,11 @@ func TestEcosystemBucket(t *testing.T) {
 func TestParseBulkZip(t *testing.T) {
 	good := `{"id":"GHSA-1","summary":"x","affected":[{"package":{"name":"lodash","ecosystem":"npm"}}]}`
 	files := map[string]string{
-		"GHSA-1.json":  good,
-		"GHSA-2.json":  `{"id":"GHSA-2","affected":[]}`,
-		"bad.json":     `{not json`,        // skipped
-		"noid.json":    `{"summary":"y"}`,  // skipped (no id)
-		"README.txt":   "ignored non-json", // skipped
+		"GHSA-1.json":   good,
+		"GHSA-2.json":   `{"id":"GHSA-2","affected":[]}`,
+		"bad.json":      `{not json`,        // skipped
+		"noid.json":     `{"summary":"y"}`,  // skipped (no id)
+		"README.txt":    "ignored non-json", // skipped
 		"nested/x.json": `{"id":"GHSA-3"}`,
 	}
 	recs, err := ParseBulkZip(makeZip(t, files))

@@ -1,6 +1,10 @@
 package validation
 
-import "testing"
+import (
+	"bytes"
+	"encoding/json"
+	"testing"
+)
 
 func TestComputeReadinessStageBlocked(t *testing.T) {
 	rep := ProductionReadinessReport{}
@@ -98,6 +102,48 @@ func TestProductionReadinessGABlockedWhenRepoCountLow(t *testing.T) {
 	}
 	if len(rep.GABlockers) == 0 {
 		t.Fatal("expected GA blockers")
+	}
+}
+
+func TestProductionReadinessJSONIncludesGAEvidenceFields(t *testing.T) {
+	rep := ProductionReadinessReport{
+		FinalStatus:                     ReadinessPrivateBeta,
+		PrivateBetaReady:                true,
+		GAReady:                         false,
+		ProductionReady:                 false,
+		RealRepoValidationCount:         0,
+		RequiredRealRepoValidationCount: 15,
+		GABlockers:                      []string{"real_repo_validation_count below GA threshold"},
+		EcosystemDepthStatus:            "npm-strong-other-ecosystems-experimental",
+		BehaviorAnalysisDefaultMode:     "disabled",
+		IsolatedBackendAvailable:        false,
+		SigningConfigured:               true,
+		SigningVerified:                 false,
+	}
+	var buf bytes.Buffer
+	if err := WriteProductionReadiness(&buf, rep, true); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{
+		"private_beta_ready",
+		"ga_ready",
+		"production_ready",
+		"real_repo_validation_count",
+		"required_real_repo_validation_count",
+		"ga_blockers",
+		"ecosystem_depth_status",
+		"behavior_analysis_default_mode",
+		"isolated_backend_available",
+		"signing_configured",
+		"signing_verified",
+	} {
+		if _, ok := got[field]; !ok {
+			t.Fatalf("production readiness JSON missing %q: %s", field, buf.String())
+		}
 	}
 }
 

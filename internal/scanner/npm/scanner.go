@@ -218,7 +218,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	}
 	if behaviorMode == types.BehaviorHeuristic {
 		res.Sandbox.Runner = "fake-home-process"
-		res.Sandbox.Warning = "Heuristic behavior analysis runs lifecycle scripts on the host without OS isolation; use only in disposable environments."
+		res.Sandbox.Warning = "Heuristic behavior analysis runs lifecycle scripts on the host without OS isolation; it is not a security sandbox. Use only in disposable environments."
 	}
 
 	var sandboxFindings []types.Reason
@@ -440,7 +440,7 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 	}
 	if behaviorMode == types.BehaviorHeuristic {
 		res.Sandbox.Runner = "fake-home-process"
-		res.Sandbox.Warning = "Heuristic behavior analysis runs lifecycle scripts on the host without OS isolation; use only in disposable environments."
+		res.Sandbox.Warning = "Heuristic behavior analysis runs lifecycle scripts on the host without OS isolation; it is not a security sandbox. Use only in disposable environments."
 	}
 
 	var sandboxFindings []types.Reason

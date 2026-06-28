@@ -550,8 +550,8 @@ func TestMCPServer(t *testing.T) {
 		}
 	})
 
-	// 15. MCP validate_package_install sandbox check
-	t.Run("validate_package_install with sandbox", func(t *testing.T) {
+	// 15. MCP validate_package_install behavior-analysis check
+	t.Run("validate_package_install with legacy sandbox input", func(t *testing.T) {
 		res, err := callTool(t, "validate_package_install", map[string]any{
 			"ecosystem":    "npm",
 			"name":         "fixture",
@@ -571,23 +571,23 @@ func TestMCPServer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if valRes.Sandbox == nil {
-			t.Fatal("expected Sandbox result metadata to be populated, got nil")
+		if valRes.BehaviorAnalysis == nil {
+			t.Fatal("expected behavior analysis result metadata to be populated, got nil")
 		}
-		if !valRes.Sandbox.Enabled {
-			t.Error("expected sandbox.enabled to be true")
+		if !valRes.BehaviorAnalysis.Enabled {
+			t.Error("expected behavior_analysis.enabled to be true")
 		}
-		if !valRes.Sandbox.Available {
-			t.Error("expected sandbox.available to be true")
+		if !valRes.BehaviorAnalysis.Available {
+			t.Error("expected behavior_analysis.available to be true")
 		}
-		if valRes.Sandbox.BehaviorMode != types.BehaviorHeuristic {
-			t.Errorf("expected behavior_mode heuristic, got %q", valRes.Sandbox.BehaviorMode)
+		if valRes.BehaviorAnalysis.BehaviorMode != types.BehaviorHeuristic {
+			t.Errorf("expected behavior_mode heuristic, got %q", valRes.BehaviorAnalysis.BehaviorMode)
 		}
-		if valRes.Sandbox.NotPerformedReason == "" {
+		if valRes.BehaviorAnalysis.NotPerformedReason == "" {
 			t.Error("expected blocked package to skip behavior execution with a reason")
 		}
-		if valRes.Sandbox.FindingsCount != 0 {
-			t.Errorf("expected sandbox.findings_count to be 0 because BLOCK package was not executed, got %d", valRes.Sandbox.FindingsCount)
+		if valRes.BehaviorAnalysis.FindingsCount != 0 {
+			t.Errorf("expected behavior_analysis.findings_count to be 0 because BLOCK package was not executed, got %d", valRes.BehaviorAnalysis.FindingsCount)
 		}
 		if valRes.InstallAllowed {
 			t.Error("expected install_allowed to be false for AI agent with blocking findings")

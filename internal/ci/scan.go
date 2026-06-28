@@ -247,7 +247,7 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 			DependencyType:  depType,
 			Reasons:         reasons,
 			Vulnerabilities: vulnerabilities,
-			Sandbox: SandboxSummary{
+			BehaviorAnalysis: BehaviorAnalysisSummary{
 				Enabled:               res.Sandbox.Enabled,
 				Available:             res.Sandbox.Available,
 				CriticalFindingsCount: critSandboxFindings,
@@ -389,7 +389,7 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 			DependencyType:    "python",
 			Reasons:           res.Reasons,
 			Vulnerabilities:   res.Vulnerabilities,
-			Sandbox:           SandboxSummary{Enabled: res.Sandbox.Enabled, Available: res.Sandbox.Available},
+			BehaviorAnalysis:  BehaviorAnalysisSummary{Enabled: res.Sandbox.Enabled, Available: res.Sandbox.Available},
 			RecommendedAction: recommendedActionForFinding(res),
 			Policy:            fPolicy,
 			Registry:          fRegistry,

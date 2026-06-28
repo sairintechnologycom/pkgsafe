@@ -61,10 +61,10 @@ user/tool command
 
 | Package | Role |
 | --- | --- |
-| `internal/types` | Shared contracts such as `ScanResult`, `Reason`, `Decision`, vulnerability, sandbox, artifact, policy, registry, trust, and exception evidence. |
+| `internal/types` | Shared contracts such as `ScanResult`, `Reason`, `Decision`, vulnerability, behavior analysis, artifact, policy, registry, trust, and exception evidence. |
 | `internal/policy` | Default/custom policy loading, thresholds, rule scores, trust rules, exceptions, scoped rules, registry config, enterprise controls. |
 | `internal/risk` | Converts reasons/signals into `allow`, `warn`, `block`, or `unknown`; applies enterprise controls. |
-| `internal/scanner/npm` | Full npm package scanner: registry metadata, tarball download/integrity, static analysis, OSV/cached vulnerability checks, sandbox summary. |
+| `internal/scanner/npm` | Full npm package scanner: registry metadata, tarball download/integrity, static analysis, OSV/cached vulnerability checks, behavior-analysis summary. |
 | `internal/scanner/pypi` | PyPI package scanner: registry/artifact metadata, static Python packaging analysis, vulnerability checks, typosquat signals. |
 | `internal/scanner/golang` | Go dependency/package scanner using OSV/intel and policy/risk evaluation. |
 | `internal/scanner/cargo` | Cargo dependency/package scanner using OSV/intel and policy/risk evaluation. |
@@ -128,7 +128,7 @@ scanner/npm
   -> policy
   -> registry, registry/npm
   -> risk
-  -> sandbox
+  -> behavior analysis runner
   -> types
 
 scanner/pypi
@@ -226,7 +226,7 @@ cmd/pkgsafe scan-npm-package
   -> registry/npm.VerifyTarballIntegrity
   -> registry/npm.ExtractTarball
   -> analyzer/npm.AnalyzePackageDir
-  -> optional sandbox.ProcessRunner
+  -> optional non-isolated host behavior runner
   -> db/intel OSV vulnerability lookup
   -> risk.Evaluate
   -> risk.ApplyEnterpriseControls
@@ -319,7 +319,7 @@ ScanResult
   Vulnerabilities: advisory metadata and fixed versions
   Lifecycle/Suspicious/SafeAlternates
   Enforcement and Recommended action
-  Sandbox and Artifact summaries
+  Behavior analysis and Artifact summaries
   Policy, Registry, Trust, Exception evidence
 ```
 

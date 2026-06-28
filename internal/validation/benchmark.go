@@ -88,12 +88,17 @@ type OnlineBenchmarkSummary struct {
 	// Mode is "offline" (cache-only) or "connected" (live registry/advisory).
 	Mode string `json:"mode"`
 	// Status is one of: not_run, skipped_offline, no_network, pass, fail.
-	Status          string   `json:"status"`
-	Attempted       int      `json:"attempted"`
-	Passed          int      `json:"passed"`
-	Failed          int      `json:"failed"`
-	NetworkFailures int      `json:"network_failures"`
-	Details         []string `json:"details,omitempty"`
+	Status                string   `json:"status"`
+	Attempted             int      `json:"attempted"`
+	Passed                int      `json:"passed"`
+	Failed                int      `json:"failed"`
+	NetworkFailures       int      `json:"network_failures"`
+	NetworkUnavailable    int      `json:"network_unavailable"`
+	RegistryUnavailable   int      `json:"registry_unavailable"`
+	PackageNotFound       int      `json:"package_not_found"`
+	ScannerFailures       int      `json:"scanner_failure"`
+	ExpectationMismatches int      `json:"expectation_mismatch"`
+	Details               []string `json:"details,omitempty"`
 }
 
 type BenchmarkMetrics struct {
@@ -112,6 +117,11 @@ type BenchmarkMetrics struct {
 	AverageScanDurationMs           int64                `json:"average_scan_duration_ms"`
 	P95ScanDurationMs               int64                `json:"p95_scan_duration_ms"`
 	NetworkFailures                 int                  `json:"network_failures"`
+	NetworkUnavailable              int                  `json:"network_unavailable"`
+	RegistryUnavailable             int                  `json:"registry_unavailable"`
+	PackageNotFound                 int                  `json:"package_not_found"`
+	ScannerFailureCount             int                  `json:"scanner_failure_count"`
+	ExpectationMismatchCount        int                  `json:"expectation_mismatch_count"`
 	OfflineCacheHits                int                  `json:"offline_cache_hits"`
 	OfflineCacheMisses              int                  `json:"offline_cache_misses"`
 	TotalRuntimeMs                  int64                `json:"total_runtime_ms"`
@@ -176,6 +186,7 @@ type BenchmarkPackageResult struct {
 	Passed           bool     `json:"passed"`
 	Skipped          bool     `json:"skipped,omitempty"`
 	SkipReason       string   `json:"skip_reason,omitempty"`
+	FailureCategory  string   `json:"failure_category,omitempty"`
 	DurationMs       int64    `json:"duration_ms"`
 	Reasons          []string `json:"reasons,omitempty"`
 	Vulnerabilities  []string `json:"vulnerabilities,omitempty"`
@@ -404,6 +415,11 @@ func WriteBenchmarkReport(w io.Writer, report BenchmarkReport, asJSON bool) erro
 	fmt.Fprintf(w, "Average scan:                  %dms\n", report.Metrics.AverageScanDurationMs)
 	fmt.Fprintf(w, "P95 scan:                      %dms\n", report.Metrics.P95ScanDurationMs)
 	fmt.Fprintf(w, "Network failures:              %d\n", report.Metrics.NetworkFailures)
+	fmt.Fprintf(w, "Network unavailable:           %d\n", report.Metrics.NetworkUnavailable)
+	fmt.Fprintf(w, "Registry unavailable:          %d\n", report.Metrics.RegistryUnavailable)
+	fmt.Fprintf(w, "Package not found:             %d\n", report.Metrics.PackageNotFound)
+	fmt.Fprintf(w, "Scanner failures:              %d\n", report.Metrics.ScannerFailureCount)
+	fmt.Fprintf(w, "Expectation mismatches:        %d\n", report.Metrics.ExpectationMismatchCount)
 	fmt.Fprintf(w, "Offline cache hits:            %d\n", report.Metrics.OfflineCacheHits)
 	fmt.Fprintf(w, "Offline cache misses:          %d\n", report.Metrics.OfflineCacheMisses)
 	fmt.Fprintf(w, "Total runtime:                 %dms\n", report.Metrics.TotalRuntimeMs)
@@ -432,6 +448,11 @@ func WriteBenchmarkReport(w io.Writer, report BenchmarkReport, asJSON bool) erro
 	fmt.Fprintf(w, "Status:                        %s\n", report.Online.Status)
 	fmt.Fprintf(w, "Attempted / passed / failed:   %d / %d / %d\n", report.Online.Attempted, report.Online.Passed, report.Online.Failed)
 	fmt.Fprintf(w, "Network failures:              %d\n", report.Online.NetworkFailures)
+	fmt.Fprintf(w, "Network unavailable:           %d\n", report.Online.NetworkUnavailable)
+	fmt.Fprintf(w, "Registry unavailable:          %d\n", report.Online.RegistryUnavailable)
+	fmt.Fprintf(w, "Package not found:             %d\n", report.Online.PackageNotFound)
+	fmt.Fprintf(w, "Scanner failures:              %d\n", report.Online.ScannerFailures)
+	fmt.Fprintf(w, "Expectation mismatches:        %d\n", report.Online.ExpectationMismatches)
 	for _, detail := range report.Online.Details {
 		fmt.Fprintf(w, "  - %s\n", detail)
 	}
@@ -646,7 +667,8 @@ func runPackageBenchmarks(entries []BenchmarkPackageEntry, offline bool) []Bench
 		}
 		if err != nil {
 			result.Skipped = true
-			result.SkipReason = "network_or_registry_failure"
+			result.SkipReason = classifyPackageScanError(err)
+			result.FailureCategory = result.SkipReason
 			result.Details = append(result.Details, err.Error())
 			result.DurationMs = time.Since(start).Milliseconds()
 			results = append(results, result)
@@ -671,7 +693,32 @@ func applyBenchmarkScanResult(result *BenchmarkPackageResult, scanResult types.S
 	}
 	result.Passed = benchmarkDecisionMatches(entry, scanResult)
 	if !result.Passed {
+		result.FailureCategory = "expectation_mismatch"
 		result.Details = append(result.Details, "actual package metadata or advisory data differs from expected benchmark bounds")
+	}
+}
+
+func classifyPackageScanError(err error) string {
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "no such host"),
+		strings.Contains(msg, "network is unreachable"),
+		strings.Contains(msg, "connection refused"),
+		strings.Contains(msg, "i/o timeout"),
+		strings.Contains(msg, "timeout awaiting response headers"),
+		strings.Contains(msg, "temporary failure in name resolution"):
+		return "network_unavailable"
+	case strings.Contains(msg, "404"),
+		strings.Contains(msg, "not found"),
+		strings.Contains(msg, "package_not_found"):
+		return "package_not_found"
+	case strings.Contains(msg, "registry"),
+		strings.Contains(msg, "bad gateway"),
+		strings.Contains(msg, "service unavailable"),
+		strings.Contains(msg, "too many requests"):
+		return "registry_unavailable"
+	default:
+		return "scanner_failure"
 	}
 }
 
@@ -721,7 +768,7 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 			if result.SkipReason == "offline cache miss" {
 				report.Metrics.OfflineCacheMisses++
 			} else {
-				report.Metrics.NetworkFailures++
+				applyBenchmarkFailureCategory(&report.Metrics, result.SkipReason)
 			}
 			continue
 		}
@@ -736,6 +783,9 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 			// Live package drift is recorded but never flips the deterministic
 			// gate; it surfaces via the online benchmark summary instead.
 			report.Metrics.PackagesFailed++
+			if result.FailureCategory == "expectation_mismatch" {
+				report.Metrics.ExpectationMismatchCount++
+			}
 		}
 		if result.Category == "npm-known-good" || result.Category == "pypi-known-good" {
 			knownGood++
@@ -760,6 +810,22 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 	report.Metrics.InstallScriptExplainabilityRate = ratio(installExplained, installScript)
 	report.Metrics.AverageScanDurationMs = averageDuration(durations)
 	report.Metrics.P95ScanDurationMs = percentileDuration(durations, 0.95)
+}
+
+func applyBenchmarkFailureCategory(metrics *BenchmarkMetrics, category string) {
+	switch category {
+	case "network_unavailable":
+		metrics.NetworkFailures++
+		metrics.NetworkUnavailable++
+	case "registry_unavailable":
+		metrics.RegistryUnavailable++
+	case "package_not_found":
+		metrics.PackageNotFound++
+	case "scanner_failure":
+		metrics.ScannerFailureCount++
+	default:
+		metrics.ScannerFailureCount++
+	}
 }
 
 func benchmarkMode(offline bool) string {
@@ -788,8 +854,16 @@ func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResul
 	}
 	for _, r := range results {
 		if r.Skipped {
-			if r.SkipReason == "network_or_registry_failure" {
+			switch r.SkipReason {
+			case "network_unavailable":
 				summary.NetworkFailures++
+				summary.NetworkUnavailable++
+			case "registry_unavailable":
+				summary.RegistryUnavailable++
+			case "package_not_found":
+				summary.PackageNotFound++
+			case "scanner_failure":
+				summary.ScannerFailures++
 			}
 			continue
 		}
@@ -798,6 +872,9 @@ func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResul
 			summary.Passed++
 		} else {
 			summary.Failed++
+			if r.FailureCategory == "expectation_mismatch" {
+				summary.ExpectationMismatches++
+			}
 		}
 	}
 	switch {

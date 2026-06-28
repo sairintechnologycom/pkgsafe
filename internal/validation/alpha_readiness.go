@@ -216,7 +216,7 @@ func createZipBytes(files map[string][]byte, symlinks map[string]string, writeLa
 			return nil, err
 		}
 		chunk := bytes.Repeat([]byte("A"), 1024*1024) // 1 MB
-		for i := 0; i < 101; i++ {                     // 101 MB total (exceeds limit)
+		for i := 0; i < 101; i++ {                    // 101 MB total (exceeds limit)
 			if _, err := f.Write(chunk); err != nil {
 				return nil, err
 			}
@@ -426,7 +426,6 @@ func runExtractionHardeningTests() int {
 
 	return failures
 }
-
 
 // Helpers for Secret Redaction Tests
 func runSecretRedactionTests() int {

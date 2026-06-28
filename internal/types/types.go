@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Decision string
 
@@ -77,12 +80,57 @@ type ScanResult struct {
 	Enforcement     string             `json:"enforcement,omitempty"`
 	Recommended     string             `json:"recommended_action,omitempty"`
 	ScannedAt       time.Time          `json:"scanned_at"`
-	Sandbox         SandboxSummary     `json:"sandbox,omitempty"`
+	Sandbox         SandboxSummary     `json:"behavior_analysis,omitempty"`
 	Artifact        ArtifactSummary    `json:"artifact_analysis,omitempty"`
 	PolicyInfo      *PolicyEvidence    `json:"policy,omitempty"`
 	RegistryInfo    *RegistryEvidence  `json:"registry,omitempty"`
 	TrustInfo       *TrustEvidence     `json:"trust,omitempty"`
 	ExceptionInfo   *ExceptionEvidence `json:"exception,omitempty"`
+}
+
+func (r ScanResult) MarshalJSON() ([]byte, error) {
+	type scanResultJSON struct {
+		Package          PackageIdentity         `json:"package"`
+		Mode             string                  `json:"mode,omitempty"`
+		Score            int                     `json:"risk_score"`
+		Decision         Decision                `json:"decision"`
+		Thresholds       Thresholds              `json:"thresholds,omitempty"`
+		Reasons          []Reason                `json:"reasons"`
+		Vulnerabilities  []Vulnerability         `json:"vulnerabilities,omitempty"`
+		Lifecycle        []string                `json:"lifecycle_scripts,omitempty"`
+		Suspicious       []string                `json:"suspicious_patterns,omitempty"`
+		SafeAlternates   []string                `json:"safe_alternatives,omitempty"`
+		Enforcement      string                  `json:"enforcement,omitempty"`
+		Recommended      string                  `json:"recommended_action,omitempty"`
+		ScannedAt        time.Time               `json:"scanned_at"`
+		BehaviorAnalysis BehaviorAnalysisSummary `json:"behavior_analysis,omitempty"`
+		Artifact         ArtifactSummary         `json:"artifact_analysis,omitempty"`
+		PolicyInfo       *PolicyEvidence         `json:"policy,omitempty"`
+		RegistryInfo     *RegistryEvidence       `json:"registry,omitempty"`
+		TrustInfo        *TrustEvidence          `json:"trust,omitempty"`
+		ExceptionInfo    *ExceptionEvidence      `json:"exception,omitempty"`
+	}
+	return json.Marshal(scanResultJSON{
+		Package:          r.Package,
+		Mode:             r.Mode,
+		Score:            r.Score,
+		Decision:         r.Decision,
+		Thresholds:       r.Thresholds,
+		Reasons:          r.Reasons,
+		Vulnerabilities:  r.Vulnerabilities,
+		Lifecycle:        r.Lifecycle,
+		Suspicious:       r.Suspicious,
+		SafeAlternates:   r.SafeAlternates,
+		Enforcement:      r.Enforcement,
+		Recommended:      r.Recommended,
+		ScannedAt:        r.ScannedAt,
+		BehaviorAnalysis: BehaviorAnalysisFromSandbox(r.Sandbox),
+		Artifact:         r.Artifact,
+		PolicyInfo:       r.PolicyInfo,
+		RegistryInfo:     r.RegistryInfo,
+		TrustInfo:        r.TrustInfo,
+		ExceptionInfo:    r.ExceptionInfo,
+	})
 }
 
 type PolicyEvidence struct {
@@ -118,7 +166,7 @@ type ArtifactSummary struct {
 	Yanked                      bool   `json:"yanked"`
 	BuildBackend                string `json:"build_backend,omitempty"`
 	SetupPyPresent              bool   `json:"setup_py_present"`
-	SandboxNote                 string `json:"sandbox_note,omitempty"`
+	SandboxNote                 string `json:"behavior_analysis_note,omitempty"`
 }
 
 type SandboxSummary struct {
@@ -133,6 +181,60 @@ type SandboxSummary struct {
 	Warning         string                `json:"warning,omitempty"`
 	NotPerformed    bool                  `json:"not_performed,omitempty"`
 	NotPerfReason   string                `json:"not_performed_reason,omitempty"`
+}
+
+type BehaviorAnalysisSummary struct {
+	Mode          BehaviorMode          `json:"mode"`
+	Enabled       bool                  `json:"enabled"`
+	Executed      bool                  `json:"executed"`
+	Isolated      bool                  `json:"isolated"`
+	Runner        string                `json:"runner,omitempty"`
+	NetworkPolicy string                `json:"network_policy,omitempty"`
+	NotPerformed  bool                  `json:"not_performed"`
+	Reason        string                `json:"reason,omitempty"`
+	Warning       string                `json:"warning,omitempty"`
+	Limitations   []string              `json:"limitations,omitempty"`
+	Scripts       []SandboxScriptResult `json:"scripts,omitempty"`
+}
+
+func BehaviorAnalysisFromSandbox(s SandboxSummary) BehaviorAnalysisSummary {
+	mode := s.BehaviorMode
+	if mode == "" {
+		mode = BehaviorDisabled
+	}
+	out := BehaviorAnalysisSummary{
+		Mode:          mode,
+		Enabled:       s.Enabled,
+		Executed:      len(s.ScriptsExecuted) > 0,
+		Isolated:      s.Isolated,
+		Runner:        s.Runner,
+		NetworkPolicy: s.NetworkMode,
+		NotPerformed:  s.NotPerformed,
+		Reason:        s.NotPerfReason,
+		Warning:       s.Warning,
+		Scripts:       s.ScriptsExecuted,
+	}
+	switch mode {
+	case BehaviorDisabled:
+		out.NotPerformed = true
+		if out.Reason == "" {
+			out.Reason = "behavior analysis disabled by policy"
+		}
+	case BehaviorHeuristic:
+		out.Limitations = append(out.Limitations,
+			"non-isolated host runner",
+			"not a security sandbox",
+			"network policy is advisory unless an isolated backend is active",
+		)
+	case BehaviorIsolated:
+		if !s.Available {
+			out.NotPerformed = true
+			if out.Reason == "" {
+				out.Reason = "isolated behavior analysis backend is not implemented or unavailable"
+			}
+		}
+	}
+	return out
 }
 
 type SandboxScriptResult struct {
