@@ -30,13 +30,24 @@
           "mixed-js-python-repo"
         ]
       },
+      "expected_package_manager": {
+        "type": "string",
+        "enum": ["npm", "pnpm", "yarn", "pip", "poetry", "go", "cargo"]
+      },
       "expected_min_direct_dependencies": { "type": "integer", "minimum": 0 },
       "expected_min_transitive_dependencies": { "type": "integer", "minimum": 0 },
+      "expected_output_artifacts": {
+        "type": "array",
+        "items": { "type": "string", "enum": ["json", "sarif", "markdown_summary", "evidence_pack"] },
+        "uniqueItems": true
+      },
       "expected_no_false_block": { "type": "boolean" },
       "expected_max_false_warn_rate": { "type": "number", "minimum": 0, "maximum": 1 },
       "behavior_mode": { "type": "string", "enum": ["disabled", "heuristic", "isolated"] },
       "offline": { "type": "boolean" },
-      "notes": { "type": "string" }
+      "notes": { "type": "string" },
+      "private_beta_required": { "type": "boolean" },
+      "ga_required": { "type": "boolean" }
     }
   }
 }

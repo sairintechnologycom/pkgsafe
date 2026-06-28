@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -80,6 +81,59 @@ func TestBetaEvidenceRenderAndJSONDoNotLeakSecrets(t *testing.T) {
 	}
 	if decoded["recommendation"] == "" {
 		t.Fatal("json evidence missing recommendation")
+	}
+}
+
+func TestWriteBetaEvidenceZip(t *testing.T) {
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "pkgsafe-private-beta-evidence.zip")
+	evidence := betaEvidenceReport{
+		GeneratedAt: "2026-06-27T00:00:00Z",
+		ProductionReadiness: validation.ProductionReadinessReport{
+			CurrentStage:                    "PRIVATE_BETA_READY",
+			PrivateBetaReady:                true,
+			GAReady:                         false,
+			RealRepoValidationCount:         1,
+			RequiredRealRepoValidationCount: 15,
+		},
+		BenchmarkReport: validation.BenchmarkReport{
+			RepoValidations: []validation.RepoValidation{
+				{Name: "repo-one", Path: "/tmp/repo-one", ScanCompleted: true, JSONOutputGenerated: true},
+			},
+		},
+		BenchmarkSummary: validation.BenchmarkMetrics{RealRepoValidationCount: 1},
+		EcosystemDepth: map[string]string{
+			"npm": "strongest private-beta coverage",
+		},
+		KnownLimitations: []string{"real repo validation count is below GA threshold"},
+		Recommendation:   "PRIVATE_BETA_READY",
+	}
+	if err := writeBetaEvidenceZip(out, evidence); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.OpenReader(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+	seen := map[string]bool{}
+	for _, f := range zr.File {
+		seen[f.Name] = true
+	}
+	for _, want := range []string{
+		"pkgsafe-private-beta-evidence/manifest.json",
+		"pkgsafe-private-beta-evidence/repo-validation-summary.json",
+		"pkgsafe-private-beta-evidence/repo-validation-summary.md",
+		"pkgsafe-private-beta-evidence/benchmark-output.json",
+		"pkgsafe-private-beta-evidence/production-readiness-output.json",
+		"pkgsafe-private-beta-evidence/version-info.json",
+		"pkgsafe-private-beta-evidence/policy-used.json",
+		"pkgsafe-private-beta-evidence/known-limitations.md",
+		"pkgsafe-private-beta-evidence/per-repo/repo-one.json",
+	} {
+		if !seen[want] {
+			t.Fatalf("zip missing %s; saw %#v", want, seen)
+		}
 	}
 }
 

@@ -4,12 +4,16 @@
     "path": "./benchmarks/repos/sample-nextjs-app",
     "ecosystems": ["npm"],
     "repo_type": "nextjs-app",
+    "expected_package_manager": "npm",
     "expected_min_direct_dependencies": 3,
     "expected_min_transitive_dependencies": 0,
+    "expected_output_artifacts": ["json", "sarif", "markdown_summary", "evidence_pack"],
     "expected_no_false_block": true,
     "expected_max_false_warn_rate": 0,
     "behavior_mode": "disabled",
     "offline": true,
+    "private_beta_required": true,
+    "ga_required": true,
     "notes": "Use a checked-out local repository path; private beta defaults behavior analysis to disabled."
   },
   {
@@ -17,12 +21,16 @@
     "path": "./benchmarks/repos/sample-mixed-js-python-repo",
     "ecosystems": ["npm", "pypi"],
     "repo_type": "mixed-js-python-repo",
+    "expected_package_manager": "npm",
     "expected_min_direct_dependencies": 4,
     "expected_min_transitive_dependencies": 0,
+    "expected_output_artifacts": ["json", "markdown_summary"],
     "expected_no_false_block": true,
     "expected_max_false_warn_rate": 0,
     "behavior_mode": "disabled",
     "offline": true,
+    "private_beta_required": true,
+    "ga_required": false,
     "notes": "Example only; replace with a real local repo before using as evidence."
   }
 ]

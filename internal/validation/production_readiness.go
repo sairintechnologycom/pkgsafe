@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -32,31 +33,33 @@ type ProductionReadinessReport struct {
 	// the readiness verdict is auditable. Statuses are conservative: a gate is
 	// only "verified"/"pass"/"signed" when actually confirmed, otherwise it is
 	// "configured" (infrastructure present) or a failure state.
-	OnlineBenchmarkStatus           string  `json:"online_benchmark_status"`
-	GitHubActionStatus              string  `json:"github_action_status"`
-	SignedReleaseStatus             string  `json:"signed_release_status"`
-	SigningConfigured               bool    `json:"signing_configured"`
-	SigningVerified                 bool    `json:"signing_verified"`
-	SBOMStatus                      string  `json:"sbom_status"`
-	ProvenanceStatus                string  `json:"provenance_status"`
-	DocsStatus                      string  `json:"docs_status"`
-	RealRepoValidationCount         int     `json:"real_repo_validation_count"`
-	RequiredRealRepoValidationCount int     `json:"required_real_repo_validation_count"`
-	EcosystemDepthStatus            string  `json:"ecosystem_depth_status"`
-	IsolatedBackendStatus           string  `json:"isolated_backend_status"`
-	IsolatedBackendAvailable        bool    `json:"isolated_backend_available"`
-	BehaviorAnalysisDefaultMode     string  `json:"behavior_analysis_default_mode"`
-	NPMRepoCount                    int     `json:"npm_repo_count"`
-	PyPIRepoCount                   int     `json:"pypi_repo_count"`
-	GoRepoCount                     int     `json:"go_repo_count"`
-	CargoRepoCount                  int     `json:"cargo_repo_count"`
-	FalseBlockCount                 int     `json:"false_block_count"`
-	ScannerCrashCount               int     `json:"scanner_crash_count"`
-	AverageScanDurationMs           int64   `json:"average_scan_duration_ms"`
-	P95ScanDurationMs               int64   `json:"p95_scan_duration_ms"`
-	CriticalDetectionRate           float64 `json:"critical_detection_rate"`
-	KnownGoodFalseBlockRate         float64 `json:"known_good_false_block_rate"`
-	PrivateBetaRecommendation       bool    `json:"private_beta_recommendation"`
+	OnlineBenchmarkStatus           string   `json:"online_benchmark_status"`
+	GitHubActionStatus              string   `json:"github_action_status"`
+	SignedReleaseStatus             string   `json:"signed_release_status"`
+	SigningConfigured               bool     `json:"signing_configured"`
+	SigningVerified                 bool     `json:"signing_verified"`
+	SBOMStatus                      string   `json:"sbom_status"`
+	ProvenanceStatus                string   `json:"provenance_status"`
+	DocsStatus                      string   `json:"docs_status"`
+	RealRepoValidationCount         int      `json:"real_repo_validation_count"`
+	RequiredRealRepoValidationCount int      `json:"required_real_repo_validation_count"`
+	RepoValidationPassRate          float64  `json:"repo_validation_pass_rate"`
+	RepoValidationFailures          []string `json:"repo_validation_failures,omitempty"`
+	EcosystemDepthStatus            string   `json:"ecosystem_depth_status"`
+	IsolatedBackendStatus           string   `json:"isolated_backend_status"`
+	IsolatedBackendAvailable        bool     `json:"isolated_backend_available"`
+	BehaviorAnalysisDefaultMode     string   `json:"behavior_analysis_default_mode"`
+	NPMRepoCount                    int      `json:"npm_repo_count"`
+	PyPIRepoCount                   int      `json:"pypi_repo_count"`
+	GoRepoCount                     int      `json:"go_repo_count"`
+	CargoRepoCount                  int      `json:"cargo_repo_count"`
+	FalseBlockCount                 int      `json:"false_block_count"`
+	ScannerCrashCount               int      `json:"scanner_crash_count"`
+	AverageScanDurationMs           int64    `json:"average_scan_duration_ms"`
+	P95ScanDurationMs               int64    `json:"p95_scan_duration_ms"`
+	CriticalDetectionRate           float64  `json:"critical_detection_rate"`
+	KnownGoodFalseBlockRate         float64  `json:"known_good_false_block_rate"`
+	PrivateBetaRecommendation       bool     `json:"private_beta_recommendation"`
 
 	Gates []RolloutReadinessGate `json:"gates"`
 }
@@ -157,6 +160,8 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 		rep.P95ScanDurationMs = benchReport.Metrics.RealRepoP95ScanDurationMs
 		rep.CriticalDetectionRate = benchReport.Metrics.CriticalFixtureBlockRate
 		rep.KnownGoodFalseBlockRate = benchReport.Metrics.KnownGoodFalseBlockRate
+		rep.RepoValidationPassRate = ratio(benchReport.Metrics.ReposPassed, benchReport.Metrics.RealRepoValidationCount)
+		rep.RepoValidationFailures = repoValidationFailures(benchReport.RepoValidations)
 	}
 	rep.RequiredRealRepoValidationCount = 15
 	rep.EcosystemDepthStatus = ecosystemDepthStatus(rep)
@@ -239,6 +244,9 @@ func gaBlockers(rep *ProductionReadinessReport) []string {
 	if rep.FalseBlockCount != 0 {
 		blockers = append(blockers, "false block count must be zero for GA")
 	}
+	if rep.RepoValidationPassRate != 1 {
+		blockers = append(blockers, "repo validation pass rate must be 100% for GA")
+	}
 	if rep.CriticalDetectionRate != 1 {
 		blockers = append(blockers, "critical detection rate must be 100% for GA")
 	}
@@ -264,6 +272,27 @@ func gaBlockers(rep *ProductionReadinessReport) []string {
 		blockers = append(blockers, "PyPI/Go/Cargo depth not npm-equivalent")
 	}
 	return blockers
+}
+
+func repoValidationFailures(validations []RepoValidation) []string {
+	var failures []string
+	for _, v := range validations {
+		if v.Passed {
+			continue
+		}
+		name := firstNonEmptyString(v.Name, v.Path)
+		if len(v.FailureClassifications) > 0 {
+			failures = append(failures, fmt.Sprintf("%s: %s", name, strings.Join(v.FailureClassifications, ",")))
+			continue
+		}
+		if len(v.Details) > 0 {
+			failures = append(failures, fmt.Sprintf("%s: %s", name, v.Details[0]))
+			continue
+		}
+		failures = append(failures, name)
+	}
+	sort.Strings(failures)
+	return failures
 }
 
 func ecosystemDepthStatus(rep ProductionReadinessReport) string {
@@ -314,6 +343,10 @@ func WriteProductionReadiness(w io.Writer, rep ProductionReadinessReport, asJSON
 	fmt.Fprintf(w, "  docs:                    %s\n", rep.DocsStatus)
 	fmt.Fprintf(w, "  real repo validations:   %d\n", rep.RealRepoValidationCount)
 	fmt.Fprintf(w, "  required real repos:     %d\n", rep.RequiredRealRepoValidationCount)
+	fmt.Fprintf(w, "  repo validation pass:    %.2f%%\n", rep.RepoValidationPassRate*100)
+	for _, failure := range rep.RepoValidationFailures {
+		fmt.Fprintf(w, "    - repo validation failure: %s\n", failure)
+	}
 	fmt.Fprintf(w, "  ecosystem depth:         %s\n", rep.EcosystemDepthStatus)
 	fmt.Fprintf(w, "  isolated backend:        %s\n", rep.IsolatedBackendStatus)
 	fmt.Fprintf(w, "  GA ready:                %t\n", rep.GAReady)

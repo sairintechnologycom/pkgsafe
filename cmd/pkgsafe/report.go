@@ -1,16 +1,22 @@
 package main
 
 import (
+	"archive/zip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/niyam-ai/pkgsafe/internal/registry"
 	"github.com/niyam-ai/pkgsafe/internal/report"
 	"github.com/niyam-ai/pkgsafe/internal/validation"
+	versionpkg "github.com/niyam-ai/pkgsafe/internal/version"
 )
 
 func cmdReport(args []string) error {
@@ -47,6 +53,7 @@ func cmdReport(args []string) error {
 type betaEvidenceReport struct {
 	GeneratedAt           string                               `json:"generated_at"`
 	ProductionReadiness   validation.ProductionReadinessReport `json:"production_readiness"`
+	BenchmarkReport       validation.BenchmarkReport           `json:"benchmark_output"`
 	BenchmarkSummary      validation.BenchmarkMetrics          `json:"benchmark_summary"`
 	RolloutLimitations    []string                             `json:"rollout_limitations"`
 	EcosystemDepth        map[string]string                    `json:"ecosystem_depth"`
@@ -60,7 +67,7 @@ type betaEvidenceReport struct {
 
 func cmdReportBetaEvidence(args []string) error {
 	fs := flag.NewFlagSet("beta-evidence", flag.ContinueOnError)
-	output := fs.String("output", "beta-evidence.md", "Markdown output path")
+	output := fs.String("output", "beta-evidence.md", "Markdown or .zip output path")
 	jsonOutput := fs.String("json-output", "", "optional JSON output path")
 	repo := fs.String("repo", "", "optional real repository path to validate")
 	repoList := fs.String("repo-list", "", "optional real repository list JSON")
@@ -94,6 +101,7 @@ func cmdReportBetaEvidence(args []string) error {
 	evidence := betaEvidenceReport{
 		GeneratedAt:         prod.GeneratedAt,
 		ProductionReadiness: prod,
+		BenchmarkReport:     bench,
 		BenchmarkSummary:    bench.Metrics,
 		RolloutLimitations: []string{
 			"npm has the strongest artifact and lifecycle-script coverage.",
@@ -136,7 +144,136 @@ func cmdReportBetaEvidence(args []string) error {
 			return err
 		}
 	}
+	if strings.HasSuffix(strings.ToLower(*output), ".zip") {
+		return writeBetaEvidenceZip(*output, evidence)
+	}
 	return os.WriteFile(*output, []byte(renderBetaEvidenceMarkdown(evidence)), 0o644)
+}
+
+func writeBetaEvidenceZip(outputPath string, evidence betaEvidenceReport) error {
+	files := map[string][]byte{}
+	summaryJSON, err := json.MarshalIndent(evidence, "", "  ")
+	if err != nil {
+		return err
+	}
+	files["repo-validation-summary.json"] = summaryJSON
+	files["repo-validation-summary.md"] = []byte(renderBetaEvidenceMarkdown(evidence))
+	benchJSON, err := json.MarshalIndent(evidence.BenchmarkReport, "", "  ")
+	if err != nil {
+		return err
+	}
+	files["benchmark-output.json"] = benchJSON
+	prodJSON, err := json.MarshalIndent(evidence.ProductionReadiness, "", "  ")
+	if err != nil {
+		return err
+	}
+	files["production-readiness-output.json"] = prodJSON
+	versionInfo, err := json.MarshalIndent(map[string]string{
+		"tool":         "pkgsafe",
+		"version":      versionpkg.Version,
+		"commit":       versionpkg.Commit,
+		"generated_at": time.Now().UTC().Format(time.RFC3339),
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	files["version-info.json"] = versionInfo
+	pol, err := policy.ResolvePolicy("", "", "", "", "")
+	if err == nil {
+		policyJSON, marshalErr := json.MarshalIndent(pol, "", "  ")
+		if marshalErr != nil {
+			return marshalErr
+		}
+		files["policy-used.json"] = policyJSON
+	} else {
+		files["policy-used.json"] = []byte(fmt.Sprintf(`{"error":%q}`+"\n", err.Error()))
+	}
+	files["known-limitations.md"] = []byte(renderKnownLimitations(evidence))
+	for _, repo := range evidence.BenchmarkReport.RepoValidations {
+		repoJSON, err := json.MarshalIndent(repo, "", "  ")
+		if err != nil {
+			return err
+		}
+		name := strings.NewReplacer("/", "-", "\\", "-", " ", "-").Replace(firstNonEmpty(repo.Name, filepath.Base(repo.Path)))
+		files[filepath.Join("per-repo", name+".json")] = repoJSON
+	}
+	for path, content := range files {
+		files[path] = []byte(registry.RedactSecrets(string(content)))
+	}
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+	f, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	zw := zip.NewWriter(f)
+	defer zw.Close()
+	manifest := report.Manifest{
+		SchemaVersion: "1.0",
+		Tool:          "pkgsafe",
+		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
+		Repository:    "private-beta-validation",
+		PolicyPack:    "",
+	}
+	for path, content := range files {
+		manifest.Files = append(manifest.Files, report.ManifestFile{
+			Path:   "pkgsafe-private-beta-evidence/" + path,
+			SHA256: sha256Hex(content),
+		})
+	}
+	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := writeZipFile(zw, "pkgsafe-private-beta-evidence/manifest.json", manifestJSON); err != nil {
+		return err
+	}
+	for path, content := range files {
+		if err := writeZipFile(zw, "pkgsafe-private-beta-evidence/"+path, content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func renderKnownLimitations(e betaEvidenceReport) string {
+	var b strings.Builder
+	fmt.Fprintln(&b, "# Known Limitations")
+	fmt.Fprintln(&b)
+	for _, limitation := range e.KnownLimitations {
+		fmt.Fprintf(&b, "- %s\n", limitation)
+	}
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "## Rollout Limitations")
+	for _, limitation := range e.RolloutLimitations {
+		fmt.Fprintf(&b, "- %s\n", limitation)
+	}
+	return b.String()
+}
+
+func writeZipFile(zw *zip.Writer, path string, content []byte) error {
+	w, err := zw.Create(path)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(content)
+	return err
+}
+
+func sha256Hex(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func gateSummary(rep validation.ProductionReadinessReport, name string) string {

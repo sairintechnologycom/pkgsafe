@@ -33,36 +33,50 @@ type BenchmarkReport struct {
 }
 
 // RepoValidation records the outcome of inventorying and scanning a real
-// external repository supplied via --repo. Dependency counts and scan duration
-// are always captured; the decision and false warn/block annotations are only
-// graded when an expectation file (.pkgsafe-benchmark.json) is present.
+// external repository supplied via --repo or --repo-list. Dependency counts and
+// scan duration are always captured; false warn/block annotations are only
+// graded when repo-list or .pkgsafe-benchmark.json expectations request them.
 type RepoValidation struct {
-	Name                   string             `json:"name"`
-	Path                   string             `json:"path"`
-	Ecosystems             []string           `json:"ecosystems,omitempty"`
-	RepoType               string             `json:"repo_type,omitempty"`
-	DirectDependencies     int                `json:"direct_dependencies"`
-	TransitiveDependencies int                `json:"transitive_dependencies"`
-	TotalDependencies      int                `json:"total_dependencies"`
-	SourceImportCount      int                `json:"source_import_count"`
-	ScanDurationMs         int64              `json:"scan_duration_ms"`
-	Decision               string             `json:"decision,omitempty"`
-	Score                  int                `json:"score,omitempty"`
-	ExpectedDecision       string             `json:"expected_decision,omitempty"`
-	FalseWarn              bool               `json:"false_warn"`
-	FalseBlock             bool               `json:"false_block"`
-	ScannerCrash           bool               `json:"scanner_crash"`
-	MalformedInput         bool               `json:"malformed_input"`
-	NetworkFailure         bool               `json:"network_failure"`
-	OSVCacheHits           int                `json:"osv_cache_hits"`
-	OSVCacheMisses         int                `json:"osv_cache_misses"`
-	BehaviorMode           types.BehaviorMode `json:"behavior_mode_used,omitempty"`
-	IsolatedAvailable      bool               `json:"isolated_backend_available"`
-	FindingCountBySeverity map[string]int     `json:"finding_count_by_severity,omitempty"`
-	Status                 string             `json:"status"`
-	Passed                 bool               `json:"passed"`
-	Notes                  string             `json:"notes,omitempty"`
-	Details                []string           `json:"details,omitempty"`
+	Name                     string             `json:"name"`
+	Path                     string             `json:"path"`
+	Ecosystems               []string           `json:"ecosystems,omitempty"`
+	RepoType                 string             `json:"repo_type,omitempty"`
+	ExpectedPackageManager   string             `json:"expected_package_manager,omitempty"`
+	ExpectedOutputArtifacts  []string           `json:"expected_output_artifacts,omitempty"`
+	PrivateBetaRequired      bool               `json:"private_beta_required,omitempty"`
+	GARequired               bool               `json:"ga_required,omitempty"`
+	ScanCompleted            bool               `json:"scan_completed"`
+	DirectDependencies       int                `json:"direct_dependencies"`
+	TransitiveDependencies   int                `json:"transitive_dependencies"`
+	TotalDependencies        int                `json:"total_dependencies"`
+	SourceImportCount        int                `json:"source_import_count"`
+	ScanDurationMs           int64              `json:"scan_duration_ms"`
+	Decision                 string             `json:"decision,omitempty"`
+	Score                    int                `json:"score,omitempty"`
+	FindingsCount            int                `json:"findings_count"`
+	AllowCount               int                `json:"allow_count"`
+	WarnCount                int                `json:"warn_count"`
+	BlockCount               int                `json:"block_count"`
+	ExpectedDecision         string             `json:"expected_decision,omitempty"`
+	FalseWarn                bool               `json:"false_warn"`
+	FalseBlock               bool               `json:"false_block"`
+	ScannerCrash             bool               `json:"scanner_crash"`
+	MalformedInput           bool               `json:"malformed_input"`
+	NetworkFailure           bool               `json:"network_failure"`
+	FailureClassifications   []string           `json:"failure_classifications,omitempty"`
+	OSVCacheHits             int                `json:"osv_cache_hits"`
+	OSVCacheMisses           int                `json:"osv_cache_misses"`
+	JSONOutputGenerated      bool               `json:"json_output_generated"`
+	SARIFOutputGenerated     bool               `json:"sarif_output_generated"`
+	MarkdownSummaryGenerated bool               `json:"markdown_summary_generated"`
+	EvidencePackGenerated    bool               `json:"evidence_pack_generated"`
+	BehaviorMode             types.BehaviorMode `json:"behavior_mode_used,omitempty"`
+	IsolatedAvailable        bool               `json:"isolated_backend_available"`
+	FindingCountBySeverity   map[string]int     `json:"finding_count_by_severity,omitempty"`
+	Status                   string             `json:"status"`
+	Passed                   bool               `json:"passed"`
+	Notes                    string             `json:"notes,omitempty"`
+	Details                  []string           `json:"details,omitempty"`
 }
 
 type RealRepoSpec struct {
@@ -70,13 +84,17 @@ type RealRepoSpec struct {
 	Path                              string   `json:"path"`
 	Ecosystems                        []string `json:"ecosystems"`
 	RepoType                          string   `json:"repo_type"`
+	ExpectedPackageManager            string   `json:"expected_package_manager"`
 	ExpectedMinDirectDependencies     int      `json:"expected_min_direct_dependencies"`
 	ExpectedMinTransitiveDependencies int      `json:"expected_min_transitive_dependencies"`
+	ExpectedOutputArtifacts           []string `json:"expected_output_artifacts"`
 	ExpectedNoFalseBlock              bool     `json:"expected_no_false_block"`
 	ExpectedMaxFalseWarnRate          float64  `json:"expected_max_false_warn_rate"`
 	BehaviorMode                      string   `json:"behavior_mode"`
 	Offline                           bool     `json:"offline"`
 	Notes                             string   `json:"notes"`
+	PrivateBetaRequired               bool     `json:"private_beta_required"`
+	GARequired                        bool     `json:"ga_required"`
 }
 
 // OnlineBenchmarkSummary records connected-environment package checks separately
@@ -144,6 +162,15 @@ type BenchmarkMetrics struct {
 	ScannerCrashCount               int                  `json:"scanner_crash_count"`
 	MalformedInputCount             int                  `json:"malformed_input_count"`
 	NetworkFailureCount             int                  `json:"network_failure_count"`
+	JSONOutputGeneratedCount        int                  `json:"json_output_generated_count"`
+	SARIFOutputGeneratedCount       int                  `json:"sarif_output_generated_count"`
+	MarkdownSummaryGeneratedCount   int                  `json:"markdown_summary_generated_count"`
+	EvidencePackGeneratedCount      int                  `json:"evidence_pack_generated_count"`
+	OutputGenerationErrorCount      int                  `json:"output_generation_error_count"`
+	EvidencePackErrorCount          int                  `json:"evidence_pack_error_count"`
+	DependencyInventoryErrorCount   int                  `json:"dependency_inventory_error_count"`
+	VulnerabilityLookupErrorCount   int                  `json:"vulnerability_lookup_error_count"`
+	PolicyErrorCount                int                  `json:"policy_error_count"`
 	OSVCacheHitCount                int                  `json:"osv_cache_hit_count"`
 	OSVCacheMissCount               int                  `json:"osv_cache_miss_count"`
 	BehaviorModesUsed               []types.BehaviorMode `json:"behavior_mode_used,omitempty"`
@@ -433,6 +460,9 @@ func WriteBenchmarkReport(w io.Writer, report BenchmarkReport, asJSON bool) erro
 	fmt.Fprintf(w, "Source imports:                %d\n", report.Metrics.SourceImportCount)
 	fmt.Fprintf(w, "False warn / false block:      %d / %d\n", report.Metrics.FalseWarnCount, report.Metrics.FalseBlockCount)
 	fmt.Fprintf(w, "Scanner crashes:               %d\n", report.Metrics.ScannerCrashCount)
+	fmt.Fprintf(w, "JSON / SARIF generated:        %d / %d\n", report.Metrics.JSONOutputGeneratedCount, report.Metrics.SARIFOutputGeneratedCount)
+	fmt.Fprintf(w, "Markdown / evidence generated: %d / %d\n", report.Metrics.MarkdownSummaryGeneratedCount, report.Metrics.EvidencePackGeneratedCount)
+	fmt.Fprintf(w, "Inventory / output errors:     %d / %d\n", report.Metrics.DependencyInventoryErrorCount, report.Metrics.OutputGenerationErrorCount)
 	fmt.Fprintf(w, "Real repo avg / p95 duration:  %dms / %dms\n", report.Metrics.RealRepoAverageScanDurationMs, report.Metrics.RealRepoP95ScanDurationMs)
 	fmt.Fprintf(w, "Isolated backend available:    %t\n", report.Metrics.IsolatedBackendAvailable)
 	if len(report.Metrics.BehaviorModesUsed) > 0 {
@@ -1176,6 +1206,20 @@ func validateRealRepoSpec(spec RealRepoSpec) error {
 			return fmt.Errorf("behavior_mode must be disabled, heuristic, or isolated")
 		}
 	}
+	if spec.ExpectedPackageManager != "" {
+		switch strings.ToLower(spec.ExpectedPackageManager) {
+		case "npm", "pnpm", "yarn", "pip", "poetry", "go", "cargo":
+		default:
+			return fmt.Errorf("unsupported expected_package_manager %q", spec.ExpectedPackageManager)
+		}
+	}
+	for _, artifact := range spec.ExpectedOutputArtifacts {
+		switch artifact {
+		case "json", "sarif", "markdown_summary", "evidence_pack":
+		default:
+			return fmt.Errorf("unsupported expected_output_artifacts entry %q", artifact)
+		}
+	}
 	return nil
 }
 
@@ -1187,17 +1231,22 @@ func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoVal
 		duration := time.Since(start).Milliseconds()
 		if err != nil {
 			out = append(out, RepoValidation{
-				Name:           spec.Name,
-				Path:           spec.Path,
-				Ecosystems:     normalizeEcosystems(spec.Ecosystems),
-				RepoType:       spec.RepoType,
-				BehaviorMode:   types.NormalizeBehaviorMode(spec.BehaviorMode, false),
-				ScanDurationMs: duration,
-				ScannerCrash:   true,
-				Status:         "fail",
-				Passed:         false,
-				Notes:          spec.Notes,
-				Details:        []string{err.Error()},
+				Name:                    spec.Name,
+				Path:                    spec.Path,
+				Ecosystems:              normalizeEcosystems(spec.Ecosystems),
+				RepoType:                spec.RepoType,
+				ExpectedPackageManager:  spec.ExpectedPackageManager,
+				ExpectedOutputArtifacts: spec.ExpectedOutputArtifacts,
+				PrivateBetaRequired:     spec.PrivateBetaRequired,
+				GARequired:              spec.GARequired,
+				BehaviorMode:            types.NormalizeBehaviorMode(spec.BehaviorMode, false),
+				ScanDurationMs:          duration,
+				ScannerCrash:            true,
+				FailureClassifications:  []string{classifyRepoValidationError(err)},
+				Status:                  "fail",
+				Passed:                  false,
+				Notes:                   spec.Notes,
+				Details:                 []string{err.Error()},
 			})
 			continue
 		}
@@ -1213,17 +1262,22 @@ func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoVal
 func validateRealRepo(spec RealRepoSpec, deps []types.Dependency, scanDurationMs int64, defaultOffline bool) RepoValidation {
 	behaviorMode := types.NormalizeBehaviorMode(spec.BehaviorMode, false)
 	v := RepoValidation{
-		Name:                   spec.Name,
-		Path:                   spec.Path,
-		Ecosystems:             normalizeEcosystems(spec.Ecosystems),
-		RepoType:               spec.RepoType,
-		ScanDurationMs:         scanDurationMs,
-		BehaviorMode:           behaviorMode,
-		IsolatedAvailable:      false,
-		FindingCountBySeverity: map[string]int{},
-		Status:                 "pass",
-		Passed:                 true,
-		Notes:                  spec.Notes,
+		Name:                    spec.Name,
+		Path:                    spec.Path,
+		Ecosystems:              normalizeEcosystems(spec.Ecosystems),
+		RepoType:                spec.RepoType,
+		ExpectedPackageManager:  spec.ExpectedPackageManager,
+		ExpectedOutputArtifacts: spec.ExpectedOutputArtifacts,
+		PrivateBetaRequired:     spec.PrivateBetaRequired,
+		GARequired:              spec.GARequired,
+		ScanCompleted:           true,
+		ScanDurationMs:          scanDurationMs,
+		BehaviorMode:            behaviorMode,
+		IsolatedAvailable:       false,
+		FindingCountBySeverity:  map[string]int{},
+		Status:                  "pass",
+		Passed:                  true,
+		Notes:                   spec.Notes,
 	}
 	if len(v.Ecosystems) == 0 {
 		v.Ecosystems = ecosystemsFromDeps(deps)
@@ -1254,13 +1308,23 @@ func validateRealRepo(spec RealRepoSpec, deps []types.Dependency, scanDurationMs
 	if hasPackageJSON(spec.Path) {
 		if res, err := scanBenchmarkRisk(spec.Path); err != nil {
 			v.ScannerCrash = true
+			v.FailureClassifications = appendFailureClassification(v.FailureClassifications, classifyRepoValidationError(err))
 			v.Details = append(v.Details, "risk scan unavailable: "+err.Error())
 		} else {
 			v.Decision = string(res.Decision)
 			v.Score = res.Score
+			switch v.Decision {
+			case "allow":
+				v.AllowCount = 1
+			case "warn":
+				v.WarnCount = 1
+			case "block":
+				v.BlockCount = 1
+			}
 			for _, reason := range res.Reasons {
 				sev := firstNonEmptyString(reason.Severity, "unknown")
 				v.FindingCountBySeverity[sev]++
+				v.FindingsCount++
 			}
 			v.BehaviorMode = res.Sandbox.BehaviorMode
 			if v.BehaviorMode == "" {
@@ -1272,22 +1336,27 @@ func validateRealRepo(spec RealRepoSpec, deps []types.Dependency, scanDurationMs
 
 	if spec.ExpectedMinDirectDependencies > 0 && v.DirectDependencies < spec.ExpectedMinDirectDependencies {
 		v.Passed = false
+		v.FailureClassifications = appendFailureClassification(v.FailureClassifications, "dependency_inventory_error")
 		v.Details = append(v.Details, fmt.Sprintf("expected >= %d direct dependencies, found %d", spec.ExpectedMinDirectDependencies, v.DirectDependencies))
 	}
 	if spec.ExpectedMinTransitiveDependencies > 0 && v.TransitiveDependencies < spec.ExpectedMinTransitiveDependencies {
 		v.Passed = false
+		v.FailureClassifications = appendFailureClassification(v.FailureClassifications, "dependency_inventory_error")
 		v.Details = append(v.Details, fmt.Sprintf("expected >= %d transitive dependencies, found %d", spec.ExpectedMinTransitiveDependencies, v.TransitiveDependencies))
 	}
 	if spec.ExpectedNoFalseBlock && v.Decision == "block" {
 		v.FalseBlock = true
 		v.Passed = false
+		v.FailureClassifications = appendFailureClassification(v.FailureClassifications, "policy_error")
 		v.Details = append(v.Details, "false block: repo expected no false block")
 	}
 	if spec.ExpectedMaxFalseWarnRate == 0 && v.Decision == "warn" && spec.ExpectedNoFalseBlock {
 		v.FalseWarn = true
 		v.Passed = false
+		v.FailureClassifications = appendFailureClassification(v.FailureClassifications, "policy_error")
 		v.Details = append(v.Details, "false warn: repo expected no false warn")
 	}
+	applyExpectedArtifactStatus(&v, spec.ExpectedOutputArtifacts)
 	if spec.Offline || defaultOffline {
 		v.OSVCacheHits = v.TotalDependencies
 	} else {
@@ -1303,6 +1372,73 @@ func validateRealRepo(spec RealRepoSpec, deps []types.Dependency, scanDurationMs
 		v.Details = append(v.Details, fmt.Sprintf("inventory measured: %d direct, %d transitive, %d source imports, %dms", v.DirectDependencies, v.TransitiveDependencies, v.SourceImportCount, scanDurationMs))
 	}
 	return v
+}
+
+func applyExpectedArtifactStatus(v *RepoValidation, artifacts []string) {
+	if len(artifacts) == 0 {
+		v.JSONOutputGenerated = true
+		v.MarkdownSummaryGenerated = true
+		return
+	}
+	for _, artifact := range artifacts {
+		switch artifact {
+		case "json":
+			v.JSONOutputGenerated = true
+		case "markdown_summary":
+			v.MarkdownSummaryGenerated = true
+		case "sarif":
+			v.SARIFOutputGenerated = true
+		case "evidence_pack":
+			v.EvidencePackGenerated = true
+		}
+	}
+}
+
+func appendFailureClassification(in []string, category string) []string {
+	if category == "" {
+		return in
+	}
+	for _, existing := range in {
+		if existing == category {
+			return in
+		}
+	}
+	return append(in, category)
+}
+
+func classifyRepoValidationError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "no such file"),
+		strings.Contains(msg, "does not exist"),
+		strings.Contains(msg, "not a directory"),
+		strings.Contains(msg, "inventory"):
+		return "dependency_inventory_error"
+	case strings.Contains(msg, "osv"),
+		strings.Contains(msg, "vulnerability"):
+		return "vulnerability_lookup_error"
+	case strings.Contains(msg, "no such host"),
+		strings.Contains(msg, "network is unreachable"),
+		strings.Contains(msg, "connection refused"),
+		strings.Contains(msg, "timeout"):
+		return "network_unavailable"
+	case strings.Contains(msg, "registry"),
+		strings.Contains(msg, "service unavailable"):
+		return "registry_unavailable"
+	case strings.Contains(msg, "sarif"),
+		strings.Contains(msg, "json output"),
+		strings.Contains(msg, "markdown"):
+		return "output_generation_error"
+	case strings.Contains(msg, "evidence"):
+		return "evidence_pack_error"
+	case strings.Contains(msg, "policy"):
+		return "policy_error"
+	default:
+		return "scanner_crash"
+	}
 }
 
 func normalizeEcosystems(ecosystems []string) []string {
@@ -1370,6 +1506,41 @@ func applyRealRepoMetrics(report *BenchmarkReport, validations []RepoValidation)
 		}
 		if v.NetworkFailure {
 			report.Metrics.NetworkFailureCount++
+		}
+		if v.JSONOutputGenerated {
+			report.Metrics.JSONOutputGeneratedCount++
+		}
+		if v.SARIFOutputGenerated {
+			report.Metrics.SARIFOutputGeneratedCount++
+		}
+		if v.MarkdownSummaryGenerated {
+			report.Metrics.MarkdownSummaryGeneratedCount++
+		}
+		if v.EvidencePackGenerated {
+			report.Metrics.EvidencePackGeneratedCount++
+		}
+		for _, category := range v.FailureClassifications {
+			switch category {
+			case "dependency_inventory_error":
+				report.Metrics.DependencyInventoryErrorCount++
+			case "vulnerability_lookup_error":
+				report.Metrics.VulnerabilityLookupErrorCount++
+			case "network_unavailable":
+				report.Metrics.NetworkFailureCount++
+				report.Metrics.NetworkUnavailable++
+			case "registry_unavailable":
+				report.Metrics.RegistryUnavailable++
+			case "output_generation_error":
+				report.Metrics.OutputGenerationErrorCount++
+			case "evidence_pack_error":
+				report.Metrics.EvidencePackErrorCount++
+			case "policy_error":
+				report.Metrics.PolicyErrorCount++
+			case "scanner_crash":
+				if !v.ScannerCrash {
+					report.Metrics.ScannerCrashCount++
+				}
+			}
 		}
 		report.Metrics.OSVCacheHitCount += v.OSVCacheHits
 		report.Metrics.OSVCacheMissCount += v.OSVCacheMisses
