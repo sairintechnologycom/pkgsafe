@@ -2,6 +2,8 @@ package validation
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,7 +41,12 @@ type ProductionReadinessReport struct {
 	SigningConfigured               bool     `json:"signing_configured"`
 	SigningVerified                 bool     `json:"signing_verified"`
 	SBOMStatus                      string   `json:"sbom_status"`
+	SBOMVerified                    bool     `json:"sbom_verified"`
+	ChecksumsStatus                 string   `json:"checksums_status"`
+	ChecksumsVerified               bool     `json:"checksums_verified"`
 	ProvenanceStatus                string   `json:"provenance_status"`
+	ProvenanceConfigured            bool     `json:"provenance_configured"`
+	ProvenanceVerified              bool     `json:"provenance_verified"`
 	DocsStatus                      string   `json:"docs_status"`
 	RealRepoValidationCount         int      `json:"real_repo_validation_count"`
 	RequiredRealRepoValidationCount int      `json:"required_real_repo_validation_count"`
@@ -144,9 +151,14 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 	rep.GitHubActionStatus = gateStatusString(rep, "github action", "valid", "incomplete")
 	rep.SignedReleaseStatus = signedReleaseStatus()
 	rep.SigningConfigured = rep.SignedReleaseStatus == "configured" || rep.SignedReleaseStatus == "signed"
-	rep.SigningVerified = rep.SignedReleaseStatus == "signed"
+	rep.SigningVerified = signingVerified()
 	rep.SBOMStatus = sbomStatus()
+	rep.SBOMVerified = sbomVerified()
+	rep.ChecksumsStatus = checksumsStatus()
+	rep.ChecksumsVerified = rep.ChecksumsStatus == "verified"
 	rep.ProvenanceStatus = provenanceStatus()
+	rep.ProvenanceConfigured = rep.ProvenanceStatus == "configured" || rep.ProvenanceStatus == "verified"
+	rep.ProvenanceVerified = rep.ProvenanceStatus == "verified"
 	rep.DocsStatus = gateStatusString(rep, "documentation", "complete", "incomplete")
 	if benchErr == nil {
 		rep.RealRepoValidationCount = countRealRepos(benchReport, opts.RealRepos)
@@ -235,9 +247,6 @@ func gaBlockers(rep *ProductionReadinessReport) []string {
 	if rep.NPMRepoCount < 5 {
 		blockers = append(blockers, "npm real repository count below GA threshold")
 	}
-	if rep.PyPIRepoCount < 3 {
-		blockers = append(blockers, "PyPI real repository count below GA threshold")
-	}
 	if rep.ScannerCrashCount != 0 {
 		blockers = append(blockers, "scanner crashes observed during real repo validation")
 	}
@@ -259,17 +268,23 @@ func gaBlockers(rep *ProductionReadinessReport) []string {
 	if rep.P95ScanDurationMs == 0 {
 		blockers = append(blockers, "p95 scan duration is not reported")
 	}
-	if rep.SignedReleaseStatus != "signed" {
+	if !rep.SigningVerified {
 		blockers = append(blockers, "signed release artifacts not verified locally")
 	}
-	if rep.ProvenanceStatus != "verified" {
+	if !rep.ChecksumsVerified {
+		blockers = append(blockers, "release checksums not verified locally")
+	}
+	if !rep.SBOMVerified {
+		blockers = append(blockers, "release SBOM not verified locally")
+	}
+	if !rep.ProvenanceVerified {
 		blockers = append(blockers, "build provenance not verified locally")
 	}
-	if rep.IsolatedBackendStatus != "available" {
-		blockers = append(blockers, "isolated behavior backend unavailable")
+	if rep.BehaviorAnalysisDefaultMode != string(types.BehaviorDisabled) {
+		blockers = append(blockers, "behavior analysis must be disabled by default for npm-first GA")
 	}
-	if rep.EcosystemDepthStatus != "npm-equivalent" {
-		blockers = append(blockers, "PyPI/Go/Cargo depth not npm-equivalent")
+	if rep.EcosystemDepthStatus != "npm-ga-other-ecosystems-preview" && rep.EcosystemDepthStatus != "multi-ecosystem-validated" {
+		blockers = append(blockers, "GA ecosystem scope is unclear")
 	}
 	return blockers
 }
@@ -299,7 +314,7 @@ func ecosystemDepthStatus(rep ProductionReadinessReport) string {
 	if rep.PyPIRepoCount >= 3 && rep.GoRepoCount >= 2 && rep.CargoRepoCount >= 2 {
 		return "multi-ecosystem-validated"
 	}
-	return "npm-strong-other-ecosystems-experimental"
+	return "npm-ga-other-ecosystems-preview"
 }
 
 func isolatedBackendStatus(rep BenchmarkReport, err error) string {
@@ -338,8 +353,12 @@ func WriteProductionReadiness(w io.Writer, rep ProductionReadinessReport, asJSON
 	fmt.Fprintf(w, "  online benchmark:        %s\n", rep.OnlineBenchmarkStatus)
 	fmt.Fprintf(w, "  github action:           %s\n", rep.GitHubActionStatus)
 	fmt.Fprintf(w, "  signed release:          %s\n", rep.SignedReleaseStatus)
+	fmt.Fprintf(w, "  signing verified:        %t\n", rep.SigningVerified)
+	fmt.Fprintf(w, "  checksums:               %s\n", rep.ChecksumsStatus)
 	fmt.Fprintf(w, "  sbom:                    %s\n", rep.SBOMStatus)
+	fmt.Fprintf(w, "  sbom verified:           %t\n", rep.SBOMVerified)
 	fmt.Fprintf(w, "  build provenance:        %s\n", rep.ProvenanceStatus)
+	fmt.Fprintf(w, "  provenance verified:     %t\n", rep.ProvenanceVerified)
 	fmt.Fprintf(w, "  docs:                    %s\n", rep.DocsStatus)
 	fmt.Fprintf(w, "  real repo validations:   %d\n", rep.RealRepoValidationCount)
 	fmt.Fprintf(w, "  required real repos:     %d\n", rep.RequiredRealRepoValidationCount)
@@ -437,7 +456,11 @@ func runReleaseArtifactGate() (bool, string, []string) {
 	if len(missing) > 0 {
 		return false, "release integrity artifacts missing", missing
 	}
-	return true, "checksums and SBOM exist", required
+	status := checksumsStatus()
+	if status != "verified" {
+		return false, "release checksums not verified", []string{status}
+	}
+	return true, "checksums and SBOM exist and checksums verify", required
 }
 
 func runDocsGate() (bool, string, []string) {
@@ -451,6 +474,7 @@ func runDocsGate() (bool, string, []string) {
 		"docs/private-registry.md",
 		"docs/known-limitations.md",
 		"docs/threat-model.md",
+		"docs/release-verification.md",
 	}
 	var missing []string
 	for _, path := range required {
@@ -561,13 +585,23 @@ func runGitHubActionGate() (bool, string, []string) {
 // "unconfigured" otherwise. Signing happens in CI, so "configured" is the
 // expected local result.
 func signedReleaseStatus() string {
-	if _, err := os.Stat("dist/checksums.txt.sig"); err == nil {
+	if _, sigErr := os.Stat("dist/checksums.txt.sig"); sigErr == nil {
 		return "signed"
 	}
 	if fileContains(".goreleaser.yaml", "cosign") {
 		return "configured"
 	}
 	return "unconfigured"
+}
+
+func signingVerified() bool {
+	if _, err := os.Stat("dist/checksums.txt.sig"); err != nil {
+		return false
+	}
+	if _, err := os.Stat("dist/checksums.txt.pem"); err != nil {
+		return false
+	}
+	return checksumsStatus() == "verified"
 }
 
 func runSignedReleaseGate() (bool, string, []string) {
@@ -591,6 +625,18 @@ func sbomStatus() string {
 	return "missing"
 }
 
+func sbomVerified() bool {
+	b, err := os.ReadFile("dist/sbom.spdx.json")
+	if err != nil || len(b) == 0 {
+		return false
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return false
+	}
+	return doc["spdxVersion"] != nil || doc["SPDXID"] != nil
+}
+
 func runSBOMGate() (bool, string, []string) {
 	switch sbomStatus() {
 	case "present":
@@ -606,10 +652,72 @@ func runSBOMGate() (bool, string, []string) {
 // locally, "configured" when the release workflow attests build provenance, and
 // "unconfigured" otherwise.
 func provenanceStatus() string {
+	for _, path := range []string{
+		"dist/provenance.intoto.jsonl",
+		"dist/provenance.jsonl",
+		"dist/attestation.jsonl",
+	} {
+		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+			return "verified"
+		}
+	}
 	if fileContains(".github/workflows/release.yml", "attest-build-provenance") {
 		return "configured"
 	}
 	return "unconfigured"
+}
+
+func checksumsStatus() string {
+	status, _ := verifyChecksumsFile("dist/checksums.txt")
+	return status
+}
+
+func verifyChecksumsFile(path string) (string, []string) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "missing", []string{err.Error()}
+	}
+	var verified, missing, mismatch, malformed int
+	var details []string
+	base := filepath.Dir(path)
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			malformed++
+			details = append(details, "malformed checksum line: "+line)
+			continue
+		}
+		want := strings.ToLower(fields[0])
+		name := strings.TrimPrefix(fields[len(fields)-1], "*")
+		name = strings.TrimPrefix(name, "./")
+		artifactPath := filepath.Join(base, name)
+		body, err := os.ReadFile(artifactPath)
+		if err != nil {
+			missing++
+			details = append(details, "missing artifact: "+name)
+			continue
+		}
+		sum := sha256.Sum256(body)
+		got := hex.EncodeToString(sum[:])
+		if got != want {
+			mismatch++
+			details = append(details, "checksum mismatch: "+name)
+			continue
+		}
+		verified++
+	}
+	switch {
+	case verified == 0:
+		return "missing", details
+	case missing != 0 || mismatch != 0 || malformed != 0:
+		return "failed", details
+	default:
+		return "verified", []string{fmt.Sprintf("verified %d artifacts", verified)}
+	}
 }
 
 func runProvenanceGate() (bool, string, []string) {

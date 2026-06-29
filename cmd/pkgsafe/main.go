@@ -194,6 +194,7 @@ Usage:
   pkgsafe report generate [--repo <path>] [--output <path>] [--format <format>] [--type <type>]
   pkgsafe report evidence-pack [--repo <path>] [--output <path>]
   pkgsafe report beta-evidence [--repo <path>] [--repo-list <path>] [--output <path>] [--json-output <path>]
+  pkgsafe report ga-evidence [--repo <path>] [--repo-list <path>] [--output <path>] [--json-output <path>]
   pkgsafe report exceptions [--output <path>]
   pkgsafe report overrides [--output <path>]
   pkgsafe report policy [--policy-pack <name>] [--output <path>]

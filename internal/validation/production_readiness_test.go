@@ -59,21 +59,26 @@ func TestComputeReadinessStagePublicBeta(t *testing.T) {
 
 func TestComputeReadinessStageProductionGA(t *testing.T) {
 	rep := ProductionReadinessReport{
-		OnlineBenchmarkStatus:   "pass",
-		GitHubActionStatus:      "valid",
-		SignedReleaseStatus:     "signed",
-		SBOMStatus:              "present",
-		ProvenanceStatus:        "verified",
-		DocsStatus:              "complete",
-		RealRepoValidationCount: 15,
-		RepoValidationPassRate:  1,
-		NPMRepoCount:            5,
-		PyPIRepoCount:           3,
-		AverageScanDurationMs:   100,
-		P95ScanDurationMs:       200,
-		CriticalDetectionRate:   1,
-		EcosystemDepthStatus:    "npm-equivalent",
-		IsolatedBackendStatus:   "available",
+		OnlineBenchmarkStatus:       "pass",
+		GitHubActionStatus:          "valid",
+		SignedReleaseStatus:         "signed",
+		SigningVerified:             true,
+		SBOMStatus:                  "present",
+		SBOMVerified:                true,
+		ChecksumsStatus:             "verified",
+		ChecksumsVerified:           true,
+		ProvenanceStatus:            "verified",
+		ProvenanceVerified:          true,
+		DocsStatus:                  "complete",
+		RealRepoValidationCount:     15,
+		RepoValidationPassRate:      1,
+		NPMRepoCount:                5,
+		AverageScanDurationMs:       100,
+		P95ScanDurationMs:           200,
+		CriticalDetectionRate:       1,
+		EcosystemDepthStatus:        "npm-ga-other-ecosystems-preview",
+		IsolatedBackendStatus:       "unavailable",
+		BehaviorAnalysisDefaultMode: "disabled",
 	}
 	computeReadinessStage(&rep, false)
 	if rep.FinalStatus != ReadinessProductionGA {
@@ -83,20 +88,26 @@ func TestComputeReadinessStageProductionGA(t *testing.T) {
 
 func TestProductionReadinessGABlockedWhenRepoCountLow(t *testing.T) {
 	rep := ProductionReadinessReport{
-		OnlineBenchmarkStatus:   "pass",
-		GitHubActionStatus:      "valid",
-		SignedReleaseStatus:     "signed",
-		SBOMStatus:              "present",
-		ProvenanceStatus:        "verified",
-		DocsStatus:              "complete",
-		RealRepoValidationCount: 2,
-		RepoValidationPassRate:  1,
-		NPMRepoCount:            2,
-		AverageScanDurationMs:   100,
-		P95ScanDurationMs:       200,
-		CriticalDetectionRate:   1,
-		EcosystemDepthStatus:    "npm-strong-other-ecosystems-experimental",
-		IsolatedBackendStatus:   "unavailable",
+		OnlineBenchmarkStatus:       "pass",
+		GitHubActionStatus:          "valid",
+		SignedReleaseStatus:         "signed",
+		SigningVerified:             true,
+		SBOMStatus:                  "present",
+		SBOMVerified:                true,
+		ChecksumsStatus:             "verified",
+		ChecksumsVerified:           true,
+		ProvenanceStatus:            "verified",
+		ProvenanceVerified:          true,
+		DocsStatus:                  "complete",
+		RealRepoValidationCount:     2,
+		RepoValidationPassRate:      1,
+		NPMRepoCount:                2,
+		AverageScanDurationMs:       100,
+		P95ScanDurationMs:           200,
+		CriticalDetectionRate:       1,
+		EcosystemDepthStatus:        "npm-ga-other-ecosystems-preview",
+		IsolatedBackendStatus:       "unavailable",
+		BehaviorAnalysisDefaultMode: "disabled",
 	}
 	computeReadinessStage(&rep, false)
 	if rep.GAReady {
@@ -118,11 +129,17 @@ func TestProductionReadinessJSONIncludesGAEvidenceFields(t *testing.T) {
 		RepoValidationPassRate:          0,
 		RepoValidationFailures:          []string{"repo: dependency_inventory_error"},
 		GABlockers:                      []string{"real_repo_validation_count below GA threshold"},
-		EcosystemDepthStatus:            "npm-strong-other-ecosystems-experimental",
+		EcosystemDepthStatus:            "npm-ga-other-ecosystems-preview",
 		BehaviorAnalysisDefaultMode:     "disabled",
 		IsolatedBackendAvailable:        false,
 		SigningConfigured:               true,
 		SigningVerified:                 false,
+		ProvenanceConfigured:            true,
+		ProvenanceVerified:              false,
+		ChecksumsStatus:                 "verified",
+		ChecksumsVerified:               true,
+		SBOMStatus:                      "present",
+		SBOMVerified:                    true,
 	}
 	var buf bytes.Buffer
 	if err := WriteProductionReadiness(&buf, rep, true); err != nil {
@@ -146,6 +163,11 @@ func TestProductionReadinessJSONIncludesGAEvidenceFields(t *testing.T) {
 		"isolated_backend_available",
 		"signing_configured",
 		"signing_verified",
+		"provenance_configured",
+		"provenance_verified",
+		"checksums_status",
+		"checksums_verified",
+		"sbom_verified",
 	} {
 		if _, ok := got[field]; !ok {
 			t.Fatalf("production readiness JSON missing %q: %s", field, buf.String())

@@ -147,6 +147,14 @@ func TestRunBenchmarkWithRepoListMultiEcosystem(t *testing.T) {
 	if len(report.RepoValidations) != 1 || report.RepoValidations[0].ScanDurationMs <= 0 {
 		t.Fatalf("repo validation duration not recorded: %+v", report.RepoValidations)
 	}
+	if report.RepoValidations[0].InventoryDurationMs <= 0 ||
+		report.RepoValidations[0].CIScanDurationMs <= 0 ||
+		report.RepoValidations[0].OutputGenerationDurationMs <= 0 {
+		t.Fatalf("repo validation phase durations not recorded: %+v", report.RepoValidations[0])
+	}
+	if report.RepoValidations[0].EvidencePackGenerated && report.RepoValidations[0].EvidencePackDurationMs <= 0 {
+		t.Fatalf("repo validation evidence duration not recorded: %+v", report.RepoValidations[0])
+	}
 	if report.Metrics.RealRepoAverageScanDurationMs <= 0 || report.Metrics.RealRepoP95ScanDurationMs <= 0 {
 		t.Fatalf("real repo duration metrics not recorded: %+v", report.Metrics)
 	}

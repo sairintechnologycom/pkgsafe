@@ -39,46 +39,50 @@ type BenchmarkReport struct {
 // scan duration are always captured; false warn/block annotations are only
 // graded when repo-list or .pkgsafe-benchmark.json expectations request them.
 type RepoValidation struct {
-	Name                     string             `json:"name"`
-	Path                     string             `json:"path"`
-	Ecosystems               []string           `json:"ecosystems,omitempty"`
-	RepoType                 string             `json:"repo_type,omitempty"`
-	ExpectedPackageManager   string             `json:"expected_package_manager,omitempty"`
-	ExpectedOutputArtifacts  []string           `json:"expected_output_artifacts,omitempty"`
-	PrivateBetaRequired      bool               `json:"private_beta_required,omitempty"`
-	GARequired               bool               `json:"ga_required,omitempty"`
-	ScanCompleted            bool               `json:"scan_completed"`
-	DirectDependencies       int                `json:"direct_dependencies"`
-	TransitiveDependencies   int                `json:"transitive_dependencies"`
-	TotalDependencies        int                `json:"total_dependencies"`
-	SourceImportCount        int                `json:"source_import_count"`
-	ScanDurationMs           int64              `json:"scan_duration_ms"`
-	Decision                 string             `json:"decision,omitempty"`
-	Score                    int                `json:"score,omitempty"`
-	FindingsCount            int                `json:"findings_count"`
-	AllowCount               int                `json:"allow_count"`
-	WarnCount                int                `json:"warn_count"`
-	BlockCount               int                `json:"block_count"`
-	ExpectedDecision         string             `json:"expected_decision,omitempty"`
-	FalseWarn                bool               `json:"false_warn"`
-	FalseBlock               bool               `json:"false_block"`
-	ScannerCrash             bool               `json:"scanner_crash"`
-	MalformedInput           bool               `json:"malformed_input"`
-	NetworkFailure           bool               `json:"network_failure"`
-	FailureClassifications   []string           `json:"failure_classifications,omitempty"`
-	OSVCacheHits             int                `json:"osv_cache_hits"`
-	OSVCacheMisses           int                `json:"osv_cache_misses"`
-	JSONOutputGenerated      bool               `json:"json_output_generated"`
-	SARIFOutputGenerated     bool               `json:"sarif_output_generated"`
-	MarkdownSummaryGenerated bool               `json:"markdown_summary_generated"`
-	EvidencePackGenerated    bool               `json:"evidence_pack_generated"`
-	BehaviorMode             types.BehaviorMode `json:"behavior_mode_used,omitempty"`
-	IsolatedAvailable        bool               `json:"isolated_backend_available"`
-	FindingCountBySeverity   map[string]int     `json:"finding_count_by_severity,omitempty"`
-	Status                   string             `json:"status"`
-	Passed                   bool               `json:"passed"`
-	Notes                    string             `json:"notes,omitempty"`
-	Details                  []string           `json:"details,omitempty"`
+	Name                       string             `json:"name"`
+	Path                       string             `json:"path"`
+	Ecosystems                 []string           `json:"ecosystems,omitempty"`
+	RepoType                   string             `json:"repo_type,omitempty"`
+	ExpectedPackageManager     string             `json:"expected_package_manager,omitempty"`
+	ExpectedOutputArtifacts    []string           `json:"expected_output_artifacts,omitempty"`
+	PrivateBetaRequired        bool               `json:"private_beta_required,omitempty"`
+	GARequired                 bool               `json:"ga_required,omitempty"`
+	ScanCompleted              bool               `json:"scan_completed"`
+	DirectDependencies         int                `json:"direct_dependencies"`
+	TransitiveDependencies     int                `json:"transitive_dependencies"`
+	TotalDependencies          int                `json:"total_dependencies"`
+	SourceImportCount          int                `json:"source_import_count"`
+	ScanDurationMs             int64              `json:"scan_duration_ms"`
+	InventoryDurationMs        int64              `json:"inventory_duration_ms"`
+	CIScanDurationMs           int64              `json:"ci_scan_duration_ms"`
+	OutputGenerationDurationMs int64              `json:"output_generation_duration_ms"`
+	EvidencePackDurationMs     int64              `json:"evidence_pack_duration_ms"`
+	Decision                   string             `json:"decision,omitempty"`
+	Score                      int                `json:"score,omitempty"`
+	FindingsCount              int                `json:"findings_count"`
+	AllowCount                 int                `json:"allow_count"`
+	WarnCount                  int                `json:"warn_count"`
+	BlockCount                 int                `json:"block_count"`
+	ExpectedDecision           string             `json:"expected_decision,omitempty"`
+	FalseWarn                  bool               `json:"false_warn"`
+	FalseBlock                 bool               `json:"false_block"`
+	ScannerCrash               bool               `json:"scanner_crash"`
+	MalformedInput             bool               `json:"malformed_input"`
+	NetworkFailure             bool               `json:"network_failure"`
+	FailureClassifications     []string           `json:"failure_classifications,omitempty"`
+	OSVCacheHits               int                `json:"osv_cache_hits"`
+	OSVCacheMisses             int                `json:"osv_cache_misses"`
+	JSONOutputGenerated        bool               `json:"json_output_generated"`
+	SARIFOutputGenerated       bool               `json:"sarif_output_generated"`
+	MarkdownSummaryGenerated   bool               `json:"markdown_summary_generated"`
+	EvidencePackGenerated      bool               `json:"evidence_pack_generated"`
+	BehaviorMode               types.BehaviorMode `json:"behavior_mode_used,omitempty"`
+	IsolatedAvailable          bool               `json:"isolated_backend_available"`
+	FindingCountBySeverity     map[string]int     `json:"finding_count_by_severity,omitempty"`
+	Status                     string             `json:"status"`
+	Passed                     bool               `json:"passed"`
+	Notes                      string             `json:"notes,omitempty"`
+	Details                    []string           `json:"details,omitempty"`
 }
 
 type RealRepoSpec struct {
@@ -669,7 +673,7 @@ func runPackageBenchmarks(entries []BenchmarkPackageEntry, offline bool) []Bench
 				result.Skipped = true
 				result.SkipReason = "offline cache miss"
 			}
-			result.DurationMs = time.Since(start).Milliseconds()
+			result.DurationMs = elapsedMillis(start)
 			results = append(results, result)
 			continue
 		}
@@ -693,12 +697,12 @@ func runPackageBenchmarks(entries []BenchmarkPackageEntry, offline bool) []Bench
 			result.SkipReason = classifyPackageScanError(err)
 			result.FailureCategory = result.SkipReason
 			result.Details = append(result.Details, err.Error())
-			result.DurationMs = time.Since(start).Milliseconds()
+			result.DurationMs = elapsedMillis(start)
 			results = append(results, result)
 			continue
 		}
 		applyBenchmarkScanResult(&result, scanResult, entry)
-		result.DurationMs = time.Since(start).Milliseconds()
+		result.DurationMs = elapsedMillis(start)
 		results = append(results, result)
 	}
 	return results
@@ -881,12 +885,16 @@ func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResul
 			case "network_unavailable":
 				summary.NetworkFailures++
 				summary.NetworkUnavailable++
+				summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s skipped: network_unavailable", r.Ecosystem, r.Name, emptyVersion(r.Version)))
 			case "registry_unavailable":
 				summary.RegistryUnavailable++
+				summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s skipped: registry_unavailable", r.Ecosystem, r.Name, emptyVersion(r.Version)))
 			case "package_not_found":
 				summary.PackageNotFound++
+				summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s skipped: package_not_found", r.Ecosystem, r.Name, emptyVersion(r.Version)))
 			case "scanner_failure":
 				summary.ScannerFailures++
+				summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s skipped: scanner_failure", r.Ecosystem, r.Name, emptyVersion(r.Version)))
 			}
 			continue
 		}
@@ -898,6 +906,7 @@ func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResul
 			if r.FailureCategory == "expectation_mismatch" {
 				summary.ExpectationMismatches++
 			}
+			summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s failed: %s expected=%s actual=%s score=%d", r.Ecosystem, r.Name, emptyVersion(r.Version), firstNonEmptyString(r.FailureCategory, "benchmark_failure"), r.ExpectedDecision, emptyDecision(r.ActualDecision), r.RiskScore))
 		}
 	}
 	switch {
@@ -1235,7 +1244,9 @@ func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoVal
 	var out []RepoValidation
 	for _, spec := range specs {
 		start := time.Now()
+		inventoryStart := time.Now()
 		deps, err := scanBenchmarkInventory(spec.Path)
+		inventoryDuration := elapsedMillis(inventoryStart)
 		if err != nil {
 			duration := elapsedMillis(start)
 			out = append(out, RepoValidation{
@@ -1249,6 +1260,7 @@ func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoVal
 				GARequired:              spec.GARequired,
 				BehaviorMode:            types.NormalizeBehaviorMode(spec.BehaviorMode, false),
 				ScanDurationMs:          duration,
+				InventoryDurationMs:     inventoryDuration,
 				ScannerCrash:            true,
 				FailureClassifications:  []string{classifyRepoValidationError(err)},
 				Status:                  "fail",
@@ -1259,6 +1271,7 @@ func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoVal
 			continue
 		}
 		validation := validateRealRepo(spec, deps, 0, defaultOffline)
+		validation.InventoryDurationMs = inventoryDuration
 		validation.ScanDurationMs = elapsedMillis(start)
 		appendRepoValidationDurationDetail(&validation)
 		out = append(out, validation)
@@ -1317,11 +1330,14 @@ func validateRealRepo(spec RealRepoSpec, deps []types.Dependency, scanDurationMs
 	}
 
 	if hasPackageJSON(spec.Path) {
+		ciStart := time.Now()
 		if res, err := scanBenchmarkRisk(spec.Path); err != nil {
+			v.CIScanDurationMs = elapsedMillis(ciStart)
 			v.ScannerCrash = true
 			v.FailureClassifications = appendFailureClassification(v.FailureClassifications, classifyRepoValidationError(err))
 			v.Details = append(v.Details, "risk scan unavailable: "+err.Error())
 		} else {
+			v.CIScanDurationMs = elapsedMillis(ciStart)
 			v.Decision = string(res.Decision)
 			v.Score = res.Score
 			switch v.Decision {
@@ -1386,10 +1402,11 @@ func appendRepoValidationDurationDetail(v *RepoValidation) {
 	if len(v.Details) != 0 {
 		return
 	}
-	v.Details = append(v.Details, fmt.Sprintf("full validation measured: %d direct, %d transitive, %d source imports, %dms", v.DirectDependencies, v.TransitiveDependencies, v.SourceImportCount, v.ScanDurationMs))
+	v.Details = append(v.Details, fmt.Sprintf("full validation measured: %d direct, %d transitive, %d source imports, inventory=%dms ci_scan=%dms output=%dms evidence=%dms total=%dms", v.DirectDependencies, v.TransitiveDependencies, v.SourceImportCount, v.InventoryDurationMs, v.CIScanDurationMs, v.OutputGenerationDurationMs, v.EvidencePackDurationMs, v.ScanDurationMs))
 }
 
 func materializeExpectedArtifacts(v *RepoValidation, artifacts []string) {
+	start := time.Now()
 	if len(artifacts) == 0 {
 		artifacts = []string{"json", "markdown_summary"}
 	}
@@ -1411,13 +1428,17 @@ func materializeExpectedArtifacts(v *RepoValidation, artifacts []string) {
 				v.SARIFOutputGenerated = true
 			}
 		case "evidence_pack":
+			evidenceStart := time.Now()
 			if err := buildRepoValidationEvidencePack(*v); err != nil {
+				v.EvidencePackDurationMs += elapsedMillis(evidenceStart)
 				recordArtifactGenerationError(v, "evidence_pack_error", err)
 			} else {
+				v.EvidencePackDurationMs += elapsedMillis(evidenceStart)
 				v.EvidencePackGenerated = true
 			}
 		}
 	}
+	v.OutputGenerationDurationMs = elapsedMillis(start)
 }
 
 func recordArtifactGenerationError(v *RepoValidation, category string, err error) {

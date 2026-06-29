@@ -21,7 +21,7 @@ import (
 
 func cmdReport(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: pkgsafe report [generate|evidence-pack|beta-evidence|exceptions|overrides|policy|ci|siem-export|servicenow-export|azure-devops-export]")
+		return fmt.Errorf("usage: pkgsafe report [generate|evidence-pack|beta-evidence|ga-evidence|exceptions|overrides|policy|ci|siem-export|servicenow-export|azure-devops-export]")
 	}
 
 	switch args[0] {
@@ -31,6 +31,8 @@ func cmdReport(args []string) error {
 		return cmdReportEvidencePack(args[1:])
 	case "beta-evidence":
 		return cmdReportBetaEvidence(args[1:])
+	case "ga-evidence":
+		return cmdReportEvidence(args[1:], "ga")
 	case "exceptions":
 		return cmdReportExceptions(args[1:])
 	case "overrides":
@@ -51,6 +53,7 @@ func cmdReport(args []string) error {
 }
 
 type betaEvidenceReport struct {
+	EvidenceKind          string                               `json:"evidence_kind"`
 	GeneratedAt           string                               `json:"generated_at"`
 	ProductionReadiness   validation.ProductionReadinessReport `json:"production_readiness"`
 	BenchmarkReport       validation.BenchmarkReport           `json:"benchmark_output"`
@@ -66,8 +69,18 @@ type betaEvidenceReport struct {
 }
 
 func cmdReportBetaEvidence(args []string) error {
-	fs := flag.NewFlagSet("beta-evidence", flag.ContinueOnError)
-	output := fs.String("output", "beta-evidence.md", "Markdown or .zip output path")
+	return cmdReportEvidence(args, "private-beta")
+}
+
+func cmdReportEvidence(args []string, kind string) error {
+	commandName := "beta-evidence"
+	defaultOutput := "beta-evidence.md"
+	if kind == "ga" {
+		commandName = "ga-evidence"
+		defaultOutput = "pkgsafe-ga-evidence.zip"
+	}
+	fs := flag.NewFlagSet(commandName, flag.ContinueOnError)
+	output := fs.String("output", defaultOutput, "Markdown or .zip output path")
 	jsonOutput := fs.String("json-output", "", "optional JSON output path")
 	repo := fs.String("repo", "", "optional real repository path to validate")
 	repoList := fs.String("repo-list", "", "optional real repository list JSON")
@@ -99,29 +112,35 @@ func cmdReportBetaEvidence(args []string) error {
 		return err
 	}
 	evidence := betaEvidenceReport{
+		EvidenceKind:        kind,
 		GeneratedAt:         prod.GeneratedAt,
 		ProductionReadiness: prod,
 		BenchmarkReport:     bench,
 		BenchmarkSummary:    bench.Metrics,
 		RolloutLimitations: []string{
-			"npm has the strongest artifact and lifecycle-script coverage.",
-			"PyPI, Go, and Cargo are not npm-equivalent yet.",
+			"PkgSafe GA v1 is scoped as npm-first supply-chain scanning.",
+			"PyPI, Go, and Cargo are preview coverage and are not npm-equivalent yet.",
 			"heuristic behavior mode executes on the host and is not sandboxing.",
 			"isolated behavior mode is unavailable until a real backend lands.",
-			"GA remains blocked until real repository validation and ecosystem-depth thresholds are met.",
+			"GA remains blocked until real repository validation and release-integrity verification thresholds are met.",
 		},
 		EcosystemDepth: map[string]string{
-			"npm":   "strongest private-beta coverage",
-			"pypi":  "early coverage; not npm-equivalent",
-			"go":    "metadata and OSV-oriented; not npm-equivalent",
-			"cargo": "metadata and OSV-oriented; not npm-equivalent",
+			"npm":   "production-ready GA v1 scope after GA evidence gates pass",
+			"pypi":  "preview coverage; not npm-equivalent",
+			"go":    "preview metadata and OSV-oriented coverage; not npm-equivalent",
+			"cargo": "preview metadata and OSV-oriented coverage; not npm-equivalent",
 		},
 		BehaviorModeSummary: "Private beta defaults behavior analysis to disabled. Heuristic mode is host execution; isolated mode reports unavailable until a real isolation backend exists.",
 		OSVDBStatus:         gateSummary(prod, "OSV cache"),
 		ReleaseArtifactStatus: map[string]string{
-			"signed_release": prod.SignedReleaseStatus,
-			"sbom":           prod.SBOMStatus,
-			"provenance":     prod.ProvenanceStatus,
+			"signed_release":      prod.SignedReleaseStatus,
+			"signing_verified":    fmt.Sprintf("%t", prod.SigningVerified),
+			"checksums":           prod.ChecksumsStatus,
+			"checksums_verified":  fmt.Sprintf("%t", prod.ChecksumsVerified),
+			"sbom":                prod.SBOMStatus,
+			"sbom_verified":       fmt.Sprintf("%t", prod.SBOMVerified),
+			"provenance":          prod.ProvenanceStatus,
+			"provenance_verified": fmt.Sprintf("%t", prod.ProvenanceVerified),
 		},
 		SecurityGateStatus: map[string]string{
 			"rollout_readiness": gateSummary(prod, "rollout readiness"),
@@ -131,7 +150,7 @@ func cmdReportBetaEvidence(args []string) error {
 		KnownLimitations: []string{
 			"Real repo validation count may be below GA threshold.",
 			"Isolated behavior backend is not implemented.",
-			"PyPI/Go/Cargo depth is not npm-equivalent.",
+			"PyPI/Go/Cargo remain preview until depth parity is implemented and validated.",
 		},
 		Recommendation: prod.Recommendation,
 	}
@@ -210,6 +229,10 @@ func writeBetaEvidenceZip(outputPath string, evidence betaEvidenceReport) error 
 	defer f.Close()
 	zw := zip.NewWriter(f)
 	defer zw.Close()
+	prefix := "pkgsafe-private-beta-evidence"
+	if evidence.EvidenceKind == "ga" {
+		prefix = "pkgsafe-ga-evidence"
+	}
 	manifest := report.Manifest{
 		SchemaVersion: "1.0",
 		Tool:          "pkgsafe",
@@ -219,7 +242,7 @@ func writeBetaEvidenceZip(outputPath string, evidence betaEvidenceReport) error 
 	}
 	for path, content := range files {
 		manifest.Files = append(manifest.Files, report.ManifestFile{
-			Path:   "pkgsafe-private-beta-evidence/" + path,
+			Path:   prefix + "/" + path,
 			SHA256: sha256Hex(content),
 		})
 	}
@@ -227,11 +250,11 @@ func writeBetaEvidenceZip(outputPath string, evidence betaEvidenceReport) error 
 	if err != nil {
 		return err
 	}
-	if err := writeZipFile(zw, "pkgsafe-private-beta-evidence/manifest.json", manifestJSON); err != nil {
+	if err := writeZipFile(zw, prefix+"/manifest.json", manifestJSON); err != nil {
 		return err
 	}
 	for path, content := range files {
-		if err := writeZipFile(zw, "pkgsafe-private-beta-evidence/"+path, content); err != nil {
+		if err := writeZipFile(zw, prefix+"/"+path, content); err != nil {
 			return err
 		}
 	}
@@ -290,7 +313,11 @@ func gateSummary(rep validation.ProductionReadinessReport, name string) string {
 
 func renderBetaEvidenceMarkdown(e betaEvidenceReport) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# PkgSafe Private Beta Evidence\n\n")
+	title := "PkgSafe Private Beta Evidence"
+	if e.EvidenceKind == "ga" {
+		title = "PkgSafe GA Candidate Evidence"
+	}
+	fmt.Fprintf(&b, "# %s\n\n", title)
 	fmt.Fprintf(&b, "Generated: %s\n\n", e.GeneratedAt)
 	fmt.Fprintf(&b, "## Readiness\n\n")
 	fmt.Fprintf(&b, "- Current stage: %s\n", e.ProductionReadiness.CurrentStage)

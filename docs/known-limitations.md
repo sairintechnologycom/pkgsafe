@@ -1,16 +1,17 @@
 # Known Limitations
 
-## Beta stage (v0.2.0-beta.1)
+## GA candidate scope
 
-PkgSafe is in **private beta**. Core scanning, CI gating, MCP tooling, and
-policy packs are functional and gated by `pkgsafe test production-readiness`,
-which currently returns `PRIVATE_BETA_READY`. The following are explicitly *not*
-claimed at this stage:
+PkgSafe GA v1 is scoped as **npm-first**. Core npm scanning, CI gating, MCP
+tooling, policy packs, OSV intelligence, and evidence reporting are gated by
+`pkgsafe test production-readiness`. The following are explicitly *not* claimed
+until their GA gates are verified:
 
-- Production GA hardening is incomplete: signed-release, provenance, and
-  online-benchmark gates are reported but treated as non-blocking follow-ups.
+- Production GA hardening is incomplete while signed-release, provenance,
+  checksum, SBOM, online-benchmark, and real-repo evidence gates remain
+  unverified.
 - Accuracy is validated against deterministic fixtures plus optional online and
-  real-repo checks; it has not been validated at production scale.
+  real-repo checks; GA requires 15 executable real-repo validations.
 - Connected-environment behavior (npm/PyPI/OSV reachability) is checked by
   `pkgsafe doctor` but may vary by network and registry availability.
 
@@ -21,11 +22,13 @@ claimed at this stage:
   but still runs scripts on the host and is not a container, namespace, or VM
   sandbox. `isolated` mode must not be claimed unless a real isolation backend is
   active.
-- npm has the deepest artifact and lifecycle analysis coverage. PyPI, Go, and
-  Cargo support is useful but not equivalent across every package format.
+- npm has the deepest artifact and lifecycle analysis coverage and is the GA v1
+  production scope. PyPI, Go, and Cargo are preview coverage and are not
+  npm-equivalent across every package format.
 - GA requires real repository validation. `production-readiness --json` reports
-  `ga_ready=false` and explicit `ga_blockers` while repo counts, ecosystem depth,
-  isolated behavior backend, or release verification are below threshold.
+  `ga_ready=false` and explicit `ga_blockers` while repo counts, npm validation,
+  scan duration, signing, provenance, checksum, SBOM, or release verification
+  are below threshold.
 - Offline scans require advisory and registry metadata to be synced or cached
   first. Missing advisory data fails closed rather than silently allowing a
   package.

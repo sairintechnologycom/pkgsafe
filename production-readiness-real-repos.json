@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-29T00:44:47Z",
+  "generated_at": "2026-06-29T10:31:35Z",
   "final_status": "PUBLIC_BETA_READY",
   "current_stage": "PUBLIC_BETA_READY",
   "recommendation": "PUBLIC_BETA_READY: connected accuracy, action, and real-repo validation confirmed; finish signed-release + provenance verification for GA.",
@@ -9,12 +9,8 @@
   "production_ready": false,
   "ga_blockers": [
     "real_repo_validation_count below GA threshold",
-    "npm real repository count below GA threshold",
-    "PyPI real repository count below GA threshold",
     "signed release artifacts not verified locally",
-    "build provenance not verified locally",
-    "isolated behavior backend unavailable",
-    "PyPI/Go/Cargo depth not npm-equivalent"
+    "build provenance not verified locally"
   ],
   "online_benchmark_status": "pass",
   "github_action_status": "valid",
@@ -22,17 +18,22 @@
   "signing_configured": true,
   "signing_verified": false,
   "sbom_status": "present",
+  "sbom_verified": true,
+  "checksums_status": "verified",
+  "checksums_verified": true,
   "provenance_status": "configured",
+  "provenance_configured": true,
+  "provenance_verified": false,
   "docs_status": "complete",
-  "real_repo_validation_count": 5,
+  "real_repo_validation_count": 7,
   "required_real_repo_validation_count": 15,
   "repo_validation_pass_rate": 1,
-  "ecosystem_depth_status": "npm-strong-other-ecosystems-experimental",
+  "ecosystem_depth_status": "npm-ga-other-ecosystems-preview",
   "isolated_backend_status": "unavailable",
   "isolated_backend_available": false,
   "behavior_analysis_default_mode": "disabled",
-  "npm_repo_count": 4,
-  "pypi_repo_count": 1,
+  "npm_repo_count": 6,
+  "pypi_repo_count": 2,
   "go_repo_count": 0,
   "cargo_repo_count": 0,
   "false_block_count": 0,
@@ -47,7 +48,7 @@
       "name": "rollout readiness",
       "passed": true,
       "blocking": true,
-      "duration_ms": 35072,
+      "duration_ms": 29639,
       "summary": "PRIVATE_BETA_READY",
       "details": [
         "GO for private beta rollout. Continue to keep lifecycle behavior analysis labelled best-effort."
@@ -79,7 +80,7 @@
       "name": "OSV cache",
       "passed": true,
       "blocking": true,
-      "duration_ms": 266,
+      "duration_ms": 279,
       "summary": "OSV database is initialized",
       "details": [
         "records: 257513",
@@ -90,12 +91,12 @@
       "name": "CI outputs",
       "passed": true,
       "blocking": true,
-      "duration_ms": 2,
+      "duration_ms": 1,
       "summary": "JSON, SARIF, and Markdown outputs generated",
       "details": [
-        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-3127665430/results.json",
-        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-3127665430/results.sarif",
-        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-3127665430/summary.md"
+        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-1853697082/results.json",
+        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-1853697082/results.sarif",
+        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-1853697082/summary.md"
       ]
     },
     {
@@ -113,7 +114,8 @@
         "docs/policy-guide.md",
         "docs/private-registry.md",
         "docs/known-limitations.md",
-        "docs/threat-model.md"
+        "docs/threat-model.md",
+        "docs/release-verification.md"
       ]
     },
     {
@@ -130,8 +132,8 @@
       "name": "release artifacts",
       "passed": true,
       "blocking": false,
-      "duration_ms": 0,
-      "summary": "checksums and SBOM exist",
+      "duration_ms": 196,
+      "summary": "checksums and SBOM exist and checksums verify",
       "details": [
         "dist/checksums.txt",
         "dist/sbom.spdx.json"
