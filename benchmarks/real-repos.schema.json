@@ -19,7 +19,9 @@
         "type": "string",
         "enum": [
           "npm-simple-app",
+          "small-npm-app",
           "react-vite-app",
+          "react-vite-next-app",
           "nextjs-app",
           "npm-workspace-monorepo",
           "node-backend-api",
@@ -42,7 +44,12 @@
         "uniqueItems": true
       },
       "expected_no_false_block": { "type": "boolean" },
-      "expected_max_false_warn_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+      "expected_max_false_warn_rate": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "Ratio between 0 and 1. Example: 0.10 means 10%."
+      },
       "behavior_mode": { "type": "string", "enum": ["disabled", "heuristic", "isolated"] },
       "offline": { "type": "boolean" },
       "notes": { "type": "string" },

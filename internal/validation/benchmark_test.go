@@ -144,6 +144,12 @@ func TestRunBenchmarkWithRepoListMultiEcosystem(t *testing.T) {
 	if report.Metrics.FalseBlockCount != 0 || report.Metrics.ScannerCrashCount != 0 {
 		t.Fatalf("unexpected failures: %+v", report.Metrics)
 	}
+	if len(report.RepoValidations) != 1 || report.RepoValidations[0].ScanDurationMs <= 0 {
+		t.Fatalf("repo validation duration not recorded: %+v", report.RepoValidations)
+	}
+	if report.Metrics.RealRepoAverageScanDurationMs <= 0 || report.Metrics.RealRepoP95ScanDurationMs <= 0 {
+		t.Fatalf("real repo duration metrics not recorded: %+v", report.Metrics)
+	}
 	b, err := json.Marshal(report)
 	if err != nil {
 		t.Fatal(err)
@@ -191,6 +197,30 @@ func TestClassifyPackageScanError(t *testing.T) {
 		if got := classifyPackageScanError(errTestType(msg)); got != want {
 			t.Fatalf("classifyPackageScanError(%q) = %q, want %q", msg, got, want)
 		}
+	}
+}
+
+func TestValidateRealRepoSpecBatchOneAliasesAndFalseWarnRate(t *testing.T) {
+	for _, repoType := range []string{"small-npm-app", "react-vite-next-app", "npm-workspace-monorepo"} {
+		spec := RealRepoSpec{
+			Name:                     "repo",
+			Path:                     "/tmp/repo",
+			RepoType:                 repoType,
+			ExpectedMaxFalseWarnRate: 0.10,
+		}
+		if err := validateRealRepoSpec(spec); err != nil {
+			t.Fatalf("validateRealRepoSpec(%q) error = %v", repoType, err)
+		}
+	}
+
+	spec := RealRepoSpec{
+		Name:                     "repo",
+		Path:                     "/tmp/repo",
+		RepoType:                 "small-npm-app",
+		ExpectedMaxFalseWarnRate: 10,
+	}
+	if err := validateRealRepoSpec(spec); err == nil {
+		t.Fatal("expected percentage-style false warn threshold to fail")
 	}
 }
 
