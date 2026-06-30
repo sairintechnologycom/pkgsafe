@@ -1,0 +1,10 @@
+{
+  "name": "node-backend-worker",
+  "private": true,
+  "dependencies": {
+    "bullmq": "^5.7.0",
+    "ioredis": "^5.4.1",
+    "pino": "^9.1.0",
+    "zod": "^3.22.4"
+  }
+}

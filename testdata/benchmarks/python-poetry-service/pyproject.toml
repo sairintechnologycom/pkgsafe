@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "python-poetry-service"
+version = "0.1.0"
+description = "Synthetic service fixture"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.111.0"
+uvicorn = "^0.29.0"
+pydantic = "^2.7.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"

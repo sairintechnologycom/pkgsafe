@@ -46,11 +46,16 @@ The command must print `Verified OK`.
 Verify GitHub Artifact Attestation provenance for the downloaded archive:
 
 ```bash
-gh attestation verify pkgsafe_<version>_<os>_<arch>.tar.gz --repo niyam-ai/pkgsafe
+gh attestation verify pkgsafe_<version>_<os>_<arch>.tar.gz --repo sairintechnologycom/pkgsafe
 ```
 
 The attestation must resolve to the PkgSafe release workflow for the expected
 repository.
+
+GitHub-hosted provenance is a GA gate. If the repository is a user-owned private
+repository, GitHub may reject attestation persistence with `Feature not available
+for user-owned private repositories`; in that state the release can remain beta,
+but it must not be promoted to GA.
 
 ## Binary Version
 

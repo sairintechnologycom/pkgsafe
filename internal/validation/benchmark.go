@@ -3,6 +3,8 @@ package validation
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,6 +59,11 @@ type RepoValidation struct {
 	CIScanDurationMs           int64              `json:"ci_scan_duration_ms"`
 	OutputGenerationDurationMs int64              `json:"output_generation_duration_ms"`
 	EvidencePackDurationMs     int64              `json:"evidence_pack_duration_ms"`
+	ScanDurationUs             int64              `json:"scan_duration_us,omitempty"`
+	InventoryDurationUs        int64              `json:"inventory_duration_us,omitempty"`
+	CIScanDurationUs           int64              `json:"ci_scan_duration_us,omitempty"`
+	OutputGenerationDurationUs int64              `json:"output_generation_duration_us,omitempty"`
+	EvidencePackDurationUs     int64              `json:"evidence_pack_duration_us,omitempty"`
 	Decision                   string             `json:"decision,omitempty"`
 	Score                      int                `json:"score,omitempty"`
 	FindingsCount              int                `json:"findings_count"`
@@ -101,6 +108,22 @@ type RealRepoSpec struct {
 	Notes                             string   `json:"notes"`
 	PrivateBetaRequired               bool     `json:"private_beta_required"`
 	GARequired                        bool     `json:"ga_required"`
+}
+
+type repoEvidenceManifest struct {
+	RepoPath    string             `json:"repo_path"`
+	FileCount   int                `json:"file_count"`
+	TotalBytes  int64              `json:"total_bytes"`
+	Files       []repoEvidenceFile `json:"files"`
+	ByExtension map[string]int     `json:"by_extension"`
+	ByCategory  map[string]int     `json:"by_category"`
+}
+
+type repoEvidenceFile struct {
+	Path     string `json:"path"`
+	Size     int64  `json:"size"`
+	SHA256   string `json:"sha256"`
+	Category string `json:"category"`
 }
 
 // OnlineBenchmarkSummary records connected-environment package checks separately
@@ -159,6 +182,10 @@ type BenchmarkMetrics struct {
 	CargoRepoCount                  int                  `json:"cargo_repo_count"`
 	RealRepoAverageScanDurationMs   int64                `json:"real_repo_scan_duration_avg_ms"`
 	RealRepoP95ScanDurationMs       int64                `json:"real_repo_scan_duration_p95_ms"`
+	RealRepoAverageScanDurationUs   int64                `json:"real_repo_scan_duration_avg_us,omitempty"`
+	RealRepoP95ScanDurationUs       int64                `json:"real_repo_scan_duration_p95_us,omitempty"`
+	RealRepoTimingTrustworthy       bool                 `json:"real_repo_timing_trustworthy"`
+	RealRepoTimingFloorCount        int                  `json:"real_repo_timing_floor_count,omitempty"`
 	DependencyCountDirect           int                  `json:"dependency_count_direct"`
 	DependencyCountTransitive       int                  `json:"dependency_count_transitive"`
 	SourceImportCount               int                  `json:"source_import_count"`
@@ -937,11 +964,23 @@ func elapsedMillis(start time.Time) int64 {
 	if elapsed <= 0 {
 		return 1
 	}
-	ms := elapsed.Milliseconds()
-	if ms == 0 {
+	ms := (elapsed + time.Millisecond - 1) / time.Millisecond
+	if ms <= 0 {
 		return 1
 	}
-	return ms
+	return int64(ms)
+}
+
+func elapsedMicros(start time.Time) int64 {
+	elapsed := time.Since(start)
+	if elapsed <= 0 {
+		return 1
+	}
+	us := elapsed.Microseconds()
+	if us == 0 {
+		return 1
+	}
+	return us
 }
 
 func percentileDuration(in []int64, p float64) int64 {
@@ -1209,7 +1248,7 @@ func validateRealRepoSpec(spec RealRepoSpec) error {
 	}
 	switch spec.RepoType {
 	case "", "npm-simple-app", "small-npm-app", "react-vite-app", "react-vite-next-app", "nextjs-app", "npm-workspace-monorepo", "node-backend-api",
-		"python-requirements-app", "python-poetry-app", "go-module-app", "cargo-rust-app", "mixed-js-python-repo", "external repo":
+		"python-requirements-app", "python-poetry-app", "go-module-app", "cargo-rust-app", "mixed-js-python-repo", "internal-private-package-repo", "external repo":
 	default:
 		return fmt.Errorf("unsupported repo_type %q", spec.RepoType)
 	}
@@ -1247,8 +1286,10 @@ func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoVal
 		inventoryStart := time.Now()
 		deps, err := scanBenchmarkInventory(spec.Path)
 		inventoryDuration := elapsedMillis(inventoryStart)
+		inventoryDurationUs := elapsedMicros(inventoryStart)
 		if err != nil {
 			duration := elapsedMillis(start)
+			durationUs := elapsedMicros(start)
 			out = append(out, RepoValidation{
 				Name:                    spec.Name,
 				Path:                    spec.Path,
@@ -1261,6 +1302,8 @@ func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoVal
 				BehaviorMode:            types.NormalizeBehaviorMode(spec.BehaviorMode, false),
 				ScanDurationMs:          duration,
 				InventoryDurationMs:     inventoryDuration,
+				ScanDurationUs:          durationUs,
+				InventoryDurationUs:     inventoryDurationUs,
 				ScannerCrash:            true,
 				FailureClassifications:  []string{classifyRepoValidationError(err)},
 				Status:                  "fail",
@@ -1272,7 +1315,9 @@ func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoVal
 		}
 		validation := validateRealRepo(spec, deps, 0, defaultOffline)
 		validation.InventoryDurationMs = inventoryDuration
+		validation.InventoryDurationUs = inventoryDurationUs
 		validation.ScanDurationMs = elapsedMillis(start)
+		validation.ScanDurationUs = elapsedMicros(start)
 		appendRepoValidationDurationDetail(&validation)
 		out = append(out, validation)
 	}
@@ -1333,11 +1378,13 @@ func validateRealRepo(spec RealRepoSpec, deps []types.Dependency, scanDurationMs
 		ciStart := time.Now()
 		if res, err := scanBenchmarkRisk(spec.Path); err != nil {
 			v.CIScanDurationMs = elapsedMillis(ciStart)
+			v.CIScanDurationUs = elapsedMicros(ciStart)
 			v.ScannerCrash = true
 			v.FailureClassifications = appendFailureClassification(v.FailureClassifications, classifyRepoValidationError(err))
 			v.Details = append(v.Details, "risk scan unavailable: "+err.Error())
 		} else {
 			v.CIScanDurationMs = elapsedMillis(ciStart)
+			v.CIScanDurationUs = elapsedMicros(ciStart)
 			v.Decision = string(res.Decision)
 			v.Score = res.Score
 			switch v.Decision {
@@ -1402,7 +1449,7 @@ func appendRepoValidationDurationDetail(v *RepoValidation) {
 	if len(v.Details) != 0 {
 		return
 	}
-	v.Details = append(v.Details, fmt.Sprintf("full validation measured: %d direct, %d transitive, %d source imports, inventory=%dms ci_scan=%dms output=%dms evidence=%dms total=%dms", v.DirectDependencies, v.TransitiveDependencies, v.SourceImportCount, v.InventoryDurationMs, v.CIScanDurationMs, v.OutputGenerationDurationMs, v.EvidencePackDurationMs, v.ScanDurationMs))
+	v.Details = append(v.Details, fmt.Sprintf("full validation measured: %d direct, %d transitive, %d source imports, inventory=%dms/%dus ci_scan=%dms/%dus output=%dms/%dus evidence=%dms/%dus total=%dms/%dus", v.DirectDependencies, v.TransitiveDependencies, v.SourceImportCount, v.InventoryDurationMs, v.InventoryDurationUs, v.CIScanDurationMs, v.CIScanDurationUs, v.OutputGenerationDurationMs, v.OutputGenerationDurationUs, v.EvidencePackDurationMs, v.EvidencePackDurationUs, v.ScanDurationMs, v.ScanDurationUs))
 }
 
 func materializeExpectedArtifacts(v *RepoValidation, artifacts []string) {
@@ -1431,14 +1478,17 @@ func materializeExpectedArtifacts(v *RepoValidation, artifacts []string) {
 			evidenceStart := time.Now()
 			if err := buildRepoValidationEvidencePack(*v); err != nil {
 				v.EvidencePackDurationMs += elapsedMillis(evidenceStart)
+				v.EvidencePackDurationUs += elapsedMicros(evidenceStart)
 				recordArtifactGenerationError(v, "evidence_pack_error", err)
 			} else {
 				v.EvidencePackDurationMs += elapsedMillis(evidenceStart)
+				v.EvidencePackDurationUs += elapsedMicros(evidenceStart)
 				v.EvidencePackGenerated = true
 			}
 		}
 	}
 	v.OutputGenerationDurationMs = elapsedMillis(start)
+	v.OutputGenerationDurationUs = elapsedMicros(start)
 }
 
 func recordArtifactGenerationError(v *RepoValidation, category string, err error) {
@@ -1501,7 +1551,90 @@ func buildRepoValidationEvidencePack(v RepoValidation) error {
 		_ = zw.Close()
 		return err
 	}
+	manifest, err := collectRepoEvidenceManifest(v.Path)
+	if err != nil {
+		_ = zw.Close()
+		return err
+	}
+	manifestBody, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		_ = zw.Close()
+		return err
+	}
+	if err := writeZipEntry(zw, "repo-file-manifest.json", manifestBody); err != nil {
+		_ = zw.Close()
+		return err
+	}
 	return zw.Close()
+}
+
+func collectRepoEvidenceManifest(repoPath string) (repoEvidenceManifest, error) {
+	manifest := repoEvidenceManifest{
+		RepoPath:    repoPath,
+		ByExtension: map[string]int{},
+		ByCategory:  map[string]int{},
+	}
+	err := filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			switch info.Name() {
+			case ".git", "node_modules", "dist", "build", ".venv", "venv", "__pycache__", "target":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		category := repoEvidenceCategory(info.Name())
+		if category == "" {
+			return nil
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(repoPath, path)
+		if err != nil {
+			rel = path
+		}
+		sum := sha256.Sum256(body)
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == "" {
+			ext = "(none)"
+		}
+		manifest.FileCount++
+		manifest.TotalBytes += int64(len(body))
+		manifest.ByExtension[ext]++
+		manifest.ByCategory[category]++
+		manifest.Files = append(manifest.Files, repoEvidenceFile{
+			Path:     filepath.ToSlash(rel),
+			Size:     int64(len(body)),
+			SHA256:   hex.EncodeToString(sum[:]),
+			Category: category,
+		})
+		return nil
+	})
+	if err != nil {
+		return repoEvidenceManifest{}, err
+	}
+	sort.Slice(manifest.Files, func(i, j int) bool { return manifest.Files[i].Path < manifest.Files[j].Path })
+	return manifest, nil
+}
+
+func repoEvidenceCategory(name string) string {
+	lower := strings.ToLower(name)
+	switch lower {
+	case "package.json", "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
+		"requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock", "pipfile", "pipfile.lock",
+		"go.mod", "go.sum", "cargo.toml", "cargo.lock":
+		return "dependency-manifest"
+	}
+	switch filepath.Ext(lower) {
+	case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".rs":
+		return "source"
+	default:
+		return ""
+	}
 }
 
 func writeZipEntry(zw *zip.Writer, name string, body []byte) error {
@@ -1597,6 +1730,7 @@ func applyRealRepoMetrics(report *BenchmarkReport, validations []RepoValidation)
 	ecosystems := map[string]bool{}
 	modes := map[types.BehaviorMode]bool{}
 	var durations []int64
+	var durationsUs []int64
 	if report.Metrics.FindingCountBySeverity == nil {
 		report.Metrics.FindingCountBySeverity = map[string]int{}
 	}
@@ -1608,6 +1742,10 @@ func applyRealRepoMetrics(report *BenchmarkReport, validations []RepoValidation)
 			report.Metrics.ReposFailed++
 		}
 		durations = append(durations, v.ScanDurationMs)
+		durationsUs = append(durationsUs, v.ScanDurationUs)
+		if v.ScanDurationMs <= 1 {
+			report.Metrics.RealRepoTimingFloorCount++
+		}
 		report.Metrics.DependencyCountDirect += v.DirectDependencies
 		report.Metrics.DependencyCountTransitive += v.TransitiveDependencies
 		report.Metrics.SourceImportCount += v.SourceImportCount
@@ -1689,6 +1827,9 @@ func applyRealRepoMetrics(report *BenchmarkReport, validations []RepoValidation)
 	report.Metrics.EcosystemCount = len(ecosystems)
 	report.Metrics.RealRepoAverageScanDurationMs = averageDuration(durations)
 	report.Metrics.RealRepoP95ScanDurationMs = percentileDuration(durations, 0.95)
+	report.Metrics.RealRepoAverageScanDurationUs = averageDuration(durationsUs)
+	report.Metrics.RealRepoP95ScanDurationUs = percentileDuration(durationsUs, 0.95)
+	report.Metrics.RealRepoTimingTrustworthy = len(validations) > 0 && report.Metrics.RealRepoP95ScanDurationMs > 1
 	for mode := range modes {
 		report.Metrics.BehaviorModesUsed = append(report.Metrics.BehaviorModesUsed, mode)
 	}

@@ -1,0 +1,12 @@
+{
+  "name": "@acme/internal-service",
+  "private": true,
+  "dependencies": {
+    "@acme/auth-client": "1.2.3",
+    "@acme/audit-events": "2.1.0",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@acme/test-kit": "0.8.0"
+  }
+}

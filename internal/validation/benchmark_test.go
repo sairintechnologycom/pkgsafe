@@ -209,7 +209,7 @@ func TestClassifyPackageScanError(t *testing.T) {
 }
 
 func TestValidateRealRepoSpecBatchOneAliasesAndFalseWarnRate(t *testing.T) {
-	for _, repoType := range []string{"small-npm-app", "react-vite-next-app", "npm-workspace-monorepo"} {
+	for _, repoType := range []string{"small-npm-app", "react-vite-next-app", "npm-workspace-monorepo", "internal-private-package-repo"} {
 		spec := RealRepoSpec{
 			Name:                     "repo",
 			Path:                     "/tmp/repo",

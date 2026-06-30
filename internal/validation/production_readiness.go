@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -64,6 +65,10 @@ type ProductionReadinessReport struct {
 	ScannerCrashCount               int      `json:"scanner_crash_count"`
 	AverageScanDurationMs           int64    `json:"average_scan_duration_ms"`
 	P95ScanDurationMs               int64    `json:"p95_scan_duration_ms"`
+	AverageScanDurationUs           int64    `json:"average_scan_duration_us,omitempty"`
+	P95ScanDurationUs               int64    `json:"p95_scan_duration_us,omitempty"`
+	ScanTimingTrustworthy           bool     `json:"scan_timing_trustworthy"`
+	ScanTimingFloorCount            int      `json:"scan_timing_floor_count,omitempty"`
 	CriticalDetectionRate           float64  `json:"critical_detection_rate"`
 	KnownGoodFalseBlockRate         float64  `json:"known_good_false_block_rate"`
 	PrivateBetaRecommendation       bool     `json:"private_beta_recommendation"`
@@ -158,7 +163,7 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 	rep.ChecksumsVerified = rep.ChecksumsStatus == "verified"
 	rep.ProvenanceStatus = provenanceStatus()
 	rep.ProvenanceConfigured = rep.ProvenanceStatus == "configured" || rep.ProvenanceStatus == "verified"
-	rep.ProvenanceVerified = rep.ProvenanceStatus == "verified"
+	rep.ProvenanceVerified = provenanceVerified()
 	rep.DocsStatus = gateStatusString(rep, "documentation", "complete", "incomplete")
 	if benchErr == nil {
 		rep.RealRepoValidationCount = countRealRepos(benchReport, opts.RealRepos)
@@ -170,6 +175,10 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 		rep.ScannerCrashCount = benchReport.Metrics.ScannerCrashCount
 		rep.AverageScanDurationMs = benchReport.Metrics.RealRepoAverageScanDurationMs
 		rep.P95ScanDurationMs = benchReport.Metrics.RealRepoP95ScanDurationMs
+		rep.AverageScanDurationUs = benchReport.Metrics.RealRepoAverageScanDurationUs
+		rep.P95ScanDurationUs = benchReport.Metrics.RealRepoP95ScanDurationUs
+		rep.ScanTimingTrustworthy = benchReport.Metrics.RealRepoTimingTrustworthy
+		rep.ScanTimingFloorCount = benchReport.Metrics.RealRepoTimingFloorCount
 		rep.CriticalDetectionRate = benchReport.Metrics.CriticalFixtureBlockRate
 		rep.KnownGoodFalseBlockRate = benchReport.Metrics.KnownGoodFalseBlockRate
 		rep.RepoValidationPassRate = ratio(benchReport.Metrics.ReposPassed, benchReport.Metrics.RealRepoValidationCount)
@@ -268,6 +277,9 @@ func gaBlockers(rep *ProductionReadinessReport) []string {
 	if rep.P95ScanDurationMs == 0 {
 		blockers = append(blockers, "p95 scan duration is not reported")
 	}
+	if rep.RequiredRealRepoValidationCount > 0 && rep.RealRepoValidationCount >= rep.RequiredRealRepoValidationCount && !rep.ScanTimingTrustworthy {
+		blockers = append(blockers, "cold-run scan duration evidence is not trustworthy")
+	}
 	if !rep.SigningVerified {
 		blockers = append(blockers, "signed release artifacts not verified locally")
 	}
@@ -363,6 +375,7 @@ func WriteProductionReadiness(w io.Writer, rep ProductionReadinessReport, asJSON
 	fmt.Fprintf(w, "  real repo validations:   %d\n", rep.RealRepoValidationCount)
 	fmt.Fprintf(w, "  required real repos:     %d\n", rep.RequiredRealRepoValidationCount)
 	fmt.Fprintf(w, "  repo validation pass:    %.2f%%\n", rep.RepoValidationPassRate*100)
+	fmt.Fprintf(w, "  scan timing trustworthy: %t\n", rep.ScanTimingTrustworthy)
 	for _, failure := range rep.RepoValidationFailures {
 		fmt.Fprintf(w, "    - repo validation failure: %s\n", failure)
 	}
@@ -446,7 +459,14 @@ func runCIOutputGate() (bool, string, []string) {
 }
 
 func runReleaseArtifactGate() (bool, string, []string) {
-	required := []string{"dist/checksums.txt", "dist/sbom.spdx.json"}
+	dir := releaseArtifactDir()
+	required := []string{filepath.Join(dir, "checksums.txt")}
+	sbomPath := firstSBOMFile(dir)
+	if sbomPath != "" {
+		required = append(required, sbomPath)
+	} else {
+		required = append(required, filepath.Join(dir, "sbom.spdx.json"))
+	}
 	var missing []string
 	for _, path := range required {
 		if _, err := os.Stat(path); err != nil {
@@ -585,7 +605,7 @@ func runGitHubActionGate() (bool, string, []string) {
 // "unconfigured" otherwise. Signing happens in CI, so "configured" is the
 // expected local result.
 func signedReleaseStatus() string {
-	if _, sigErr := os.Stat("dist/checksums.txt.sig"); sigErr == nil {
+	if _, sigErr := os.Stat(filepath.Join(releaseArtifactDir(), "checksums.txt.sig")); sigErr == nil {
 		return "signed"
 	}
 	if fileContains(".goreleaser.yaml", "cosign") {
@@ -595,19 +615,18 @@ func signedReleaseStatus() string {
 }
 
 func signingVerified() bool {
-	if _, err := os.Stat("dist/checksums.txt.sig"); err != nil {
-		return false
-	}
-	if _, err := os.Stat("dist/checksums.txt.pem"); err != nil {
-		return false
-	}
-	return checksumsStatus() == "verified"
+	ok, _ := verifyCosignSignature()
+	return ok
 }
 
 func runSignedReleaseGate() (bool, string, []string) {
 	switch signedReleaseStatus() {
 	case "signed":
-		return true, "signed release artifacts present", []string{"dist/checksums.txt.sig"}
+		ok, details := verifyCosignSignature()
+		if !ok {
+			return false, "signed release artifacts present but signature verification failed", details
+		}
+		return true, "cosign signature verified for checksums.txt", details
 	case "configured":
 		return true, "release signing configured (cosign) — signatures produced in CI", []string{".goreleaser.yaml"}
 	default:
@@ -615,8 +634,52 @@ func runSignedReleaseGate() (bool, string, []string) {
 	}
 }
 
+func verifyCosignSignature() (bool, []string) {
+	dir := releaseArtifactDir()
+	checksumsPath := filepath.Join(dir, "checksums.txt")
+	sigPath := filepath.Join(dir, "checksums.txt.sig")
+	certPath := filepath.Join(dir, "checksums.txt.pem")
+	required := []string{checksumsPath, sigPath, certPath}
+	var missing []string
+	for _, path := range required {
+		if info, err := os.Stat(path); err != nil || info.Size() == 0 {
+			missing = append(missing, path)
+		}
+	}
+	if len(missing) > 0 {
+		return false, append([]string{"missing signature verification artifacts"}, missing...)
+	}
+	if checksumsStatus() != "verified" {
+		return false, []string{"checksums.txt did not verify against local artifacts"}
+	}
+	cosignPath, err := exec.LookPath("cosign")
+	if err != nil {
+		return false, []string{"cosign not found on PATH"}
+	}
+	cmd := exec.Command(cosignPath,
+		"verify-blob",
+		"--certificate", certPath,
+		"--signature", sigPath,
+		"--certificate-identity-regexp", "https://github.com/.*/pkgsafe/.*",
+		"--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
+		checksumsPath,
+	)
+	out, err := cmd.CombinedOutput()
+	detail := strings.TrimSpace(string(out))
+	if err != nil {
+		if detail == "" {
+			detail = err.Error()
+		}
+		return false, []string{detail}
+	}
+	if detail == "" {
+		detail = "cosign verify-blob succeeded"
+	}
+	return true, []string{detail}
+}
+
 func sbomStatus() string {
-	if info, err := os.Stat("dist/sbom.spdx.json"); err == nil && info.Size() > 0 {
+	if firstSBOMFile(releaseArtifactDir()) != "" {
 		return "present"
 	}
 	if fileContains(".goreleaser.yaml", "sboms") {
@@ -626,7 +689,11 @@ func sbomStatus() string {
 }
 
 func sbomVerified() bool {
-	b, err := os.ReadFile("dist/sbom.spdx.json")
+	path := firstSBOMFile(releaseArtifactDir())
+	if path == "" {
+		return false
+	}
+	b, err := os.ReadFile(path)
 	if err != nil || len(b) == 0 {
 		return false
 	}
@@ -640,7 +707,7 @@ func sbomVerified() bool {
 func runSBOMGate() (bool, string, []string) {
 	switch sbomStatus() {
 	case "present":
-		return true, "SBOM present", []string{"dist/sbom.spdx.json"}
+		return true, "SBOM present", []string{firstSBOMFile(releaseArtifactDir())}
 	case "configured":
 		return true, "SBOM generation configured (syft) — produced in CI", []string{".goreleaser.yaml"}
 	default:
@@ -648,18 +715,12 @@ func runSBOMGate() (bool, string, []string) {
 	}
 }
 
-// provenanceStatus reports "verified" when a provenance attestation exists
-// locally, "configured" when the release workflow attests build provenance, and
-// "unconfigured" otherwise.
+// provenanceStatus reports "verified" only when a local GitHub artifact
+// attestation bundle verifies for a release artifact. Presence alone is not
+// enough for GA.
 func provenanceStatus() string {
-	for _, path := range []string{
-		"dist/provenance.intoto.jsonl",
-		"dist/provenance.jsonl",
-		"dist/attestation.jsonl",
-	} {
-		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
-			return "verified"
-		}
+	if provenanceVerified() {
+		return "verified"
 	}
 	if fileContains(".github/workflows/release.yml", "attest-build-provenance") {
 		return "configured"
@@ -667,8 +728,13 @@ func provenanceStatus() string {
 	return "unconfigured"
 }
 
+func provenanceVerified() bool {
+	ok, _ := verifyGitHubAttestation()
+	return ok
+}
+
 func checksumsStatus() string {
-	status, _ := verifyChecksumsFile("dist/checksums.txt")
+	status, _ := verifyChecksumsFile(filepath.Join(releaseArtifactDir(), "checksums.txt"))
 	return status
 }
 
@@ -723,12 +789,119 @@ func verifyChecksumsFile(path string) (string, []string) {
 func runProvenanceGate() (bool, string, []string) {
 	switch provenanceStatus() {
 	case "verified":
-		return true, "build provenance attestation present", nil
+		_, details := verifyGitHubAttestation()
+		return true, "GitHub build provenance attestation verified", details
 	case "configured":
 		return true, "build provenance attestation configured — produced in CI", []string{".github/workflows/release.yml"}
 	default:
 		return false, "build provenance not configured", []string{".github/workflows/release.yml"}
 	}
+}
+
+func verifyGitHubAttestation() (bool, []string) {
+	dir := releaseArtifactDir()
+	bundlePath := firstExistingFile([]string{
+		filepath.Join(dir, "provenance.intoto.jsonl"),
+		filepath.Join(dir, "provenance.jsonl"),
+		filepath.Join(dir, "attestation.jsonl"),
+	})
+	artifactPath := firstReleaseArchive(dir)
+	if artifactPath == "" {
+		return false, []string{"no release archive found for attestation verification"}
+	}
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		return false, []string{"gh not found on PATH"}
+	}
+	repo := githubRepo()
+	args := []string{
+		"attestation", "verify", artifactPath,
+		"--repo", repo,
+		"--signer-workflow", "github.com/" + repo + "/.github/workflows/release.yml",
+	}
+	if bundlePath != "" {
+		args = append(args, "--bundle", bundlePath)
+	}
+	cmd := exec.Command(ghPath, args...)
+	out, err := cmd.CombinedOutput()
+	detail := strings.TrimSpace(string(out))
+	if err != nil {
+		if detail == "" {
+			detail = err.Error()
+		}
+		return false, []string{detail}
+	}
+	if detail == "" {
+		detail = "gh attestation verify succeeded"
+	}
+	return true, []string{detail}
+}
+
+func releaseArtifactDir() string {
+	if dir := strings.TrimSpace(os.Getenv("PKGSAFE_RELEASE_ARTIFACT_DIR")); dir != "" {
+		return dir
+	}
+	return "dist"
+}
+
+func githubRepo() string {
+	if repo := strings.TrimSpace(os.Getenv("PKGSAFE_GITHUB_REPO")); repo != "" {
+		return repo
+	}
+	out, err := exec.Command("git", "remote", "get-url", "origin").Output()
+	if err != nil {
+		return "niyam-ai/pkgsafe"
+	}
+	repo := strings.TrimSpace(string(out))
+	repo = strings.TrimSuffix(repo, ".git")
+	if strings.HasPrefix(repo, "git@github.com:") {
+		return strings.TrimPrefix(repo, "git@github.com:")
+	}
+	if idx := strings.Index(repo, "github.com/"); idx >= 0 {
+		return strings.TrimPrefix(repo[idx:], "github.com/")
+	}
+	return "niyam-ai/pkgsafe"
+}
+
+func firstExistingFile(paths []string) string {
+	for _, path := range paths {
+		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+			return path
+		}
+	}
+	return ""
+}
+
+func firstReleaseArchive(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".tar.gz") || strings.HasSuffix(name, ".zip") {
+			return filepath.Join(dir, name)
+		}
+	}
+	return ""
+}
+
+func firstSBOMFile(dir string) string {
+	for _, name := range []string{"sbom.spdx.json"} {
+		path := filepath.Join(dir, name)
+		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+			return path
+		}
+	}
+	matches, err := filepath.Glob(filepath.Join(dir, "*.sbom.json"))
+	if err != nil || len(matches) == 0 {
+		return ""
+	}
+	sort.Strings(matches)
+	return matches[0]
 }
 
 // countRealRepos returns the number of external repositories successfully

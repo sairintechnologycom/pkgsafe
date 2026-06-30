@@ -29,7 +29,8 @@
           "python-poetry-app",
           "go-module-app",
           "cargo-rust-app",
-          "mixed-js-python-repo"
+          "mixed-js-python-repo",
+          "internal-private-package-repo"
         ]
       },
       "expected_package_manager": {
