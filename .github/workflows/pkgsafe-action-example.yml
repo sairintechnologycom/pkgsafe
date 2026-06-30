@@ -25,6 +25,7 @@ jobs:
       - name: Run PkgSafe dependency gate
         uses: ./
         with:
+          lockfile: testdata/npm/self-scan/package-lock.json
           policy: default-policy.yaml
           fail-on: block
           changed-only: true
