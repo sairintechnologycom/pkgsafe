@@ -30,6 +30,12 @@
 - production-readiness-v1.0.0.json
 - pkgsafe-v1.0.0-ga-evidence.zip
 
+## Tag And Evidence Commits
+
+The v1.0.0 release tag points to the commit used to build the verified binaries.
+GA evidence commits were recorded after release verification and are intentionally
+not part of the build input.
+
 ## Scope
 
 PkgSafe v1.0.0 GA is npm-first.
