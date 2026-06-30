@@ -1,0 +1,184 @@
+{
+  "generated_at": "2026-06-30T08:58:50Z",
+  "final_status": "PRODUCTION_GA_READY",
+  "current_stage": "PRODUCTION_GA_READY",
+  "recommendation": "PRODUCTION_GA_READY: all GA hardening gates verified.",
+  "pass": true,
+  "private_beta_ready": true,
+  "ga_ready": true,
+  "production_ready": true,
+  "online_benchmark_status": "pass",
+  "github_action_status": "valid",
+  "signed_release_status": "signed",
+  "signing_configured": true,
+  "signing_verified": true,
+  "sbom_status": "present",
+  "sbom_verified": true,
+  "checksums_status": "verified",
+  "checksums_verified": true,
+  "provenance_status": "verified",
+  "provenance_configured": true,
+  "provenance_verified": true,
+  "docs_status": "complete",
+  "real_repo_validation_count": 15,
+  "required_real_repo_validation_count": 15,
+  "repo_validation_pass_rate": 1,
+  "ecosystem_depth_status": "npm-ga-other-ecosystems-preview",
+  "isolated_backend_status": "unavailable",
+  "isolated_backend_available": false,
+  "behavior_analysis_default_mode": "disabled",
+  "npm_repo_count": 12,
+  "pypi_repo_count": 4,
+  "go_repo_count": 0,
+  "cargo_repo_count": 0,
+  "false_block_count": 0,
+  "scanner_crash_count": 0,
+  "average_scan_duration_ms": 1,
+  "p95_scan_duration_ms": 2,
+  "average_scan_duration_us": 1046,
+  "p95_scan_duration_us": 1663,
+  "scan_timing_trustworthy": true,
+  "scan_timing_floor_count": 7,
+  "critical_detection_rate": 1,
+  "known_good_false_block_rate": 0,
+  "private_beta_recommendation": true,
+  "gates": [
+    {
+      "name": "rollout readiness",
+      "passed": true,
+      "blocking": true,
+      "duration_ms": 15861,
+      "summary": "PRIVATE_BETA_READY",
+      "details": [
+        "GO for private beta rollout. Continue to keep lifecycle behavior analysis labelled best-effort."
+      ]
+    },
+    {
+      "name": "benchmark validation",
+      "passed": true,
+      "blocking": true,
+      "duration_ms": 0,
+      "summary": "PRIVATE_BETA_ACCURACY_CANDIDATE",
+      "details": [
+        "direct recall 100.00%",
+        "transitive recall 100.00%",
+        "source import recall 100.00%"
+      ]
+    },
+    {
+      "name": "online benchmark",
+      "passed": true,
+      "blocking": false,
+      "duration_ms": 0,
+      "summary": "online benchmark: pass",
+      "details": [
+        "mode=connected attempted=25 passed=25 failed=0 network_unavailable=0 registry_unavailable=0 package_not_found=0 scanner_failure=0 expectation_mismatch=0"
+      ]
+    },
+    {
+      "name": "OSV cache",
+      "passed": true,
+      "blocking": true,
+      "duration_ms": 323,
+      "summary": "OSV database is initialized",
+      "details": [
+        "records: 257513",
+        "path: /Users/bhushan/.pkgsafe/pkgsafe.db"
+      ]
+    },
+    {
+      "name": "CI outputs",
+      "passed": true,
+      "blocking": true,
+      "duration_ms": 3,
+      "summary": "JSON, SARIF, and Markdown outputs generated",
+      "details": [
+        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-1904317882/results.json",
+        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-1904317882/results.sarif",
+        "/var/folders/38/czrn5d6s5992dpmtjy_cn6rm0000gn/T/pkgsafe-ci-output-1904317882/summary.md"
+      ]
+    },
+    {
+      "name": "documentation",
+      "passed": true,
+      "blocking": true,
+      "duration_ms": 0,
+      "summary": "production docs exist",
+      "details": [
+        "README.md",
+        "SECURITY.md",
+        "docs/ci-cd.md",
+        "docs/github-action.md",
+        "docs/mcp-codex.md",
+        "docs/policy-guide.md",
+        "docs/private-registry.md",
+        "docs/known-limitations.md",
+        "docs/threat-model.md",
+        "docs/release-verification.md"
+      ]
+    },
+    {
+      "name": "policy validation",
+      "passed": true,
+      "blocking": true,
+      "duration_ms": 0,
+      "summary": "default policy is valid",
+      "details": [
+        "default-policy.yaml"
+      ]
+    },
+    {
+      "name": "release artifacts",
+      "passed": true,
+      "blocking": false,
+      "duration_ms": 39,
+      "summary": "checksums and SBOM exist and checksums verify",
+      "details": [
+        "/private/tmp/pkgsafe-release-assets-v1/checksums.txt",
+        "/private/tmp/pkgsafe-release-assets-v1/pkgsafe_1.0.0_darwin_amd64.tar.gz.sbom.json"
+      ]
+    },
+    {
+      "name": "github action",
+      "passed": true,
+      "blocking": false,
+      "duration_ms": 0,
+      "summary": "composite action, entrypoint, and example workflow present",
+      "details": [
+        "action.yml",
+        "scripts/github-action-entrypoint.sh",
+        ".github/workflows/pkgsafe-action-example.yml"
+      ]
+    },
+    {
+      "name": "signed release",
+      "passed": true,
+      "blocking": false,
+      "duration_ms": 2737,
+      "summary": "cosign signature verified for checksums.txt",
+      "details": [
+        "Flag --certificate has been deprecated, please use --bundle with --trusted-root to provide the public certificate\nFlag --signature has been deprecated, please use --bundle to provide a signature\nVerified OK"
+      ]
+    },
+    {
+      "name": "sbom",
+      "passed": true,
+      "blocking": false,
+      "duration_ms": 0,
+      "summary": "SBOM present",
+      "details": [
+        "/private/tmp/pkgsafe-release-assets-v1/pkgsafe_1.0.0_darwin_amd64.tar.gz.sbom.json"
+      ]
+    },
+    {
+      "name": "build provenance",
+      "passed": true,
+      "blocking": false,
+      "duration_ms": 14264,
+      "summary": "GitHub build provenance attestation verified",
+      "details": [
+        "gh attestation verify succeeded"
+      ]
+    }
+  ]
+}

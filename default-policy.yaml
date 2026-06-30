@@ -13,6 +13,7 @@ ecosystems:
 
 sandbox:
   enabled: false
+  behavior_mode: disabled
   default_timeout_seconds: 10
   network_mode: disabled
   keep_sandbox: false

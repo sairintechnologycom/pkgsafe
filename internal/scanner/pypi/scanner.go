@@ -28,6 +28,7 @@ type Scanner struct {
 	Offline        bool
 	DBPath         string
 	SandboxEnabled bool
+	BehaviorMode   types.BehaviorMode
 	RequestedBy    string
 	Environment    string
 	RegistryName   string
@@ -173,12 +174,20 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	res := risk.Evaluate(analysis.Result.Package, findings, nil, analysis.Result.Suspicious, alts, pol)
 	res.Vulnerabilities = vulns
 	res.Artifact = analysis.Artifact
-	if s.SandboxEnabled {
+	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
+	if behaviorMode != types.BehaviorDisabled {
 		res.Sandbox = types.SandboxSummary{
-			Enabled:       true,
-			Available:     false,
-			NotPerformed:  true,
-			NotPerfReason: "PyPI behavior analysis is not implemented yet. Static analysis completed only.",
+			Enabled:      true,
+			Available:    false,
+			BehaviorMode: behaviorMode,
+			Isolated:     false,
+			NotPerformed: true,
+		}
+		if behaviorMode == types.BehaviorIsolated {
+			res.Sandbox.NotPerfReason = "PyPI isolated behavior analysis backend is not implemented or unavailable. Static analysis completed only."
+		} else {
+			res.Sandbox.Warning = "PyPI heuristic behavior analysis is disabled; setup/build hooks are not executed without isolated backend."
+			res.Sandbox.NotPerfReason = "PyPI behavior analysis is not implemented yet. Static analysis completed only."
 		}
 		res.Artifact.SandboxNote = res.Sandbox.NotPerfReason
 	}

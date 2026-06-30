@@ -102,6 +102,7 @@ type ScanRequest struct {
 	PolicyPath string `json:"policy_path"`
 	Mode       string `json:"mode"`
 	Offline    *bool  `json:"offline"`
+	Behavior   string `json:"behavior_mode"`
 	Sandbox    *bool  `json:"sandbox"`
 }
 
@@ -157,10 +158,24 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		offline = *req.Offline
 	}
 
-	sandbox := pol.Sandbox.Enabled
-	if req.Sandbox != nil {
-		sandbox = *req.Sandbox
+	behaviorMode := types.NormalizeBehaviorMode(pol.Sandbox.BehaviorMode, pol.Sandbox.Enabled)
+	if req.Behavior != "" {
+		switch types.BehaviorMode(req.Behavior) {
+		case types.BehaviorDisabled, types.BehaviorHeuristic, types.BehaviorIsolated:
+			behaviorMode = types.BehaviorMode(req.Behavior)
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "behavior_mode must be disabled, heuristic, or isolated"})
+			return
+		}
 	}
+	if req.Sandbox != nil {
+		behaviorMode = types.BehaviorDisabled
+		if *req.Sandbox {
+			behaviorMode = types.BehaviorHeuristic
+		}
+	}
+	sandbox := behaviorMode != types.BehaviorDisabled
 
 	var result types.ScanResult
 	var scanErr error
@@ -170,6 +185,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		scanner.Policy = pol
 		scanner.Offline = offline
 		scanner.SandboxEnabled = sandbox
+		scanner.BehaviorMode = behaviorMode
 		scanner.RequestedBy = "api"
 		scanner.Environment = "api"
 		result, scanErr = scanner.ScanPackage(req.Name, req.Version)
@@ -178,6 +194,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		scanner.Policy = pol
 		scanner.Offline = offline
 		scanner.SandboxEnabled = sandbox
+		scanner.BehaviorMode = behaviorMode
 		scanner.RequestedBy = "api"
 		scanner.Environment = "api"
 		result, scanErr = scanner.ScanPackage(req.Name, req.Version)

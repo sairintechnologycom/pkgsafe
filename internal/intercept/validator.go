@@ -187,6 +187,7 @@ func Validate(ctx context.Context, cmd *InstallCommand, sf SafetyFlags, pol poli
 		scannerNPM.Policy = pol
 		scannerNPM.Offline = sf.Offline
 		scannerNPM.SandboxEnabled = sf.Sandbox || pol.Sandbox.Enabled
+		scannerNPM.BehaviorMode = types.NormalizeBehaviorMode(pol.Sandbox.BehaviorMode, scannerNPM.SandboxEnabled)
 		if pol.Sandbox.DefaultTimeoutSeconds > 0 {
 			scannerNPM.SandboxTimeout = time.Duration(pol.Sandbox.DefaultTimeoutSeconds) * time.Second
 		}
@@ -199,6 +200,7 @@ func Validate(ctx context.Context, cmd *InstallCommand, sf SafetyFlags, pol poli
 		scannerPyPI.Policy = pol
 		scannerPyPI.Offline = sf.Offline
 		scannerPyPI.SandboxEnabled = sf.Sandbox || pol.Sandbox.Enabled
+		scannerPyPI.BehaviorMode = types.NormalizeBehaviorMode(pol.Sandbox.BehaviorMode, scannerPyPI.SandboxEnabled)
 		scannerPyPI.RequestedBy = reqBy
 		scannerPyPI.Environment = env
 	}

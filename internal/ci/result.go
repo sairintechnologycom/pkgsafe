@@ -2,7 +2,7 @@ package ci
 
 import "github.com/niyam-ai/pkgsafe/internal/types"
 
-type SandboxSummary struct {
+type BehaviorAnalysisSummary struct {
 	Enabled               bool `json:"enabled"`
 	Available             bool `json:"available"`
 	CriticalFindingsCount int  `json:"critical_findings_count"`
@@ -18,7 +18,7 @@ type Finding struct {
 	DependencyType    string                   `json:"dependency_type"`
 	Reasons           []types.Reason           `json:"reasons"`
 	Vulnerabilities   []types.Vulnerability    `json:"vulnerabilities"`
-	Sandbox           SandboxSummary           `json:"sandbox"`
+	BehaviorAnalysis  BehaviorAnalysisSummary  `json:"behavior_analysis"`
 	RecommendedAction string                   `json:"recommended_action"`
 	Policy            *types.PolicyEvidence    `json:"policy,omitempty"`
 	Registry          *types.RegistryEvidence  `json:"registry,omitempty"`

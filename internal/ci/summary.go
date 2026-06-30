@@ -197,8 +197,8 @@ type SarifRegion struct {
 }
 
 func WriteSarifOutput(path string, result *ScanResult) error {
-	var rules []SarifRule
-	var results []SarifResult
+	rules := []SarifRule{}
+	results := []SarifResult{}
 	ruleSeen := make(map[string]bool)
 
 	addRule := func(id, desc string) {

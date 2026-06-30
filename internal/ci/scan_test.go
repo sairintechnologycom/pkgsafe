@@ -258,6 +258,57 @@ trusted_packages:
 	}
 }
 
+func TestCI_SarifOutputUsesEmptyArraysForAllowScan(t *testing.T) {
+	tmp := t.TempDir()
+	sarifOut := filepath.Join(tmp, "results.sarif")
+	res := &ScanResult{
+		Tool:        "pkgsafe",
+		Command:     "ci scan",
+		Mode:        "warn",
+		FailOn:      "block",
+		Decision:    "allow",
+		Lockfile:    "testdata/npm/self-scan/package-lock.json",
+		Ecosystem:   "npm",
+		ChangedOnly: false,
+		Baseline:    "main",
+		Summary: Summary{
+			PackagesScanned: 1,
+			Allow:           1,
+		},
+		Findings: []Finding{},
+	}
+
+	if err := WriteSarifOutput(sarifOut, res); err != nil {
+		t.Fatal(err)
+	}
+	sb, err := os.ReadFile(sarifOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(sb, &raw); err != nil {
+		t.Fatal("SARIF output is not valid JSON:", err)
+	}
+	runs := raw["runs"].([]any)
+	run := runs[0].(map[string]any)
+	results, ok := run["results"].([]any)
+	if !ok {
+		t.Fatalf("expected SARIF results to be an array, got %T in:\n%s", run["results"], string(sb))
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected no SARIF results, got %d", len(results))
+	}
+	tool := run["tool"].(map[string]any)
+	driver := tool["driver"].(map[string]any)
+	rules, ok := driver["rules"].([]any)
+	if !ok {
+		t.Fatalf("expected SARIF rules to be an array, got %T in:\n%s", driver["rules"], string(sb))
+	}
+	if len(rules) != 0 {
+		t.Fatalf("expected no SARIF rules, got %d", len(rules))
+	}
+}
+
 func TestCI_GitRepoDetectionAndDiff(t *testing.T) {
 	// Set up a real Git repository in temp directory
 	tmp := t.TempDir()

@@ -68,8 +68,8 @@ type SarifReport struct {
 }
 
 func ExportSarif(r *RepositoryRiskReport) (string, error) {
-	var rules []SarifRule
-	var results []SarifResult
+	rules := []SarifRule{}
+	results := []SarifResult{}
 	ruleSeen := make(map[string]bool)
 
 	addRule := func(id, desc string) {

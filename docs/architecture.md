@@ -15,7 +15,7 @@
 - OSV vulnerability ingestion
 - Known malware feed ingestion
 - Tarball extraction and deep static scanning
-- Shadow install sandbox
+- Isolated behavior backend
 - Credential canary detection
 - PyPI support
 - VS Code/Cursor integration

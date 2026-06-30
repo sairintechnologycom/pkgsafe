@@ -1,6 +1,10 @@
 package validation
 
-import "testing"
+import (
+	"bytes"
+	"encoding/json"
+	"testing"
+)
 
 func TestComputeReadinessStageBlocked(t *testing.T) {
 	rep := ProductionReadinessReport{}
@@ -55,17 +59,119 @@ func TestComputeReadinessStagePublicBeta(t *testing.T) {
 
 func TestComputeReadinessStageProductionGA(t *testing.T) {
 	rep := ProductionReadinessReport{
-		OnlineBenchmarkStatus:   "pass",
-		GitHubActionStatus:      "valid",
-		SignedReleaseStatus:     "signed",
-		SBOMStatus:              "present",
-		ProvenanceStatus:        "verified",
-		DocsStatus:              "complete",
-		RealRepoValidationCount: 3,
+		OnlineBenchmarkStatus:       "pass",
+		GitHubActionStatus:          "valid",
+		SignedReleaseStatus:         "signed",
+		SigningVerified:             true,
+		SBOMStatus:                  "present",
+		SBOMVerified:                true,
+		ChecksumsStatus:             "verified",
+		ChecksumsVerified:           true,
+		ProvenanceStatus:            "verified",
+		ProvenanceVerified:          true,
+		DocsStatus:                  "complete",
+		RealRepoValidationCount:     15,
+		RepoValidationPassRate:      1,
+		NPMRepoCount:                5,
+		AverageScanDurationMs:       100,
+		P95ScanDurationMs:           200,
+		CriticalDetectionRate:       1,
+		EcosystemDepthStatus:        "npm-ga-other-ecosystems-preview",
+		IsolatedBackendStatus:       "unavailable",
+		BehaviorAnalysisDefaultMode: "disabled",
 	}
 	computeReadinessStage(&rep, false)
 	if rep.FinalStatus != ReadinessProductionGA {
 		t.Errorf("expected PRODUCTION_GA_READY, got %q", rep.FinalStatus)
+	}
+}
+
+func TestProductionReadinessGABlockedWhenRepoCountLow(t *testing.T) {
+	rep := ProductionReadinessReport{
+		OnlineBenchmarkStatus:       "pass",
+		GitHubActionStatus:          "valid",
+		SignedReleaseStatus:         "signed",
+		SigningVerified:             true,
+		SBOMStatus:                  "present",
+		SBOMVerified:                true,
+		ChecksumsStatus:             "verified",
+		ChecksumsVerified:           true,
+		ProvenanceStatus:            "verified",
+		ProvenanceVerified:          true,
+		DocsStatus:                  "complete",
+		RealRepoValidationCount:     2,
+		RepoValidationPassRate:      1,
+		NPMRepoCount:                2,
+		AverageScanDurationMs:       100,
+		P95ScanDurationMs:           200,
+		CriticalDetectionRate:       1,
+		EcosystemDepthStatus:        "npm-ga-other-ecosystems-preview",
+		IsolatedBackendStatus:       "unavailable",
+		BehaviorAnalysisDefaultMode: "disabled",
+	}
+	computeReadinessStage(&rep, false)
+	if rep.GAReady {
+		t.Fatal("GA should be blocked when real repo count is below threshold")
+	}
+	if len(rep.GABlockers) == 0 {
+		t.Fatal("expected GA blockers")
+	}
+}
+
+func TestProductionReadinessJSONIncludesGAEvidenceFields(t *testing.T) {
+	rep := ProductionReadinessReport{
+		FinalStatus:                     ReadinessPrivateBeta,
+		PrivateBetaReady:                true,
+		GAReady:                         false,
+		ProductionReady:                 false,
+		RealRepoValidationCount:         0,
+		RequiredRealRepoValidationCount: 15,
+		RepoValidationPassRate:          0,
+		RepoValidationFailures:          []string{"repo: dependency_inventory_error"},
+		GABlockers:                      []string{"real_repo_validation_count below GA threshold"},
+		EcosystemDepthStatus:            "npm-ga-other-ecosystems-preview",
+		BehaviorAnalysisDefaultMode:     "disabled",
+		IsolatedBackendAvailable:        false,
+		SigningConfigured:               true,
+		SigningVerified:                 false,
+		ProvenanceConfigured:            true,
+		ProvenanceVerified:              false,
+		ChecksumsStatus:                 "verified",
+		ChecksumsVerified:               true,
+		SBOMStatus:                      "present",
+		SBOMVerified:                    true,
+	}
+	var buf bytes.Buffer
+	if err := WriteProductionReadiness(&buf, rep, true); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{
+		"private_beta_ready",
+		"ga_ready",
+		"production_ready",
+		"real_repo_validation_count",
+		"required_real_repo_validation_count",
+		"repo_validation_pass_rate",
+		"repo_validation_failures",
+		"ga_blockers",
+		"ecosystem_depth_status",
+		"behavior_analysis_default_mode",
+		"isolated_backend_available",
+		"signing_configured",
+		"signing_verified",
+		"provenance_configured",
+		"provenance_verified",
+		"checksums_status",
+		"checksums_verified",
+		"sbom_verified",
+	} {
+		if _, ok := got[field]; !ok {
+			t.Fatalf("production readiness JSON missing %q: %s", field, buf.String())
+		}
 	}
 }
 

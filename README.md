@@ -2,7 +2,9 @@
 
 PkgSafe is a local-first package safety CLI for developer and AI-agent workflows. It validates open-source packages before installation using registry metadata, lifecycle-script analysis, suspicious-pattern detection, typosquat heuristics, policy scoring, and MCP-compatible JSON-RPC tools.
 
-> MVP focus: npm packages and `package-lock.json` scanning.
+> GA v1 scope: npm-first supply-chain guardrails for package scanning,
+> lockfile/CI gating, policy controls, OSV intelligence, and evidence reports.
+> PyPI, Go, and Cargo are preview coverage and are not npm-equivalent yet.
 
 ## Install
 
@@ -152,14 +154,14 @@ CLI JSON output uses the stable scan contract:
 
 ## Capability matrix
 
-PkgSafe is alpha (`v0.1.0`). Maturity varies by ecosystem and surface:
+PkgSafe GA v1 is npm-first. Maturity varies by ecosystem and surface:
 
 | Ecosystem | Metadata + OSV | Lockfile parsing | Artifact/content analysis |
 |-----------|:--:|:--:|:--:|
-| **npm** | ✅ | ✅ `package-lock.json` | ✅ tarball + lifecycle heuristics |
-| **PyPI** | ✅ | ⚠️ `requirements.txt` only (poetry/uv/Pipfile/conda are stubs) | ⚠️ no behavior analysis |
-| **Go** | ✅ | ✅ `go.mod`/`go.sum` | ❌ metadata-only |
-| **Cargo** | ✅ | ✅ `Cargo.lock` | ❌ metadata-only |
+| **npm** | Production-ready GA v1 scope | ✅ `package-lock.json` | ✅ tarball + lifecycle heuristics |
+| **PyPI** | Preview | ⚠️ `requirements.txt` only (poetry/uv/Pipfile/conda are stubs) | ⚠️ no behavior analysis |
+| **Go** | Preview | ✅ `go.mod`/`go.sum` | ❌ metadata-only |
+| **Cargo** | Preview | ✅ `Cargo.lock` | ❌ metadata-only |
 
 Surfaces: CLI, REST API, MCP stdio server, GitHub Action, policy engine,
 ed25519-signed policy packs, evidence packs.
@@ -173,10 +175,20 @@ has been synced/cached, an `--offline` scan of it will fail or warn rather than
 silently pass. OSV lookups **fail closed** — a network/rate-limit error surfaces
 `vulnerability_data_unavailable` rather than scoring the package clean.
 
-**Lifecycle behavior analysis is heuristic, not a sandbox.** Scripts run on the
-host **without OS isolation**; detection is pattern/canary based and `network_mode`
-is not enforced. Do not point it at code you wouldn't run yourself. Real OS
-isolation is a planned milestone.
+**Behavior analysis is disabled by default and must be requested explicitly.**
+Use `--behavior heuristic` only in disposable environments: it runs lifecycle
+scripts on the host **without OS isolation**; detection is pattern/canary based
+and `network_mode` is not enforced. `--behavior isolated` is reserved for a real
+isolation backend and reports unavailable until that backend exists. Do not call
+heuristic mode sandboxing or containment.
+
+**Real repo validation gates GA.** Use
+`pkgsafe test benchmark --repo-list benchmarks/real-repos.json --json` and
+`pkgsafe report beta-evidence --repo-list benchmarks/real-repos.json` or
+`pkgsafe report ga-evidence --repo-list benchmarks/real-repos.json --output pkgsafe-ga-evidence.zip`
+to build evidence. Production readiness reports GA blockers explicitly when
+real repository validation, release signing, provenance, SBOM, or checksum
+verification is below threshold.
 
 **The REST API is loopback-only and unauthenticated by default.** It binds to
 localhost and is intended for local tooling. There is currently no TLS, request

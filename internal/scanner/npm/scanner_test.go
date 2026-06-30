@@ -355,18 +355,14 @@ func TestSandboxScannerIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hasCanaryReadReason := false
-	for _, r := range res.Reasons {
-		if r.ID == "credential_canary_read" {
-			hasCanaryReadReason = true
-		}
-	}
-	if !hasCanaryReadReason {
-		t.Errorf("expected credential_canary_read in reasons, got: %+v", res.Reasons)
-	}
-
 	if res.Decision != types.DecisionBlock {
 		t.Errorf("expected BLOCK decision for critical finding, got: %s", res.Decision)
+	}
+	if !res.Sandbox.NotPerformed {
+		t.Fatal("expected behavior analysis to be skipped for a statically blocked package")
+	}
+	if len(res.Sandbox.ScriptsExecuted) != 0 {
+		t.Fatalf("expected BLOCK package to never execute lifecycle scripts, got %+v", res.Sandbox.ScriptsExecuted)
 	}
 
 	pol.TrustedPackages.NPM = append(pol.TrustedPackages.NPM, "fixture")
@@ -376,6 +372,9 @@ func TestSandboxScannerIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resTrusted.Decision != types.DecisionBlock {
-		t.Errorf("expected trusted package to still be blocked if there is a critical sandbox finding, got: %s", resTrusted.Decision)
+		t.Errorf("expected trusted package to still be blocked for critical static findings, got: %s", resTrusted.Decision)
+	}
+	if len(resTrusted.Sandbox.ScriptsExecuted) != 0 {
+		t.Fatalf("expected trusted BLOCK package to never execute lifecycle scripts, got %+v", resTrusted.Sandbox.ScriptsExecuted)
 	}
 }

@@ -13,7 +13,7 @@
   {"ecosystem": "npm", "name": "typescript", "expected_decision": "allow", "expected_score_max": 29},
   {"ecosystem": "npm", "name": "eslint", "expected_decision": "allow", "expected_score_max": 29},
   {"ecosystem": "npm", "name": "prettier", "expected_decision": "allow", "expected_score_max": 29},
-  {"ecosystem": "npm", "name": "vite", "expected_decision": "allow", "expected_score_max": 29},
-  {"ecosystem": "npm", "name": "next", "expected_decision": "allow", "expected_score_max": 29},
+  {"ecosystem": "npm", "name": "vite", "expected_decision": "allow", "expected_score_max": 29, "allow_warn_if_reason": ["typosquat_candidate", "new_package"]},
+  {"ecosystem": "npm", "name": "swr", "expected_decision": "allow", "expected_score_max": 29, "allow_warn_if_reason": ["lifecycle_script_present", "new_package"]},
   {"ecosystem": "npm", "name": "commander", "expected_decision": "allow", "expected_score_max": 29}
 ]

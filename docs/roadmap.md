@@ -146,18 +146,18 @@ Acceptance criteria:
 * Documentation includes setup examples.
 * MCP tool does not require cloud connectivity.
 
-## Phase 5: Sandboxed Behavior Analysis
+## Phase 5: Isolated Behavior Analysis
 
 **Timeline:** Sprint 5-6
 **Priority:** Major Differentiator
 
 Objective:
 
-Detect malicious install-time behavior safely.
+Detect malicious install-time behavior with real containment.
 
 Features:
 
-* Shadow install mode
+* Isolated behavior backend
 * Fake HOME directory
 * Fake credential canaries
 * Lifecycle script execution in restricted environment
@@ -187,7 +187,7 @@ Acceptance criteria:
 * Package reading fake credentials is blocked.
 * Package executing network exfiltration is blocked or high-risk warned.
 * Safe lifecycle scripts are not blocked unnecessarily.
-* Sandbox has strict timeout and cleanup behavior.
+* Isolated backend has strict timeout and cleanup behavior.
 * Host credentials are never exposed.
 
 ## Phase 6: GitHub Action and CI/CD Integration
@@ -398,7 +398,7 @@ Use semantic versioning.
 0.2.x    npm registry scanner
 0.3.x    OSV support
 0.4.x    MCP hardening
-0.5.x    sandbox analysis
+0.5.x    isolated behavior analysis
 1.0.0    stable npm + MCP + CI release
 ```
 
@@ -441,7 +441,7 @@ It should win on:
 | Pre-install scanning       | Stops risk before install     |
 | Local-first CLI            | Works in developer workflow   |
 | MCP support                | Protects AI coding agents     |
-| Behavioral sandbox roadmap | Detects malicious intent      |
+| Isolated behavior roadmap  | Detects malicious intent      |
 | Explainable decisions      | Developers trust the tool     |
 | Offline-friendly cache     | Useful in enterprise networks |
 | Portable binary            | Easy rollout                  |
@@ -510,7 +510,7 @@ Requirements:
 10. Return allow/warn/block decision using existing risk engine.
 11. Support human-readable and JSON output.
 12. Add unit tests using mocked npm registry responses and local fixture tarballs.
-13. Do not implement sandbox execution yet.
+13. Do not implement isolated behavior execution yet.
 14. Do not add a cloud backend.
 15. Keep package boundaries clean and testable.
 

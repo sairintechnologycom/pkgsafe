@@ -1,6 +1,10 @@
 package validation
 
 import (
+	"archive/zip"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +15,8 @@ import (
 	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/cache"
+	cargodeps "github.com/niyam-ai/pkgsafe/internal/deps/cargo"
+	godeps "github.com/niyam-ai/pkgsafe/internal/deps/golang"
 	npminventory "github.com/niyam-ai/pkgsafe/internal/deps/npm"
 	pydeps "github.com/niyam-ai/pkgsafe/internal/deps/python"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
@@ -20,10 +26,10 @@ import (
 )
 
 type BenchmarkReport struct {
-	GeneratedAt string                   `json:"generated_at"`
-	Pass        bool                     `json:"pass"`
-	Status      string                   `json:"status"`
-	Metrics     BenchmarkMetrics         `json:"metrics"`
+	GeneratedAt     string                   `json:"generated_at"`
+	Pass            bool                     `json:"pass"`
+	Status          string                   `json:"status"`
+	Metrics         BenchmarkMetrics         `json:"metrics"`
 	Online          OnlineBenchmarkSummary   `json:"online_benchmark"`
 	Results         []BenchmarkFixtureResult `json:"results"`
 	Packages        []BenchmarkPackageResult `json:"packages,omitempty"`
@@ -31,26 +37,93 @@ type BenchmarkReport struct {
 }
 
 // RepoValidation records the outcome of inventorying and scanning a real
-// external repository supplied via --repo. Dependency counts and scan duration
-// are always captured; the decision and false warn/block annotations are only
-// graded when an expectation file (.pkgsafe-benchmark.json) is present.
+// external repository supplied via --repo or --repo-list. Dependency counts and
+// scan duration are always captured; false warn/block annotations are only
+// graded when repo-list or .pkgsafe-benchmark.json expectations request them.
 type RepoValidation struct {
-	Path               string   `json:"path"`
-	DirectDependencies int      `json:"direct_dependencies"`
-	TotalDependencies  int      `json:"total_dependencies"`
-	ScanDurationMs     int64    `json:"scan_duration_ms"`
-	Decision           string   `json:"decision,omitempty"`
-	ExpectedDecision   string   `json:"expected_decision,omitempty"`
-	FalseWarn          bool     `json:"false_warn"`
-	FalseBlock         bool     `json:"false_block"`
-	Details            []string `json:"details,omitempty"`
+	Name                       string             `json:"name"`
+	Path                       string             `json:"path"`
+	Ecosystems                 []string           `json:"ecosystems,omitempty"`
+	RepoType                   string             `json:"repo_type,omitempty"`
+	ExpectedPackageManager     string             `json:"expected_package_manager,omitempty"`
+	ExpectedOutputArtifacts    []string           `json:"expected_output_artifacts,omitempty"`
+	PrivateBetaRequired        bool               `json:"private_beta_required,omitempty"`
+	GARequired                 bool               `json:"ga_required,omitempty"`
+	ScanCompleted              bool               `json:"scan_completed"`
+	DirectDependencies         int                `json:"direct_dependencies"`
+	TransitiveDependencies     int                `json:"transitive_dependencies"`
+	TotalDependencies          int                `json:"total_dependencies"`
+	SourceImportCount          int                `json:"source_import_count"`
+	ScanDurationMs             int64              `json:"scan_duration_ms"`
+	InventoryDurationMs        int64              `json:"inventory_duration_ms"`
+	CIScanDurationMs           int64              `json:"ci_scan_duration_ms"`
+	OutputGenerationDurationMs int64              `json:"output_generation_duration_ms"`
+	EvidencePackDurationMs     int64              `json:"evidence_pack_duration_ms"`
+	ScanDurationUs             int64              `json:"scan_duration_us,omitempty"`
+	InventoryDurationUs        int64              `json:"inventory_duration_us,omitempty"`
+	CIScanDurationUs           int64              `json:"ci_scan_duration_us,omitempty"`
+	OutputGenerationDurationUs int64              `json:"output_generation_duration_us,omitempty"`
+	EvidencePackDurationUs     int64              `json:"evidence_pack_duration_us,omitempty"`
+	Decision                   string             `json:"decision,omitempty"`
+	Score                      int                `json:"score,omitempty"`
+	FindingsCount              int                `json:"findings_count"`
+	AllowCount                 int                `json:"allow_count"`
+	WarnCount                  int                `json:"warn_count"`
+	BlockCount                 int                `json:"block_count"`
+	ExpectedDecision           string             `json:"expected_decision,omitempty"`
+	FalseWarn                  bool               `json:"false_warn"`
+	FalseBlock                 bool               `json:"false_block"`
+	ScannerCrash               bool               `json:"scanner_crash"`
+	MalformedInput             bool               `json:"malformed_input"`
+	NetworkFailure             bool               `json:"network_failure"`
+	FailureClassifications     []string           `json:"failure_classifications,omitempty"`
+	OSVCacheHits               int                `json:"osv_cache_hits"`
+	OSVCacheMisses             int                `json:"osv_cache_misses"`
+	JSONOutputGenerated        bool               `json:"json_output_generated"`
+	SARIFOutputGenerated       bool               `json:"sarif_output_generated"`
+	MarkdownSummaryGenerated   bool               `json:"markdown_summary_generated"`
+	EvidencePackGenerated      bool               `json:"evidence_pack_generated"`
+	BehaviorMode               types.BehaviorMode `json:"behavior_mode_used,omitempty"`
+	IsolatedAvailable          bool               `json:"isolated_backend_available"`
+	FindingCountBySeverity     map[string]int     `json:"finding_count_by_severity,omitempty"`
+	Status                     string             `json:"status"`
+	Passed                     bool               `json:"passed"`
+	Notes                      string             `json:"notes,omitempty"`
+	Details                    []string           `json:"details,omitempty"`
 }
 
-// repoExpectation is the optional .pkgsafe-benchmark.json file a real repo can
-// carry to grade pkgsafe's decision against a known-good expectation.
-type repoExpectation struct {
-	ExpectedDecision        string `json:"expected_decision"`
-	ExpectedMinDependencies int    `json:"expected_min_dependencies"`
+type RealRepoSpec struct {
+	Name                              string   `json:"name"`
+	Path                              string   `json:"path"`
+	Ecosystems                        []string `json:"ecosystems"`
+	RepoType                          string   `json:"repo_type"`
+	ExpectedPackageManager            string   `json:"expected_package_manager"`
+	ExpectedMinDirectDependencies     int      `json:"expected_min_direct_dependencies"`
+	ExpectedMinTransitiveDependencies int      `json:"expected_min_transitive_dependencies"`
+	ExpectedOutputArtifacts           []string `json:"expected_output_artifacts"`
+	ExpectedNoFalseBlock              bool     `json:"expected_no_false_block"`
+	ExpectedMaxFalseWarnRate          float64  `json:"expected_max_false_warn_rate"`
+	BehaviorMode                      string   `json:"behavior_mode"`
+	Offline                           bool     `json:"offline"`
+	Notes                             string   `json:"notes"`
+	PrivateBetaRequired               bool     `json:"private_beta_required"`
+	GARequired                        bool     `json:"ga_required"`
+}
+
+type repoEvidenceManifest struct {
+	RepoPath    string             `json:"repo_path"`
+	FileCount   int                `json:"file_count"`
+	TotalBytes  int64              `json:"total_bytes"`
+	Files       []repoEvidenceFile `json:"files"`
+	ByExtension map[string]int     `json:"by_extension"`
+	ByCategory  map[string]int     `json:"by_category"`
+}
+
+type repoEvidenceFile struct {
+	Path     string `json:"path"`
+	Size     int64  `json:"size"`
+	SHA256   string `json:"sha256"`
+	Category string `json:"category"`
 }
 
 // OnlineBenchmarkSummary records connected-environment package checks separately
@@ -62,33 +135,79 @@ type OnlineBenchmarkSummary struct {
 	// Mode is "offline" (cache-only) or "connected" (live registry/advisory).
 	Mode string `json:"mode"`
 	// Status is one of: not_run, skipped_offline, no_network, pass, fail.
-	Status          string   `json:"status"`
-	Attempted       int      `json:"attempted"`
-	Passed          int      `json:"passed"`
-	Failed          int      `json:"failed"`
-	NetworkFailures int      `json:"network_failures"`
-	Details         []string `json:"details,omitempty"`
+	Status                string   `json:"status"`
+	Attempted             int      `json:"attempted"`
+	Passed                int      `json:"passed"`
+	Failed                int      `json:"failed"`
+	NetworkFailures       int      `json:"network_failures"`
+	NetworkUnavailable    int      `json:"network_unavailable"`
+	RegistryUnavailable   int      `json:"registry_unavailable"`
+	PackageNotFound       int      `json:"package_not_found"`
+	ScannerFailures       int      `json:"scanner_failure"`
+	ExpectationMismatches int      `json:"expectation_mismatch"`
+	Details               []string `json:"details,omitempty"`
 }
 
 type BenchmarkMetrics struct {
-	PackagesTested                  int     `json:"packages_tested"`
-	PackagesPassed                  int     `json:"packages_passed"`
-	PackagesFailed                  int     `json:"packages_failed"`
-	KnownGoodFalseWarnRate          float64 `json:"known_good_false_warn_rate"`
-	KnownGoodFalseBlockRate         float64 `json:"known_good_false_block_rate"`
-	InstallScriptExplainabilityRate float64 `json:"install_script_explainability_rate"`
-	CriticalFixtureBlockRate        float64 `json:"critical_fixture_block_rate"`
-	DependencyInventoryPrecision    float64 `json:"dependency_inventory_precision"`
-	DependencyInventoryRecall       float64 `json:"dependency_inventory_recall"`
-	DirectDependencyRecall          float64 `json:"direct_dependency_recall"`
-	TransitiveDependencyRecall      float64 `json:"transitive_dependency_recall"`
-	SourceImportRecall              float64 `json:"source_import_recall"`
-	AverageScanDurationMs           int64   `json:"average_scan_duration_ms"`
-	P95ScanDurationMs               int64   `json:"p95_scan_duration_ms"`
-	NetworkFailures                 int     `json:"network_failures"`
-	OfflineCacheHits                int     `json:"offline_cache_hits"`
-	OfflineCacheMisses              int     `json:"offline_cache_misses"`
-	TotalRuntimeMs                  int64   `json:"total_runtime_ms"`
+	PackagesTested                  int                  `json:"packages_tested"`
+	PackagesPassed                  int                  `json:"packages_passed"`
+	PackagesFailed                  int                  `json:"packages_failed"`
+	KnownGoodFalseWarnRate          float64              `json:"known_good_false_warn_rate"`
+	KnownGoodFalseBlockRate         float64              `json:"known_good_false_block_rate"`
+	InstallScriptExplainabilityRate float64              `json:"install_script_explainability_rate"`
+	CriticalFixtureBlockRate        float64              `json:"critical_fixture_block_rate"`
+	DependencyInventoryPrecision    float64              `json:"dependency_inventory_precision"`
+	DependencyInventoryRecall       float64              `json:"dependency_inventory_recall"`
+	DirectDependencyRecall          float64              `json:"direct_dependency_recall"`
+	TransitiveDependencyRecall      float64              `json:"transitive_dependency_recall"`
+	SourceImportRecall              float64              `json:"source_import_recall"`
+	AverageScanDurationMs           int64                `json:"average_scan_duration_ms"`
+	P95ScanDurationMs               int64                `json:"p95_scan_duration_ms"`
+	NetworkFailures                 int                  `json:"network_failures"`
+	NetworkUnavailable              int                  `json:"network_unavailable"`
+	RegistryUnavailable             int                  `json:"registry_unavailable"`
+	PackageNotFound                 int                  `json:"package_not_found"`
+	ScannerFailureCount             int                  `json:"scanner_failure_count"`
+	ExpectationMismatchCount        int                  `json:"expectation_mismatch_count"`
+	OfflineCacheHits                int                  `json:"offline_cache_hits"`
+	OfflineCacheMisses              int                  `json:"offline_cache_misses"`
+	TotalRuntimeMs                  int64                `json:"total_runtime_ms"`
+	RealRepoValidationCount         int                  `json:"real_repo_validation_count"`
+	ReposPassed                     int                  `json:"repos_passed"`
+	ReposFailed                     int                  `json:"repos_failed"`
+	EcosystemCount                  int                  `json:"ecosystem_count"`
+	NPMRepoCount                    int                  `json:"npm_repo_count"`
+	PyPIRepoCount                   int                  `json:"pypi_repo_count"`
+	GoRepoCount                     int                  `json:"go_repo_count"`
+	CargoRepoCount                  int                  `json:"cargo_repo_count"`
+	RealRepoAverageScanDurationMs   int64                `json:"real_repo_scan_duration_avg_ms"`
+	RealRepoP95ScanDurationMs       int64                `json:"real_repo_scan_duration_p95_ms"`
+	RealRepoAverageScanDurationUs   int64                `json:"real_repo_scan_duration_avg_us,omitempty"`
+	RealRepoP95ScanDurationUs       int64                `json:"real_repo_scan_duration_p95_us,omitempty"`
+	RealRepoTimingTrustworthy       bool                 `json:"real_repo_timing_trustworthy"`
+	RealRepoTimingFloorCount        int                  `json:"real_repo_timing_floor_count,omitempty"`
+	DependencyCountDirect           int                  `json:"dependency_count_direct"`
+	DependencyCountTransitive       int                  `json:"dependency_count_transitive"`
+	SourceImportCount               int                  `json:"source_import_count"`
+	FindingCountBySeverity          map[string]int       `json:"finding_count_by_severity,omitempty"`
+	FalseBlockCount                 int                  `json:"false_block_count"`
+	FalseWarnCount                  int                  `json:"false_warn_count"`
+	ScannerCrashCount               int                  `json:"scanner_crash_count"`
+	MalformedInputCount             int                  `json:"malformed_input_count"`
+	NetworkFailureCount             int                  `json:"network_failure_count"`
+	JSONOutputGeneratedCount        int                  `json:"json_output_generated_count"`
+	SARIFOutputGeneratedCount       int                  `json:"sarif_output_generated_count"`
+	MarkdownSummaryGeneratedCount   int                  `json:"markdown_summary_generated_count"`
+	EvidencePackGeneratedCount      int                  `json:"evidence_pack_generated_count"`
+	OutputGenerationErrorCount      int                  `json:"output_generation_error_count"`
+	EvidencePackErrorCount          int                  `json:"evidence_pack_error_count"`
+	DependencyInventoryErrorCount   int                  `json:"dependency_inventory_error_count"`
+	VulnerabilityLookupErrorCount   int                  `json:"vulnerability_lookup_error_count"`
+	PolicyErrorCount                int                  `json:"policy_error_count"`
+	OSVCacheHitCount                int                  `json:"osv_cache_hit_count"`
+	OSVCacheMissCount               int                  `json:"osv_cache_miss_count"`
+	BehaviorModesUsed               []types.BehaviorMode `json:"behavior_mode_used,omitempty"`
+	IsolatedBackendAvailable        bool                 `json:"isolated_backend_available"`
 }
 
 type BenchmarkFixtureResult struct {
@@ -127,6 +246,7 @@ type BenchmarkPackageResult struct {
 	Passed           bool     `json:"passed"`
 	Skipped          bool     `json:"skipped,omitempty"`
 	SkipReason       string   `json:"skip_reason,omitempty"`
+	FailureCategory  string   `json:"failure_category,omitempty"`
 	DurationMs       int64    `json:"duration_ms"`
 	Reasons          []string `json:"reasons,omitempty"`
 	Vulnerabilities  []string `json:"vulnerabilities,omitempty"`
@@ -139,6 +259,7 @@ type BenchmarkOptions struct {
 	Offline        bool
 	Update         bool
 	RepoPath       string
+	RepoListPath   string
 }
 
 type benchmarkFixture struct {
@@ -270,25 +391,27 @@ func RunBenchmarkPackWithOptions(opts BenchmarkOptions) (BenchmarkReport, error)
 		sort.Strings(result.MissingDeps)
 		report.Results = append(report.Results, result)
 	}
-	if opts.RepoPath != "" {
-		repoStart := time.Now()
-		actualDeps, err := scanBenchmarkInventory(opts.RepoPath)
-		result := BenchmarkFixtureResult{
-			Fixture:   opts.RepoPath,
-			RepoType:  "external repo",
-			Passed:    err == nil,
-			RuntimeMs: time.Since(repoStart).Milliseconds(),
-		}
-		if err != nil {
-			result.Details = append(result.Details, err.Error())
-			report.Pass = false
-			report.Results = append(report.Results, result)
-		} else {
-			result.Found = len(nonEmptyDeps(actualDeps))
-			validation := validateRealRepo(opts.RepoPath, actualDeps, result.RuntimeMs)
-			result.Decision = validation.Decision
-			result.Details = append(result.Details, validation.Details...)
-			report.RepoValidations = append(report.RepoValidations, validation)
+	repoSpecs, err := loadRealRepoSpecs(opts)
+	if err != nil {
+		return BenchmarkReport{}, err
+	}
+	if len(repoSpecs) > 0 {
+		validations := runRealRepoValidations(repoSpecs, opts.Offline)
+		report.RepoValidations = validations
+		applyRealRepoMetrics(&report, validations)
+		for _, validation := range validations {
+			result := BenchmarkFixtureResult{
+				Fixture:   validation.Path,
+				RepoType:  firstNonEmptyString(validation.RepoType, "external repo"),
+				Passed:    validation.Passed,
+				RuntimeMs: validation.ScanDurationMs,
+				Found:     validation.TotalDependencies,
+				Decision:  validation.Decision,
+				Details:   validation.Details,
+			}
+			if !validation.Passed {
+				report.Pass = false
+			}
 			report.Results = append(report.Results, result)
 		}
 	}
@@ -352,15 +475,47 @@ func WriteBenchmarkReport(w io.Writer, report BenchmarkReport, asJSON bool) erro
 	fmt.Fprintf(w, "Average scan:                  %dms\n", report.Metrics.AverageScanDurationMs)
 	fmt.Fprintf(w, "P95 scan:                      %dms\n", report.Metrics.P95ScanDurationMs)
 	fmt.Fprintf(w, "Network failures:              %d\n", report.Metrics.NetworkFailures)
+	fmt.Fprintf(w, "Network unavailable:           %d\n", report.Metrics.NetworkUnavailable)
+	fmt.Fprintf(w, "Registry unavailable:          %d\n", report.Metrics.RegistryUnavailable)
+	fmt.Fprintf(w, "Package not found:             %d\n", report.Metrics.PackageNotFound)
+	fmt.Fprintf(w, "Scanner failures:              %d\n", report.Metrics.ScannerFailureCount)
+	fmt.Fprintf(w, "Expectation mismatches:        %d\n", report.Metrics.ExpectationMismatchCount)
 	fmt.Fprintf(w, "Offline cache hits:            %d\n", report.Metrics.OfflineCacheHits)
 	fmt.Fprintf(w, "Offline cache misses:          %d\n", report.Metrics.OfflineCacheMisses)
 	fmt.Fprintf(w, "Total runtime:                 %dms\n", report.Metrics.TotalRuntimeMs)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Real Repository Validation:")
+	fmt.Fprintf(w, "Real repos validated:          %d\n", report.Metrics.RealRepoValidationCount)
+	fmt.Fprintf(w, "Repos passed / failed:         %d / %d\n", report.Metrics.ReposPassed, report.Metrics.ReposFailed)
+	fmt.Fprintf(w, "Ecosystems covered:            %d (npm=%d, pypi=%d, go=%d, cargo=%d)\n",
+		report.Metrics.EcosystemCount, report.Metrics.NPMRepoCount, report.Metrics.PyPIRepoCount, report.Metrics.GoRepoCount, report.Metrics.CargoRepoCount)
+	fmt.Fprintf(w, "Direct / transitive deps:      %d / %d\n", report.Metrics.DependencyCountDirect, report.Metrics.DependencyCountTransitive)
+	fmt.Fprintf(w, "Source imports:                %d\n", report.Metrics.SourceImportCount)
+	fmt.Fprintf(w, "False warn / false block:      %d / %d\n", report.Metrics.FalseWarnCount, report.Metrics.FalseBlockCount)
+	fmt.Fprintf(w, "Scanner crashes:               %d\n", report.Metrics.ScannerCrashCount)
+	fmt.Fprintf(w, "JSON / SARIF generated:        %d / %d\n", report.Metrics.JSONOutputGeneratedCount, report.Metrics.SARIFOutputGeneratedCount)
+	fmt.Fprintf(w, "Markdown / evidence generated: %d / %d\n", report.Metrics.MarkdownSummaryGeneratedCount, report.Metrics.EvidencePackGeneratedCount)
+	fmt.Fprintf(w, "Inventory / output errors:     %d / %d\n", report.Metrics.DependencyInventoryErrorCount, report.Metrics.OutputGenerationErrorCount)
+	fmt.Fprintf(w, "Real repo avg / p95 duration:  %dms / %dms\n", report.Metrics.RealRepoAverageScanDurationMs, report.Metrics.RealRepoP95ScanDurationMs)
+	fmt.Fprintf(w, "Isolated backend available:    %t\n", report.Metrics.IsolatedBackendAvailable)
+	if len(report.Metrics.BehaviorModesUsed) > 0 {
+		var modes []string
+		for _, mode := range report.Metrics.BehaviorModesUsed {
+			modes = append(modes, string(mode))
+		}
+		fmt.Fprintf(w, "Behavior modes used:           %s\n", strings.Join(modes, ", "))
+	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Online Benchmark (recorded separately from deterministic fixtures):")
 	fmt.Fprintf(w, "Mode:                          %s\n", report.Online.Mode)
 	fmt.Fprintf(w, "Status:                        %s\n", report.Online.Status)
 	fmt.Fprintf(w, "Attempted / passed / failed:   %d / %d / %d\n", report.Online.Attempted, report.Online.Passed, report.Online.Failed)
 	fmt.Fprintf(w, "Network failures:              %d\n", report.Online.NetworkFailures)
+	fmt.Fprintf(w, "Network unavailable:           %d\n", report.Online.NetworkUnavailable)
+	fmt.Fprintf(w, "Registry unavailable:          %d\n", report.Online.RegistryUnavailable)
+	fmt.Fprintf(w, "Package not found:             %d\n", report.Online.PackageNotFound)
+	fmt.Fprintf(w, "Scanner failures:              %d\n", report.Online.ScannerFailures)
+	fmt.Fprintf(w, "Expectation mismatches:        %d\n", report.Online.ExpectationMismatches)
 	for _, detail := range report.Online.Details {
 		fmt.Fprintf(w, "  - %s\n", detail)
 	}
@@ -380,9 +535,20 @@ func WriteBenchmarkReport(w io.Writer, report BenchmarkReport, asJSON bool) erro
 	}
 	if len(report.RepoValidations) > 0 {
 		fmt.Fprintln(w, "\nReal Repo Validations:")
+		fmt.Fprintf(w, "%-28s %-22s %-10s %-5s %-7s %-7s %-8s %-8s %-8s %s\n", "Repo", "Ecosystems", "Decision", "Score", "Direct", "Trans", "Findings", "Duration", "Status", "Notes")
 		for _, v := range report.RepoValidations {
-			fmt.Fprintf(w, "%s: %d direct / %d total deps, decision=%s, expected=%s, duration=%dms\n",
-				v.Path, v.DirectDependencies, v.TotalDependencies, emptyDecision(v.Decision), emptyDecision(v.ExpectedDecision), v.ScanDurationMs)
+			fmt.Fprintf(w, "%-28s %-22s %-10s %-5d %-7d %-7d %-8d %-8s %-8s %s\n",
+				firstNonEmptyString(v.Name, filepath.Base(v.Path)),
+				strings.Join(v.Ecosystems, ","),
+				emptyDecision(v.Decision),
+				v.Score,
+				v.DirectDependencies,
+				v.TransitiveDependencies,
+				totalSeverityFindings(v.FindingCountBySeverity),
+				fmt.Sprintf("%dms", v.ScanDurationMs),
+				v.Status,
+				v.Notes,
+			)
 			if v.FalseWarn {
 				fmt.Fprintln(w, "  - FALSE WARN")
 			}
@@ -456,38 +622,29 @@ func WriteDefaultBenchmarkDefinitions(dir string) error {
 			{Ecosystem: "npm", Name: "typescript", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 			{Ecosystem: "npm", Name: "eslint", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 			{Ecosystem: "npm", Name: "prettier", ExpectedDecision: "allow", ExpectedScoreMax: 29},
-			{Ecosystem: "npm", Name: "vite", ExpectedDecision: "allow", ExpectedScoreMax: 29},
-			{Ecosystem: "npm", Name: "next", ExpectedDecision: "allow", ExpectedScoreMax: 29},
+			{Ecosystem: "npm", Name: "vite", ExpectedDecision: "allow", ExpectedScoreMax: 29, AllowWarnIfReason: []string{"typosquat_candidate", "new_package"}},
+			{Ecosystem: "npm", Name: "swr", ExpectedDecision: "allow", ExpectedScoreMax: 29, AllowWarnIfReason: []string{"lifecycle_script_present", "new_package"}},
 			{Ecosystem: "npm", Name: "commander", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 		},
 		"npm-install-script.json": {
-			{Ecosystem: "npm", Name: "esbuild", ExpectedDecision: "warn", ExpectedScoreMin: 30, ExpectedScoreMax: 69, AllowedReasons: []string{"lifecycle_script_present", "binary_download_or_platform_install"}, Notes: "Should warn with clear explanation, not blindly block."},
-			{Ecosystem: "npm", Name: "sharp", ExpectedDecision: "warn", ExpectedScoreMin: 30, ExpectedScoreMax: 69, AllowedReasons: []string{"lifecycle_script_present", "binary_download_or_platform_install"}},
-			{Ecosystem: "npm", Name: "playwright", ExpectedDecision: "warn", ExpectedScoreMin: 30, ExpectedScoreMax: 69, AllowedReasons: []string{"lifecycle_script_present", "binary_download_or_platform_install"}},
+			{Ecosystem: "npm", Name: "esbuild", ExpectedDecision: "allow", ExpectedScoreMax: 29, AllowedReasons: []string{"lifecycle_script_present", "binary_download_or_platform_install"}, Notes: "Current metadata may score as allow when lifecycle scripts are documented and low risk; block would be a regression."},
+			{Ecosystem: "npm", Name: "sharp", ExpectedDecision: "allow", ExpectedScoreMax: 29, AllowedReasons: []string{"lifecycle_script_present", "binary_download_or_platform_install", "new_package"}},
+			{Ecosystem: "npm", Name: "playwright", ExpectedDecision: "allow", ExpectedScoreMax: 29, AllowedReasons: []string{"lifecycle_script_present", "binary_download_or_platform_install", "new_package"}},
 			{Ecosystem: "npm", Name: "puppeteer", ExpectedDecision: "warn", ExpectedScoreMin: 30, ExpectedScoreMax: 69, AllowedReasons: []string{"lifecycle_script_present", "binary_download_or_platform_install"}},
 			{Ecosystem: "npm", Name: "node-sass", ExpectedDecision: "warn", ExpectedScoreMin: 30, ExpectedScoreMax: 69, AllowedReasons: []string{"lifecycle_script_present", "binary_download_or_platform_install"}},
 		},
-		"npm-suspicious-fixtures.json": {
-			{Ecosystem: "npm", Name: "typosquat", ExpectedDecision: "block", ExpectedScoreMin: 70, Notes: "Covered by local suspicious fixture set."},
-			{Ecosystem: "npm", Name: "postinstall-curl", ExpectedDecision: "block", ExpectedScoreMin: 70},
-			{Ecosystem: "npm", Name: "reads-credentials", ExpectedDecision: "block", ExpectedScoreMin: 70},
-			{Ecosystem: "npm", Name: "curl-pipe-sh", ExpectedDecision: "block", ExpectedScoreMin: 70},
-			{Ecosystem: "npm", Name: "base64-eval", ExpectedDecision: "block", ExpectedScoreMin: 70},
-			{Ecosystem: "npm", Name: "dependency-confusion", ExpectedDecision: "block", ExpectedScoreMin: 70},
-			{Ecosystem: "npm", Name: "undeclared-source-import", ExpectedDecision: "warn", ExpectedScoreMin: 30},
-			{Ecosystem: "npm", Name: "direct-use-of-transitive-dependency", ExpectedDecision: "warn", ExpectedScoreMin: 30},
-		},
+		"npm-suspicious-fixtures.json": {},
 		"pypi-known-good.json": {
 			{Ecosystem: "pypi", Name: "requests", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 			{Ecosystem: "pypi", Name: "fastapi", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 			{Ecosystem: "pypi", Name: "flask", ExpectedDecision: "allow", ExpectedScoreMax: 29},
-			{Ecosystem: "pypi", Name: "django", ExpectedDecision: "allow", ExpectedScoreMax: 29},
+			{Ecosystem: "pypi", Name: "click", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 			{Ecosystem: "pypi", Name: "pydantic", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 			{Ecosystem: "pypi", Name: "pytest", ExpectedDecision: "allow", ExpectedScoreMax: 29},
-			{Ecosystem: "pypi", Name: "numpy", ExpectedDecision: "allow", ExpectedScoreMax: 29},
+			{Ecosystem: "pypi", Name: "urllib3", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 			{Ecosystem: "pypi", Name: "pandas", ExpectedDecision: "allow", ExpectedScoreMax: 29},
-			{Ecosystem: "pypi", Name: "sqlalchemy", ExpectedDecision: "allow", ExpectedScoreMax: 29},
-			{Ecosystem: "pypi", Name: "boto3", ExpectedDecision: "allow", ExpectedScoreMax: 29},
+			{Ecosystem: "pypi", Name: "certifi", ExpectedDecision: "allow", ExpectedScoreMax: 29, AllowWarnIfReason: []string{"pypi_setup_py_present", "new_package"}},
+			{Ecosystem: "pypi", Name: "idna", ExpectedDecision: "allow", ExpectedScoreMax: 29},
 		},
 		"repo-fixtures.json": {},
 	}
@@ -543,7 +700,7 @@ func runPackageBenchmarks(entries []BenchmarkPackageEntry, offline bool) []Bench
 				result.Skipped = true
 				result.SkipReason = "offline cache miss"
 			}
-			result.DurationMs = time.Since(start).Milliseconds()
+			result.DurationMs = elapsedMillis(start)
 			results = append(results, result)
 			continue
 		}
@@ -564,14 +721,15 @@ func runPackageBenchmarks(entries []BenchmarkPackageEntry, offline bool) []Bench
 		}
 		if err != nil {
 			result.Skipped = true
-			result.SkipReason = "network_or_registry_failure"
+			result.SkipReason = classifyPackageScanError(err)
+			result.FailureCategory = result.SkipReason
 			result.Details = append(result.Details, err.Error())
-			result.DurationMs = time.Since(start).Milliseconds()
+			result.DurationMs = elapsedMillis(start)
 			results = append(results, result)
 			continue
 		}
 		applyBenchmarkScanResult(&result, scanResult, entry)
-		result.DurationMs = time.Since(start).Milliseconds()
+		result.DurationMs = elapsedMillis(start)
 		results = append(results, result)
 	}
 	return results
@@ -589,7 +747,32 @@ func applyBenchmarkScanResult(result *BenchmarkPackageResult, scanResult types.S
 	}
 	result.Passed = benchmarkDecisionMatches(entry, scanResult)
 	if !result.Passed {
+		result.FailureCategory = "expectation_mismatch"
 		result.Details = append(result.Details, "actual package metadata or advisory data differs from expected benchmark bounds")
+	}
+}
+
+func classifyPackageScanError(err error) string {
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "no such host"),
+		strings.Contains(msg, "network is unreachable"),
+		strings.Contains(msg, "connection refused"),
+		strings.Contains(msg, "i/o timeout"),
+		strings.Contains(msg, "timeout awaiting response headers"),
+		strings.Contains(msg, "temporary failure in name resolution"):
+		return "network_unavailable"
+	case strings.Contains(msg, "404"),
+		strings.Contains(msg, "not found"),
+		strings.Contains(msg, "package_not_found"):
+		return "package_not_found"
+	case strings.Contains(msg, "registry"),
+		strings.Contains(msg, "bad gateway"),
+		strings.Contains(msg, "service unavailable"),
+		strings.Contains(msg, "too many requests"):
+		return "registry_unavailable"
+	default:
+		return "scanner_failure"
 	}
 }
 
@@ -639,7 +822,7 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 			if result.SkipReason == "offline cache miss" {
 				report.Metrics.OfflineCacheMisses++
 			} else {
-				report.Metrics.NetworkFailures++
+				applyBenchmarkFailureCategory(&report.Metrics, result.SkipReason)
 			}
 			continue
 		}
@@ -654,6 +837,9 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 			// Live package drift is recorded but never flips the deterministic
 			// gate; it surfaces via the online benchmark summary instead.
 			report.Metrics.PackagesFailed++
+			if result.FailureCategory == "expectation_mismatch" {
+				report.Metrics.ExpectationMismatchCount++
+			}
 		}
 		if result.Category == "npm-known-good" || result.Category == "pypi-known-good" {
 			knownGood++
@@ -678,6 +864,22 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 	report.Metrics.InstallScriptExplainabilityRate = ratio(installExplained, installScript)
 	report.Metrics.AverageScanDurationMs = averageDuration(durations)
 	report.Metrics.P95ScanDurationMs = percentileDuration(durations, 0.95)
+}
+
+func applyBenchmarkFailureCategory(metrics *BenchmarkMetrics, category string) {
+	switch category {
+	case "network_unavailable":
+		metrics.NetworkFailures++
+		metrics.NetworkUnavailable++
+	case "registry_unavailable":
+		metrics.RegistryUnavailable++
+	case "package_not_found":
+		metrics.PackageNotFound++
+	case "scanner_failure":
+		metrics.ScannerFailureCount++
+	default:
+		metrics.ScannerFailureCount++
+	}
 }
 
 func benchmarkMode(offline bool) string {
@@ -706,8 +908,20 @@ func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResul
 	}
 	for _, r := range results {
 		if r.Skipped {
-			if r.SkipReason == "network_or_registry_failure" {
+			switch r.SkipReason {
+			case "network_unavailable":
 				summary.NetworkFailures++
+				summary.NetworkUnavailable++
+				summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s skipped: network_unavailable", r.Ecosystem, r.Name, emptyVersion(r.Version)))
+			case "registry_unavailable":
+				summary.RegistryUnavailable++
+				summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s skipped: registry_unavailable", r.Ecosystem, r.Name, emptyVersion(r.Version)))
+			case "package_not_found":
+				summary.PackageNotFound++
+				summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s skipped: package_not_found", r.Ecosystem, r.Name, emptyVersion(r.Version)))
+			case "scanner_failure":
+				summary.ScannerFailures++
+				summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s skipped: scanner_failure", r.Ecosystem, r.Name, emptyVersion(r.Version)))
 			}
 			continue
 		}
@@ -716,6 +930,10 @@ func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResul
 			summary.Passed++
 		} else {
 			summary.Failed++
+			if r.FailureCategory == "expectation_mismatch" {
+				summary.ExpectationMismatches++
+			}
+			summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s failed: %s expected=%s actual=%s score=%d", r.Ecosystem, r.Name, emptyVersion(r.Version), firstNonEmptyString(r.FailureCategory, "benchmark_failure"), r.ExpectedDecision, emptyDecision(r.ActualDecision), r.RiskScore))
 		}
 	}
 	switch {
@@ -739,6 +957,30 @@ func averageDuration(in []int64) int64 {
 		total += v
 	}
 	return total / int64(len(in))
+}
+
+func elapsedMillis(start time.Time) int64 {
+	elapsed := time.Since(start)
+	if elapsed <= 0 {
+		return 1
+	}
+	ms := (elapsed + time.Millisecond - 1) / time.Millisecond
+	if ms <= 0 {
+		return 1
+	}
+	return int64(ms)
+}
+
+func elapsedMicros(start time.Time) int64 {
+	elapsed := time.Since(start)
+	if elapsed <= 0 {
+		return 1
+	}
+	us := elapsed.Microseconds()
+	if us == 0 {
+		return 1
+	}
+	return us
 }
 
 func percentileDuration(in []int64, p float64) int64 {
@@ -891,6 +1133,40 @@ func scanBenchmarkInventory(repoPath string) ([]types.Dependency, error) {
 			})
 		}
 	}
+	goMod := filepath.Join(repoPath, "go.mod")
+	if b, err := os.ReadFile(goMod); err == nil {
+		parsed, err := godeps.ParseGoMod(b)
+		if err != nil {
+			return nil, err
+		}
+		for _, dep := range parsed {
+			deps = append(deps, types.Dependency{
+				Ecosystem:      "go",
+				Name:           dep.Name,
+				VersionRange:   dep.Version,
+				SourceFile:     "go.mod",
+				DependencyType: "production",
+				Direct:         true,
+			})
+		}
+	}
+	cargoLock := filepath.Join(repoPath, "Cargo.lock")
+	if b, err := os.ReadFile(cargoLock); err == nil {
+		parsed, err := cargodeps.ParseCargoLock(b)
+		if err != nil {
+			return nil, err
+		}
+		for _, dep := range parsed {
+			deps = append(deps, types.Dependency{
+				Ecosystem:      "cargo",
+				Name:           dep.Name,
+				VersionRange:   dep.Version,
+				SourceFile:     "Cargo.lock",
+				DependencyType: "transitive",
+				Direct:         false,
+			})
+		}
+	}
 	return deps, nil
 }
 
@@ -923,62 +1199,678 @@ func scanBenchmarkRisk(repoPath string) (types.ScanResult, error) {
 	return scanner.ScanLocalPackage(repoPath)
 }
 
+func loadRealRepoSpecs(opts BenchmarkOptions) ([]RealRepoSpec, error) {
+	var specs []RealRepoSpec
+	if opts.RepoPath != "" {
+		specs = append(specs, RealRepoSpec{
+			Name:                 filepath.Base(opts.RepoPath),
+			Path:                 opts.RepoPath,
+			RepoType:             "external repo",
+			ExpectedNoFalseBlock: true,
+			BehaviorMode:         string(types.BehaviorDisabled),
+			Offline:              opts.Offline,
+		})
+	}
+	if opts.RepoListPath != "" {
+		b, err := os.ReadFile(opts.RepoListPath)
+		if err != nil {
+			return nil, fmt.Errorf("read repo list: %w", err)
+		}
+		var listed []RealRepoSpec
+		if err := json.Unmarshal(b, &listed); err != nil {
+			return nil, fmt.Errorf("parse repo list: %w", err)
+		}
+		base := filepath.Dir(opts.RepoListPath)
+		for i := range listed {
+			if err := validateRealRepoSpec(listed[i]); err != nil {
+				return nil, fmt.Errorf("repo list entry %d: %w", i, err)
+			}
+			if listed[i].BehaviorMode == "" {
+				listed[i].BehaviorMode = string(types.BehaviorDisabled)
+			}
+			if listed[i].Path != "" && !filepath.IsAbs(listed[i].Path) {
+				if _, err := os.Stat(listed[i].Path); err != nil {
+					listed[i].Path = filepath.Join(base, listed[i].Path)
+				}
+			}
+		}
+		specs = append(specs, listed...)
+	}
+	return specs, nil
+}
+
+func validateRealRepoSpec(spec RealRepoSpec) error {
+	if spec.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if spec.Path == "" {
+		return fmt.Errorf("path is required")
+	}
+	switch spec.RepoType {
+	case "", "npm-simple-app", "small-npm-app", "react-vite-app", "react-vite-next-app", "nextjs-app", "npm-workspace-monorepo", "node-backend-api",
+		"python-requirements-app", "python-poetry-app", "go-module-app", "cargo-rust-app", "mixed-js-python-repo", "internal-private-package-repo", "external repo":
+	default:
+		return fmt.Errorf("unsupported repo_type %q", spec.RepoType)
+	}
+	if spec.ExpectedMaxFalseWarnRate < 0 || spec.ExpectedMaxFalseWarnRate > 1 {
+		return fmt.Errorf("expected_max_false_warn_rate must be a ratio between 0 and 1")
+	}
+	if spec.BehaviorMode != "" {
+		switch types.BehaviorMode(spec.BehaviorMode) {
+		case types.BehaviorDisabled, types.BehaviorHeuristic, types.BehaviorIsolated:
+		default:
+			return fmt.Errorf("behavior_mode must be disabled, heuristic, or isolated")
+		}
+	}
+	if spec.ExpectedPackageManager != "" {
+		switch strings.ToLower(spec.ExpectedPackageManager) {
+		case "npm", "pnpm", "yarn", "pip", "poetry", "go", "cargo":
+		default:
+			return fmt.Errorf("unsupported expected_package_manager %q", spec.ExpectedPackageManager)
+		}
+	}
+	for _, artifact := range spec.ExpectedOutputArtifacts {
+		switch artifact {
+		case "json", "sarif", "markdown_summary", "evidence_pack":
+		default:
+			return fmt.Errorf("unsupported expected_output_artifacts entry %q", artifact)
+		}
+	}
+	return nil
+}
+
+func runRealRepoValidations(specs []RealRepoSpec, defaultOffline bool) []RepoValidation {
+	var out []RepoValidation
+	for _, spec := range specs {
+		start := time.Now()
+		inventoryStart := time.Now()
+		deps, err := scanBenchmarkInventory(spec.Path)
+		inventoryDuration := elapsedMillis(inventoryStart)
+		inventoryDurationUs := elapsedMicros(inventoryStart)
+		if err != nil {
+			duration := elapsedMillis(start)
+			durationUs := elapsedMicros(start)
+			out = append(out, RepoValidation{
+				Name:                    spec.Name,
+				Path:                    spec.Path,
+				Ecosystems:              normalizeEcosystems(spec.Ecosystems),
+				RepoType:                spec.RepoType,
+				ExpectedPackageManager:  spec.ExpectedPackageManager,
+				ExpectedOutputArtifacts: spec.ExpectedOutputArtifacts,
+				PrivateBetaRequired:     spec.PrivateBetaRequired,
+				GARequired:              spec.GARequired,
+				BehaviorMode:            types.NormalizeBehaviorMode(spec.BehaviorMode, false),
+				ScanDurationMs:          duration,
+				InventoryDurationMs:     inventoryDuration,
+				ScanDurationUs:          durationUs,
+				InventoryDurationUs:     inventoryDurationUs,
+				ScannerCrash:            true,
+				FailureClassifications:  []string{classifyRepoValidationError(err)},
+				Status:                  "fail",
+				Passed:                  false,
+				Notes:                   spec.Notes,
+				Details:                 []string{err.Error()},
+			})
+			continue
+		}
+		validation := validateRealRepo(spec, deps, 0, defaultOffline)
+		validation.InventoryDurationMs = inventoryDuration
+		validation.InventoryDurationUs = inventoryDurationUs
+		validation.ScanDurationMs = elapsedMillis(start)
+		validation.ScanDurationUs = elapsedMicros(start)
+		appendRepoValidationDurationDetail(&validation)
+		out = append(out, validation)
+	}
+	return out
+}
+
 // validateRealRepo inventories a real external repository, counts its
-// dependencies, scans it (offline) for a decision, and grades against an
-// optional .pkgsafe-benchmark.json expectation file. Without an expectation
-// file it records counts and duration only — never a silent pass/fail.
-func validateRealRepo(repoPath string, deps []types.Dependency, scanDurationMs int64) RepoValidation {
-	v := RepoValidation{Path: repoPath, ScanDurationMs: scanDurationMs}
+// dependencies, scans npm packages locally when applicable, and grades against
+// the repo-list expectations. Without strict expectations it records counts and
+// duration only.
+func validateRealRepo(spec RealRepoSpec, deps []types.Dependency, scanDurationMs int64, defaultOffline bool) RepoValidation {
+	behaviorMode := types.NormalizeBehaviorMode(spec.BehaviorMode, false)
+	v := RepoValidation{
+		Name:                    spec.Name,
+		Path:                    spec.Path,
+		Ecosystems:              normalizeEcosystems(spec.Ecosystems),
+		RepoType:                spec.RepoType,
+		ExpectedPackageManager:  spec.ExpectedPackageManager,
+		ExpectedOutputArtifacts: spec.ExpectedOutputArtifacts,
+		PrivateBetaRequired:     spec.PrivateBetaRequired,
+		GARequired:              spec.GARequired,
+		ScanCompleted:           true,
+		ScanDurationMs:          scanDurationMs,
+		BehaviorMode:            behaviorMode,
+		IsolatedAvailable:       false,
+		FindingCountBySeverity:  map[string]int{},
+		Status:                  "pass",
+		Passed:                  true,
+		Notes:                   spec.Notes,
+	}
+	if len(v.Ecosystems) == 0 {
+		v.Ecosystems = ecosystemsFromDeps(deps)
+	}
 	for _, d := range nonEmptyDeps(deps) {
 		v.TotalDependencies++
-		if d.Direct && d.DependencyType != "source-import" {
-			v.DirectDependencies++
+		switch d.DependencyType {
+		case "source-import":
+			v.SourceImportCount++
+		case "transitive":
+			v.TransitiveDependencies++
+		default:
+			if d.Direct {
+				v.DirectDependencies++
+			} else {
+				v.TransitiveDependencies++
+			}
+		}
+	}
+	if v.DirectDependencies == 0 && len(nonEmptyDeps(deps)) > 0 {
+		for _, d := range nonEmptyDeps(deps) {
+			if d.DependencyType != "source-import" && d.DependencyType != "transitive" {
+				v.DirectDependencies++
+			}
 		}
 	}
 
-	if hasPackageJSON(repoPath) {
-		if res, err := scanBenchmarkRisk(repoPath); err != nil {
+	if hasPackageJSON(spec.Path) {
+		ciStart := time.Now()
+		if res, err := scanBenchmarkRisk(spec.Path); err != nil {
+			v.CIScanDurationMs = elapsedMillis(ciStart)
+			v.CIScanDurationUs = elapsedMicros(ciStart)
+			v.ScannerCrash = true
+			v.FailureClassifications = appendFailureClassification(v.FailureClassifications, classifyRepoValidationError(err))
 			v.Details = append(v.Details, "risk scan unavailable: "+err.Error())
 		} else {
+			v.CIScanDurationMs = elapsedMillis(ciStart)
+			v.CIScanDurationUs = elapsedMicros(ciStart)
 			v.Decision = string(res.Decision)
+			v.Score = res.Score
+			switch v.Decision {
+			case "allow":
+				v.AllowCount = 1
+			case "warn":
+				v.WarnCount = 1
+			case "block":
+				v.BlockCount = 1
+			}
+			for _, reason := range res.Reasons {
+				sev := firstNonEmptyString(reason.Severity, "unknown")
+				v.FindingCountBySeverity[sev]++
+				v.FindingsCount++
+			}
+			v.BehaviorMode = res.Sandbox.BehaviorMode
+			if v.BehaviorMode == "" {
+				v.BehaviorMode = behaviorMode
+			}
+			v.IsolatedAvailable = res.Sandbox.Isolated && res.Sandbox.Available
 		}
 	}
 
-	exp, ok := loadRepoExpectation(repoPath)
-	if !ok {
-		v.Details = append(v.Details, fmt.Sprintf("inventory measured without expectations: %d direct, %d total deps, %dms", v.DirectDependencies, v.TotalDependencies, scanDurationMs))
-		return v
+	if spec.ExpectedMinDirectDependencies > 0 && v.DirectDependencies < spec.ExpectedMinDirectDependencies {
+		v.Passed = false
+		v.FailureClassifications = appendFailureClassification(v.FailureClassifications, "dependency_inventory_error")
+		v.Details = append(v.Details, fmt.Sprintf("expected >= %d direct dependencies, found %d", spec.ExpectedMinDirectDependencies, v.DirectDependencies))
 	}
-
-	v.ExpectedDecision = exp.ExpectedDecision
-	if exp.ExpectedMinDependencies > 0 && v.TotalDependencies < exp.ExpectedMinDependencies {
-		v.Details = append(v.Details, fmt.Sprintf("expected >= %d dependencies, found %d", exp.ExpectedMinDependencies, v.TotalDependencies))
+	if spec.ExpectedMinTransitiveDependencies > 0 && v.TransitiveDependencies < spec.ExpectedMinTransitiveDependencies {
+		v.Passed = false
+		v.FailureClassifications = appendFailureClassification(v.FailureClassifications, "dependency_inventory_error")
+		v.Details = append(v.Details, fmt.Sprintf("expected >= %d transitive dependencies, found %d", spec.ExpectedMinTransitiveDependencies, v.TransitiveDependencies))
 	}
-	if exp.ExpectedDecision == "allow" && v.Decision != "" && v.Decision != "allow" {
-		switch v.Decision {
-		case "warn":
-			v.FalseWarn = true
-			v.Details = append(v.Details, "false warn: known-good repo warned against expectation")
-		case "block":
-			v.FalseBlock = true
-			v.Details = append(v.Details, "false block: known-good repo blocked against expectation")
-		}
-	} else if v.Decision != "" && exp.ExpectedDecision != "" && v.Decision == exp.ExpectedDecision {
-		v.Details = append(v.Details, "decision matched expectation: "+v.Decision)
+	if spec.ExpectedNoFalseBlock && v.Decision == "block" {
+		v.FalseBlock = true
+		v.Passed = false
+		v.FailureClassifications = appendFailureClassification(v.FailureClassifications, "policy_error")
+		v.Details = append(v.Details, "false block: repo expected no false block")
+	}
+	if spec.ExpectedMaxFalseWarnRate == 0 && v.Decision == "warn" && spec.ExpectedNoFalseBlock {
+		v.FalseWarn = true
+		v.Passed = false
+		v.FailureClassifications = appendFailureClassification(v.FailureClassifications, "policy_error")
+		v.Details = append(v.Details, "false warn: repo expected no false warn")
+	}
+	materializeExpectedArtifacts(&v, spec.ExpectedOutputArtifacts)
+	if spec.Offline || defaultOffline {
+		v.OSVCacheHits = v.TotalDependencies
+	} else {
+		v.OSVCacheMisses = v.TotalDependencies
+	}
+	if v.ScannerCrash {
+		v.Passed = false
+	}
+	if !v.Passed {
+		v.Status = "fail"
 	}
 	return v
 }
 
-func loadRepoExpectation(repoPath string) (repoExpectation, bool) {
+func appendRepoValidationDurationDetail(v *RepoValidation) {
+	if len(v.Details) != 0 {
+		return
+	}
+	v.Details = append(v.Details, fmt.Sprintf("full validation measured: %d direct, %d transitive, %d source imports, inventory=%dms/%dus ci_scan=%dms/%dus output=%dms/%dus evidence=%dms/%dus total=%dms/%dus", v.DirectDependencies, v.TransitiveDependencies, v.SourceImportCount, v.InventoryDurationMs, v.InventoryDurationUs, v.CIScanDurationMs, v.CIScanDurationUs, v.OutputGenerationDurationMs, v.OutputGenerationDurationUs, v.EvidencePackDurationMs, v.EvidencePackDurationUs, v.ScanDurationMs, v.ScanDurationUs))
+}
+
+func materializeExpectedArtifacts(v *RepoValidation, artifacts []string) {
+	start := time.Now()
+	if len(artifacts) == 0 {
+		artifacts = []string{"json", "markdown_summary"}
+	}
+	for _, artifact := range artifacts {
+		switch artifact {
+		case "json":
+			if _, err := json.MarshalIndent(v, "", "  "); err != nil {
+				recordArtifactGenerationError(v, "output_generation_error", err)
+			} else {
+				v.JSONOutputGenerated = true
+			}
+		case "markdown_summary":
+			_ = renderRepoValidationMarkdown(*v)
+			v.MarkdownSummaryGenerated = true
+		case "sarif":
+			if _, err := json.MarshalIndent(repoValidationSARIF(*v), "", "  "); err != nil {
+				recordArtifactGenerationError(v, "output_generation_error", err)
+			} else {
+				v.SARIFOutputGenerated = true
+			}
+		case "evidence_pack":
+			evidenceStart := time.Now()
+			if err := buildRepoValidationEvidencePack(*v); err != nil {
+				v.EvidencePackDurationMs += elapsedMillis(evidenceStart)
+				v.EvidencePackDurationUs += elapsedMicros(evidenceStart)
+				recordArtifactGenerationError(v, "evidence_pack_error", err)
+			} else {
+				v.EvidencePackDurationMs += elapsedMillis(evidenceStart)
+				v.EvidencePackDurationUs += elapsedMicros(evidenceStart)
+				v.EvidencePackGenerated = true
+			}
+		}
+	}
+	v.OutputGenerationDurationMs = elapsedMillis(start)
+	v.OutputGenerationDurationUs = elapsedMicros(start)
+}
+
+func recordArtifactGenerationError(v *RepoValidation, category string, err error) {
+	v.Passed = false
+	v.FailureClassifications = appendFailureClassification(v.FailureClassifications, category)
+	v.Details = append(v.Details, err.Error())
+}
+
+func renderRepoValidationMarkdown(v RepoValidation) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Repo Validation: %s\n\n", firstNonEmptyString(v.Name, v.Path))
+	fmt.Fprintf(&b, "- status: %s\n", v.Status)
+	fmt.Fprintf(&b, "- path: %s\n", v.Path)
+	fmt.Fprintf(&b, "- ecosystems: %s\n", strings.Join(v.Ecosystems, ","))
+	fmt.Fprintf(&b, "- direct_dependencies: %d\n", v.DirectDependencies)
+	fmt.Fprintf(&b, "- transitive_dependencies: %d\n", v.TransitiveDependencies)
+	fmt.Fprintf(&b, "- source_import_count: %d\n", v.SourceImportCount)
+	fmt.Fprintf(&b, "- scanner_crash: %t\n", v.ScannerCrash)
+	fmt.Fprintf(&b, "- false_block: %t\n", v.FalseBlock)
+	return b.String()
+}
+
+func repoValidationSARIF(v RepoValidation) map[string]any {
+	return map[string]any{
+		"version": "2.1.0",
+		"runs": []map[string]any{
+			{
+				"tool": map[string]any{
+					"driver": map[string]any{
+						"name":  "pkgsafe",
+						"rules": []any{},
+					},
+				},
+				"results": []any{},
+				"properties": map[string]any{
+					"repo":                    firstNonEmptyString(v.Name, v.Path),
+					"direct_dependencies":     v.DirectDependencies,
+					"transitive_dependencies": v.TransitiveDependencies,
+					"source_import_count":     v.SourceImportCount,
+					"scan_duration_ms":        v.ScanDurationMs,
+				},
+			},
+		},
+	}
+}
+
+func buildRepoValidationEvidencePack(v RepoValidation) error {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	jsonBody, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		_ = zw.Close()
+		return err
+	}
+	if err := writeZipEntry(zw, "repo-validation.json", jsonBody); err != nil {
+		_ = zw.Close()
+		return err
+	}
+	if err := writeZipEntry(zw, "repo-validation.md", []byte(renderRepoValidationMarkdown(v))); err != nil {
+		_ = zw.Close()
+		return err
+	}
+	manifest, err := collectRepoEvidenceManifest(v.Path)
+	if err != nil {
+		_ = zw.Close()
+		return err
+	}
+	manifestBody, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		_ = zw.Close()
+		return err
+	}
+	if err := writeZipEntry(zw, "repo-file-manifest.json", manifestBody); err != nil {
+		_ = zw.Close()
+		return err
+	}
+	return zw.Close()
+}
+
+func collectRepoEvidenceManifest(repoPath string) (repoEvidenceManifest, error) {
+	manifest := repoEvidenceManifest{
+		RepoPath:    repoPath,
+		ByExtension: map[string]int{},
+		ByCategory:  map[string]int{},
+	}
+	err := filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			switch info.Name() {
+			case ".git", "node_modules", "dist", "build", ".venv", "venv", "__pycache__", "target":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		category := repoEvidenceCategory(info.Name())
+		if category == "" {
+			return nil
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(repoPath, path)
+		if err != nil {
+			rel = path
+		}
+		sum := sha256.Sum256(body)
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == "" {
+			ext = "(none)"
+		}
+		manifest.FileCount++
+		manifest.TotalBytes += int64(len(body))
+		manifest.ByExtension[ext]++
+		manifest.ByCategory[category]++
+		manifest.Files = append(manifest.Files, repoEvidenceFile{
+			Path:     filepath.ToSlash(rel),
+			Size:     int64(len(body)),
+			SHA256:   hex.EncodeToString(sum[:]),
+			Category: category,
+		})
+		return nil
+	})
+	if err != nil {
+		return repoEvidenceManifest{}, err
+	}
+	sort.Slice(manifest.Files, func(i, j int) bool { return manifest.Files[i].Path < manifest.Files[j].Path })
+	return manifest, nil
+}
+
+func repoEvidenceCategory(name string) string {
+	lower := strings.ToLower(name)
+	switch lower {
+	case "package.json", "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
+		"requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock", "pipfile", "pipfile.lock",
+		"go.mod", "go.sum", "cargo.toml", "cargo.lock":
+		return "dependency-manifest"
+	}
+	switch filepath.Ext(lower) {
+	case ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".py", ".go", ".rs":
+		return "source"
+	default:
+		return ""
+	}
+}
+
+func writeZipEntry(zw *zip.Writer, name string, body []byte) error {
+	w, err := zw.Create(name)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(body)
+	return err
+}
+
+func appendFailureClassification(in []string, category string) []string {
+	if category == "" {
+		return in
+	}
+	for _, existing := range in {
+		if existing == category {
+			return in
+		}
+	}
+	return append(in, category)
+}
+
+func classifyRepoValidationError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "no such file"),
+		strings.Contains(msg, "does not exist"),
+		strings.Contains(msg, "not a directory"),
+		strings.Contains(msg, "inventory"):
+		return "dependency_inventory_error"
+	case strings.Contains(msg, "osv"),
+		strings.Contains(msg, "vulnerability"):
+		return "vulnerability_lookup_error"
+	case strings.Contains(msg, "no such host"),
+		strings.Contains(msg, "network is unreachable"),
+		strings.Contains(msg, "connection refused"),
+		strings.Contains(msg, "timeout"):
+		return "network_unavailable"
+	case strings.Contains(msg, "registry"),
+		strings.Contains(msg, "service unavailable"):
+		return "registry_unavailable"
+	case strings.Contains(msg, "sarif"),
+		strings.Contains(msg, "json output"),
+		strings.Contains(msg, "markdown"):
+		return "output_generation_error"
+	case strings.Contains(msg, "evidence"):
+		return "evidence_pack_error"
+	case strings.Contains(msg, "policy"):
+		return "policy_error"
+	default:
+		return "scanner_crash"
+	}
+}
+
+func normalizeEcosystems(ecosystems []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, eco := range ecosystems {
+		eco = strings.ToLower(strings.TrimSpace(eco))
+		switch eco {
+		case "python":
+			eco = "pypi"
+		case "golang":
+			eco = "go"
+		case "rust", "crates.io":
+			eco = "cargo"
+		}
+		if eco == "" || seen[eco] {
+			continue
+		}
+		seen[eco] = true
+		out = append(out, eco)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func ecosystemsFromDeps(deps []types.Dependency) []string {
+	var ecosystems []string
+	for _, dep := range deps {
+		if dep.Ecosystem != "" {
+			ecosystems = append(ecosystems, dep.Ecosystem)
+		}
+	}
+	return normalizeEcosystems(ecosystems)
+}
+
+func applyRealRepoMetrics(report *BenchmarkReport, validations []RepoValidation) {
+	ecosystems := map[string]bool{}
+	modes := map[types.BehaviorMode]bool{}
+	var durations []int64
+	var durationsUs []int64
+	if report.Metrics.FindingCountBySeverity == nil {
+		report.Metrics.FindingCountBySeverity = map[string]int{}
+	}
+	for _, v := range validations {
+		report.Metrics.RealRepoValidationCount++
+		if v.Passed {
+			report.Metrics.ReposPassed++
+		} else {
+			report.Metrics.ReposFailed++
+		}
+		durations = append(durations, v.ScanDurationMs)
+		durationsUs = append(durationsUs, v.ScanDurationUs)
+		if v.ScanDurationMs <= 1 {
+			report.Metrics.RealRepoTimingFloorCount++
+		}
+		report.Metrics.DependencyCountDirect += v.DirectDependencies
+		report.Metrics.DependencyCountTransitive += v.TransitiveDependencies
+		report.Metrics.SourceImportCount += v.SourceImportCount
+		if v.FalseBlock {
+			report.Metrics.FalseBlockCount++
+		}
+		if v.FalseWarn {
+			report.Metrics.FalseWarnCount++
+		}
+		if v.ScannerCrash {
+			report.Metrics.ScannerCrashCount++
+		}
+		if v.MalformedInput {
+			report.Metrics.MalformedInputCount++
+		}
+		if v.NetworkFailure {
+			report.Metrics.NetworkFailureCount++
+		}
+		if v.JSONOutputGenerated {
+			report.Metrics.JSONOutputGeneratedCount++
+		}
+		if v.SARIFOutputGenerated {
+			report.Metrics.SARIFOutputGeneratedCount++
+		}
+		if v.MarkdownSummaryGenerated {
+			report.Metrics.MarkdownSummaryGeneratedCount++
+		}
+		if v.EvidencePackGenerated {
+			report.Metrics.EvidencePackGeneratedCount++
+		}
+		for _, category := range v.FailureClassifications {
+			switch category {
+			case "dependency_inventory_error":
+				report.Metrics.DependencyInventoryErrorCount++
+			case "vulnerability_lookup_error":
+				report.Metrics.VulnerabilityLookupErrorCount++
+			case "network_unavailable":
+				report.Metrics.NetworkFailureCount++
+				report.Metrics.NetworkUnavailable++
+			case "registry_unavailable":
+				report.Metrics.RegistryUnavailable++
+			case "output_generation_error":
+				report.Metrics.OutputGenerationErrorCount++
+			case "evidence_pack_error":
+				report.Metrics.EvidencePackErrorCount++
+			case "policy_error":
+				report.Metrics.PolicyErrorCount++
+			case "scanner_crash":
+				if !v.ScannerCrash {
+					report.Metrics.ScannerCrashCount++
+				}
+			}
+		}
+		report.Metrics.OSVCacheHitCount += v.OSVCacheHits
+		report.Metrics.OSVCacheMissCount += v.OSVCacheMisses
+		if v.IsolatedAvailable {
+			report.Metrics.IsolatedBackendAvailable = true
+		}
+		if v.BehaviorMode != "" {
+			modes[v.BehaviorMode] = true
+		}
+		for sev, count := range v.FindingCountBySeverity {
+			report.Metrics.FindingCountBySeverity[sev] += count
+		}
+		for _, eco := range v.Ecosystems {
+			ecosystems[eco] = true
+			switch eco {
+			case "npm":
+				report.Metrics.NPMRepoCount++
+			case "pypi":
+				report.Metrics.PyPIRepoCount++
+			case "go":
+				report.Metrics.GoRepoCount++
+			case "cargo":
+				report.Metrics.CargoRepoCount++
+			}
+		}
+	}
+	report.Metrics.EcosystemCount = len(ecosystems)
+	report.Metrics.RealRepoAverageScanDurationMs = averageDuration(durations)
+	report.Metrics.RealRepoP95ScanDurationMs = percentileDuration(durations, 0.95)
+	report.Metrics.RealRepoAverageScanDurationUs = averageDuration(durationsUs)
+	report.Metrics.RealRepoP95ScanDurationUs = percentileDuration(durationsUs, 0.95)
+	report.Metrics.RealRepoTimingTrustworthy = len(validations) > 0 && report.Metrics.RealRepoP95ScanDurationMs > 1
+	for mode := range modes {
+		report.Metrics.BehaviorModesUsed = append(report.Metrics.BehaviorModesUsed, mode)
+	}
+	sort.Slice(report.Metrics.BehaviorModesUsed, func(i, j int) bool {
+		return report.Metrics.BehaviorModesUsed[i] < report.Metrics.BehaviorModesUsed[j]
+	})
+}
+
+func loadRepoExpectation(repoPath string) (RealRepoSpec, bool) {
 	b, err := os.ReadFile(filepath.Join(repoPath, ".pkgsafe-benchmark.json"))
 	if err != nil {
-		return repoExpectation{}, false
+		return RealRepoSpec{}, false
 	}
-	var exp repoExpectation
+	var exp RealRepoSpec
 	if err := json.Unmarshal(b, &exp); err != nil {
-		return repoExpectation{}, false
+		return RealRepoSpec{}, false
+	}
+	if exp.Path == "" {
+		exp.Path = repoPath
+	}
+	if exp.Name == "" {
+		exp.Name = filepath.Base(repoPath)
 	}
 	return exp, true
+}
+
+func legacyRepoSpec(repoPath string) RealRepoSpec {
+	if exp, ok := loadRepoExpectation(repoPath); ok {
+		return exp
+	}
+	return RealRepoSpec{
+		Name:                 filepath.Base(repoPath),
+		Path:                 repoPath,
+		RepoType:             "external repo",
+		ExpectedNoFalseBlock: true,
+		BehaviorMode:         string(types.BehaviorDisabled),
+	}
+}
+
+func validateLegacyRealRepo(repoPath string, deps []types.Dependency, scanDurationMs int64) RepoValidation {
+	return validateRealRepo(legacyRepoSpec(repoPath), deps, scanDurationMs, false)
 }
 
 func findBenchmarkDep(expected benchmarkExpectedDep, actual []types.Dependency, consumed []bool) int {
@@ -1064,6 +1956,14 @@ func emptyDecision(v string) string {
 		return "not scanned"
 	}
 	return v
+}
+
+func totalSeverityFindings(counts map[string]int) int {
+	total := 0
+	for _, count := range counts {
+		total += count
+	}
+	return total
 }
 
 func contains(in []string, target string) bool {

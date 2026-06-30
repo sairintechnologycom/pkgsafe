@@ -172,7 +172,7 @@ Usage:
   pkgsafe inventory <repo-path> [--json]
   pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
   pkgsafe test corpus [--json] [--explain-misses]
-  pkgsafe test benchmark [--json] [--fixtures <dir>] [--offline] [--repo <path>]
+  pkgsafe test benchmark [--json] [--fixtures <dir>] [--offline] [--repo <path>] [--repo-list <path>]
   pkgsafe test rollout-readiness [--json]
   pkgsafe test production-readiness [--json] [--fixtures <dir>] [--repo <path>]
   pkgsafe doctor [--json] [--policy <path>] [--registry-config <path>] [--skip-network]
@@ -193,6 +193,8 @@ Usage:
   pkgsafe registry auth status
   pkgsafe report generate [--repo <path>] [--output <path>] [--format <format>] [--type <type>]
   pkgsafe report evidence-pack [--repo <path>] [--output <path>]
+  pkgsafe report beta-evidence [--repo <path>] [--repo-list <path>] [--output <path>] [--json-output <path>]
+  pkgsafe report ga-evidence [--repo <path>] [--repo-list <path>] [--output <path>] [--json-output <path>]
   pkgsafe report exceptions [--output <path>]
   pkgsafe report overrides [--output <path>]
   pkgsafe report policy [--policy-pack <name>] [--output <path>]
@@ -211,6 +213,34 @@ Usage:
 `)
 }
 
+func flagPassed(fs *flag.FlagSet, name string) bool {
+	found := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
+}
+
+func resolveBehaviorMode(fs *flag.FlagSet, behavior string, sandbox bool, pol policy.Policy) (types.BehaviorMode, error) {
+	if flagPassed(fs, "behavior") {
+		switch types.BehaviorMode(behavior) {
+		case types.BehaviorDisabled, types.BehaviorHeuristic, types.BehaviorIsolated:
+			return types.BehaviorMode(behavior), nil
+		default:
+			return "", fmt.Errorf("--behavior must be disabled, heuristic, or isolated")
+		}
+	}
+	if flagPassed(fs, "sandbox") {
+		if sandbox {
+			return types.BehaviorHeuristic, nil
+		}
+		return types.BehaviorDisabled, nil
+	}
+	return types.NormalizeBehaviorMode(pol.Sandbox.BehaviorMode, pol.Sandbox.Enabled), nil
+}
+
 func cmdScanPyPIPackage(args []string) error {
 	fs := flag.NewFlagSet("scan-pypi-package", flag.ContinueOnError)
 	ver := fs.String("version", "", "package version")
@@ -219,7 +249,8 @@ func cmdScanPyPIPackage(args []string) error {
 	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
-	sandbox := fs.Bool("sandbox", false, "report that PyPI behavior analysis is unsupported")
+	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
+	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic; PyPI execution remains disabled without isolated backend")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
 	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
@@ -235,10 +266,15 @@ func cmdScanPyPIPackage(args []string) error {
 	if err != nil {
 		return err
 	}
+	behaviorMode, err := resolveBehaviorMode(fs, *behavior, *sandbox, pol)
+	if err != nil {
+		return err
+	}
 	scanner := spypi.New()
 	scanner.Policy = pol
 	scanner.Offline = *offline
-	scanner.SandboxEnabled = *sandbox
+	scanner.BehaviorMode = behaviorMode
+	scanner.SandboxEnabled = behaviorMode != types.BehaviorDisabled
 	scanner.RequestedBy = "human"
 	scanner.Environment = "developer"
 	res, err := scanner.ScanPackage(fs.Arg(0), *ver)
@@ -447,7 +483,8 @@ func cmdScanLocalNPM(args []string) error {
 	policyPath := fs.String("policy", "", "policy YAML path")
 	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
-	sandbox := fs.Bool("sandbox", false, "execute lifecycle scripts on the host (no isolation) for heuristic behavior analysis")
+	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
+	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic")
 	timeout := fs.Duration("timeout", 10*time.Second, "behavior-analysis execution timeout")
 	network := fs.String("network", "disabled", "network mode (disabled, limited, host)")
 	keepSandbox := fs.Bool("keep-sandbox", false, "keep the analysis working directory after execution")
@@ -466,23 +503,14 @@ func cmdScanLocalNPM(args []string) error {
 		return err
 	}
 
-	isFlagPassed := func(name string) bool {
-		found := false
-		fs.Visit(func(f *flag.Flag) {
-			if f.Name == name {
-				found = true
-			}
-		})
-		return found
+	behaviorMode, err := resolveBehaviorMode(fs, *behavior, *sandbox, pol)
+	if err != nil {
+		return err
 	}
-
-	sandboxEnabled := *sandbox
-	if !isFlagPassed("sandbox") {
-		sandboxEnabled = pol.Sandbox.Enabled
-	}
+	sandboxEnabled := behaviorMode != types.BehaviorDisabled
 
 	sandboxTimeout := *timeout
-	if !isFlagPassed("timeout") {
+	if !flagPassed(fs, "timeout") {
 		if pol.Sandbox.DefaultTimeoutSeconds > 0 {
 			sandboxTimeout = time.Duration(pol.Sandbox.DefaultTimeoutSeconds) * time.Second
 		} else {
@@ -491,7 +519,7 @@ func cmdScanLocalNPM(args []string) error {
 	}
 
 	networkMode := *network
-	if !isFlagPassed("network") {
+	if !flagPassed(fs, "network") {
 		if pol.Sandbox.NetworkMode != "" {
 			networkMode = pol.Sandbox.NetworkMode
 		} else {
@@ -500,13 +528,14 @@ func cmdScanLocalNPM(args []string) error {
 	}
 
 	keepSandboxVal := *keepSandbox
-	if !isFlagPassed("keep-sandbox") {
+	if !flagPassed(fs, "keep-sandbox") {
 		keepSandboxVal = pol.Sandbox.KeepSandbox
 	}
 
 	scanner := snpm.New()
 	scanner.Policy = pol
 	scanner.SandboxEnabled = sandboxEnabled
+	scanner.BehaviorMode = behaviorMode
 	scanner.SandboxTimeout = sandboxTimeout
 	scanner.NetworkMode = networkMode
 	scanner.KeepSandbox = keepSandboxVal
@@ -528,7 +557,8 @@ func cmdScanNPMPackage(args []string) error {
 	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
-	sandbox := fs.Bool("sandbox", false, "execute lifecycle scripts on the host (no isolation) for heuristic behavior analysis")
+	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
+	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic")
 	timeout := fs.Duration("timeout", 10*time.Second, "behavior-analysis execution timeout")
 	network := fs.String("network", "disabled", "network mode (disabled, limited, host)")
 	keepSandbox := fs.Bool("keep-sandbox", false, "keep the analysis working directory after execution")
@@ -549,23 +579,14 @@ func cmdScanNPMPackage(args []string) error {
 		return err
 	}
 
-	isFlagPassed := func(name string) bool {
-		found := false
-		fs.Visit(func(f *flag.Flag) {
-			if f.Name == name {
-				found = true
-			}
-		})
-		return found
+	behaviorMode, err := resolveBehaviorMode(fs, *behavior, *sandbox, pol)
+	if err != nil {
+		return err
 	}
-
-	sandboxEnabled := *sandbox
-	if !isFlagPassed("sandbox") {
-		sandboxEnabled = pol.Sandbox.Enabled
-	}
+	sandboxEnabled := behaviorMode != types.BehaviorDisabled
 
 	sandboxTimeout := *timeout
-	if !isFlagPassed("timeout") {
+	if !flagPassed(fs, "timeout") {
 		if pol.Sandbox.DefaultTimeoutSeconds > 0 {
 			sandboxTimeout = time.Duration(pol.Sandbox.DefaultTimeoutSeconds) * time.Second
 		} else {
@@ -574,7 +595,7 @@ func cmdScanNPMPackage(args []string) error {
 	}
 
 	networkMode := *network
-	if !isFlagPassed("network") {
+	if !flagPassed(fs, "network") {
 		if pol.Sandbox.NetworkMode != "" {
 			networkMode = pol.Sandbox.NetworkMode
 		} else {
@@ -583,7 +604,7 @@ func cmdScanNPMPackage(args []string) error {
 	}
 
 	keepSandboxVal := *keepSandbox
-	if !isFlagPassed("keep-sandbox") {
+	if !flagPassed(fs, "keep-sandbox") {
 		keepSandboxVal = pol.Sandbox.KeepSandbox
 	}
 
@@ -591,6 +612,7 @@ func cmdScanNPMPackage(args []string) error {
 	scanner.Policy = pol
 	scanner.Offline = *offline
 	scanner.SandboxEnabled = sandboxEnabled
+	scanner.BehaviorMode = behaviorMode
 	scanner.SandboxTimeout = sandboxTimeout
 	scanner.NetworkMode = networkMode
 	scanner.KeepSandbox = keepSandboxVal
@@ -1014,9 +1036,9 @@ func flagNeedsValue(arg string) bool {
 	name := strings.TrimLeft(arg, "-")
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
-	case "version", "mode", "policy", "log-level", "timeout", "network",
+	case "version", "mode", "policy", "log-level", "timeout", "network", "behavior",
 		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token",
-		"base", "repo", "fixtures", "definitions":
+		"base", "repo", "repo-list", "fixtures", "definitions":
 		return true
 	default:
 		return false
@@ -1037,7 +1059,8 @@ func cmdCIScan(args []string) error {
 	summaryOutput := fs.String("summary-output", "", "path to write Markdown summary")
 	changedOnly := fs.Bool("changed-only", false, "only scan changed dependencies")
 	baseline := fs.String("baseline", "main", "baseline branch for diffing")
-	sandbox := fs.Bool("sandbox", false, "enable lifecycle-script behavior analysis (runs scripts on host, no isolation)")
+	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
+	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic")
 	offline := fs.Bool("offline", false, "use offline database only")
 	timeout := fs.Duration("timeout", 0, "behavior-analysis timeout")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
@@ -1072,6 +1095,7 @@ func cmdCIScan(args []string) error {
 		Baseline:             *baseline,
 		SandboxSpecified:     isFlagPassed("sandbox"),
 		Sandbox:              *sandbox,
+		BehaviorMode:         *behavior,
 		Offline:              *offline,
 		Timeout:              *timeout,
 		PolicyPack:           *policyPack,
@@ -1235,6 +1259,7 @@ func cmdTestBenchmark(args []string) error {
 	update := fs.Bool("update", false, "rewrite default benchmark definitions")
 	offline := fs.Bool("offline", false, "use cached package scan results only for package benchmarks")
 	repoPath := fs.String("repo", "", "additional repository path to inventory without golden expectations")
+	repoList := fs.String("repo-list", "", "JSON file listing real repositories to validate")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -1244,6 +1269,7 @@ func cmdTestBenchmark(args []string) error {
 		Update:         *update,
 		Offline:        *offline,
 		RepoPath:       *repoPath,
+		RepoListPath:   *repoList,
 	})
 	if err != nil {
 		return err
@@ -1282,6 +1308,7 @@ func cmdTestProductionReadiness(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	fixturesDir := fs.String("fixtures", "testdata/benchmarks", "directory for benchmark fixtures")
 	repo := fs.String("repo", "", "optional real repository path to validate (feeds real_repo_validation_count)")
+	repoList := fs.String("repo-list", "", "JSON file listing real repositories to validate")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -1292,6 +1319,9 @@ func cmdTestProductionReadiness(args []string) error {
 	}
 	if *repo != "" {
 		opts.RealRepos = []string{*repo}
+	}
+	if *repoList != "" {
+		opts.RepoListPath = *repoList
 	}
 	rep, err := validation.RunProductionReadinessWithOptions(opts)
 	if err != nil {

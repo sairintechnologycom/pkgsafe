@@ -23,7 +23,7 @@ The strategic differentiator is the combination of:
 2. Local-first and offline-friendly execution
 3. Developer-friendly CLI workflow
 4. MCP-compatible interface for AI coding agents
-5. Future sandboxed behavioral analysis
+5. Future isolated behavior analysis
 6. Human-readable risk explanations
 
 ## 2. Product Vision
@@ -44,7 +44,7 @@ PkgSafe is a local-first package firewall that protects developers and AI coding
 
 ### 3.2 Expanded Pitch
 
-PkgSafe validates packages before they are installed by analyzing registry metadata, lifecycle scripts, package reputation, typosquat risk, credential exposure patterns, known vulnerability intelligence, and future sandboxed runtime behavior. It provides clear allow/warn/block decisions through a CLI, JSON API, CI/CD integration, and MCP tools for AI coding agents.
+PkgSafe validates packages before they are installed by analyzing registry metadata, lifecycle scripts, package reputation, typosquat risk, credential exposure patterns, known vulnerability intelligence, and future isolated behavior analysis. It provides clear allow/warn/block decisions through a CLI, JSON API, CI/CD integration, and MCP tools for AI coding agents.
 
 ### 3.3 Category
 
@@ -241,7 +241,7 @@ A package attempts to read:
 .npmrc
 ```
 
-PkgSafe should block the package when sandbox analysis is enabled.
+PkgSafe should block the package when behavior analysis is enabled.
 
 ## 7. MVP Scope
 
@@ -543,9 +543,9 @@ Requirements:
 
 * Safe tarball extraction
 * No execution of untrusted lifecycle scripts in MVP static scan
-* Sandboxed execution only in later phase
+* Isolated behavior execution only in later phase
 * Strict timeout controls
-* No default access to host credentials during sandbox runs
+* No default access to host credentials during isolated behavior runs
 * Clear policy decision logging
 * Tamper-resistant release artifacts
 * Checksums for binaries
@@ -581,7 +581,7 @@ The following should not be built in the first MVP:
 * ML-based detection
 * Registry proxy
 * Private registry firewall
-* Full sandbox execution
+* Full isolated behavior execution
 * Organization-wide policy sync
 * ServiceNow integration
 * SIEM integration
@@ -754,7 +754,7 @@ pkgsafe/
     analyzer/
       npm/
       static/
-      sandbox/
+      behavior/
       typosquat/
       trust/
       vulnerability/
@@ -863,7 +863,7 @@ PkgSafe must follow these principles:
 2. No source code upload by default
 3. No telemetry without opt-in
 4. Explain every decision
-5. Do not execute untrusted package scripts unless sandboxed
+5. Do not execute untrusted package scripts unless a real isolated backend is active
 6. Never expose real developer credentials to package scripts
 7. Prefer warning over blocking unless risk is clear
 8. Enterprise policies must be transparent to developers
@@ -875,7 +875,7 @@ PkgSafe must follow these principles:
 | Risk                                    | Mitigation                                                  |
 | --------------------------------------- | ----------------------------------------------------------- |
 | False positives frustrate developers    | Default to warn mode and provide clear reasons              |
-| Sandbox support is hard cross-platform  | Start with static scan, then Linux/macOS sandbox            |
+| Isolated behavior support is hard cross-platform | Start with static scan, then a real isolated backend |
 | Enterprise tools already exist          | Position as pre-install local firewall, not SCA replacement |
 | npm metadata can be incomplete          | Use multiple signals, not one signal                        |
 | AI hallucination detection is imperfect | Start with heuristics and reputation scoring                |

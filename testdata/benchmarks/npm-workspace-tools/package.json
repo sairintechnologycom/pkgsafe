@@ -1,0 +1,11 @@
+{
+  "name": "workspace-tools",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "dependencies": {
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

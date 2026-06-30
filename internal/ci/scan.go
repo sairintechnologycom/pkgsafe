@@ -120,11 +120,23 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 	scanner.Offline = opts.Offline
 	scanner.RequestedBy = "human"
 	scanner.Environment = "ci"
-	sandboxEnabled := pol.Sandbox.Enabled
-	if opts.SandboxSpecified {
-		sandboxEnabled = opts.Sandbox
+	behaviorMode := types.NormalizeBehaviorMode(pol.Sandbox.BehaviorMode, pol.Sandbox.Enabled)
+	if opts.BehaviorMode != "" {
+		switch types.BehaviorMode(opts.BehaviorMode) {
+		case types.BehaviorDisabled, types.BehaviorHeuristic, types.BehaviorIsolated:
+			behaviorMode = types.BehaviorMode(opts.BehaviorMode)
+		default:
+			return nil, ScanError{ExitCode: ExitUsageError, Err: fmt.Errorf("--behavior must be disabled, heuristic, or isolated")}
+		}
+	} else if opts.SandboxSpecified {
+		behaviorMode = types.BehaviorDisabled
+		if opts.Sandbox {
+			behaviorMode = types.BehaviorHeuristic
+		}
 	}
+	sandboxEnabled := behaviorMode != types.BehaviorDisabled
 	scanner.SandboxEnabled = sandboxEnabled
+	scanner.BehaviorMode = behaviorMode
 	if opts.Timeout > 0 {
 		scanner.SandboxTimeout = opts.Timeout
 	}
@@ -235,7 +247,7 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 			DependencyType:  depType,
 			Reasons:         reasons,
 			Vulnerabilities: vulnerabilities,
-			Sandbox: SandboxSummary{
+			BehaviorAnalysis: BehaviorAnalysisSummary{
 				Enabled:               res.Sandbox.Enabled,
 				Available:             res.Sandbox.Available,
 				CriticalFindingsCount: critSandboxFindings,
@@ -377,7 +389,7 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 			DependencyType:    "python",
 			Reasons:           res.Reasons,
 			Vulnerabilities:   res.Vulnerabilities,
-			Sandbox:           SandboxSummary{Enabled: res.Sandbox.Enabled, Available: res.Sandbox.Available},
+			BehaviorAnalysis:  BehaviorAnalysisSummary{Enabled: res.Sandbox.Enabled, Available: res.Sandbox.Available},
 			RecommendedAction: recommendedActionForFinding(res),
 			Policy:            fPolicy,
 			Registry:          fRegistry,

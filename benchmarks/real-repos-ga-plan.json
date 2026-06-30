@@ -1,0 +1,17 @@
+[
+  {"slot": 1, "repo_type": "small-npm-app", "ecosystems": ["npm"], "minimum": 3, "status": "covered-by-batch-list"},
+  {"slot": 2, "repo_type": "small-npm-app", "ecosystems": ["npm"], "minimum": 3, "status": "pending-external-repo"},
+  {"slot": 3, "repo_type": "small-npm-app", "ecosystems": ["npm"], "minimum": 3, "status": "pending-external-repo"},
+  {"slot": 4, "repo_type": "react-vite-app", "ecosystems": ["npm"], "minimum": 3, "status": "covered-by-batch-list"},
+  {"slot": 5, "repo_type": "nextjs-app", "ecosystems": ["npm"], "minimum": 3, "status": "covered-by-batch-list"},
+  {"slot": 6, "repo_type": "react-vite-next-app", "ecosystems": ["npm"], "minimum": 3, "status": "pending-external-repo"},
+  {"slot": 7, "repo_type": "npm-workspace-monorepo", "ecosystems": ["npm"], "minimum": 3, "status": "covered-by-batch-list"},
+  {"slot": 8, "repo_type": "npm-workspace-monorepo", "ecosystems": ["npm"], "minimum": 3, "status": "pending-external-repo"},
+  {"slot": 9, "repo_type": "npm-workspace-monorepo", "ecosystems": ["npm"], "minimum": 3, "status": "pending-external-repo"},
+  {"slot": 10, "repo_type": "node-backend-api", "ecosystems": ["npm"], "minimum": 2, "status": "covered-by-batch-list"},
+  {"slot": 11, "repo_type": "node-backend-api", "ecosystems": ["npm"], "minimum": 2, "status": "pending-external-repo"},
+  {"slot": 12, "repo_type": "python-requirements-app", "ecosystems": ["pypi"], "minimum": 3, "status": "covered-by-batch-list-preview-scope"},
+  {"slot": 13, "repo_type": "python-poetry-app", "ecosystems": ["pypi"], "minimum": 3, "status": "pending-external-repo-preview-scope"},
+  {"slot": 14, "repo_type": "python-requirements-app", "ecosystems": ["pypi"], "minimum": 3, "status": "pending-external-repo-preview-scope"},
+  {"slot": 15, "repo_type": "mixed-js-python-repo", "ecosystems": ["npm", "pypi"], "minimum": 15, "status": "covered-by-batch-list"}
+]

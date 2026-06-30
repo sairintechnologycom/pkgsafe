@@ -14,7 +14,7 @@ func TestDiffInventories(t *testing.T) {
 
 	curr := []types.Dependency{
 		{Ecosystem: "npm", Name: "lodash", VersionRange: "^4.17.21", SourceFile: "package.json", DependencyType: "production", Direct: true}, // Changed version
-		{Ecosystem: "npm", Name: "axios", VersionRange: "^1.6.0", SourceFile: "package.json", DependencyType: "production", Direct: true},   // Added dependency
+		{Ecosystem: "npm", Name: "axios", VersionRange: "^1.6.0", SourceFile: "package.json", DependencyType: "production", Direct: true},    // Added dependency
 	}
 
 	report := DiffInventories(base, curr)

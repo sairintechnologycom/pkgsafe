@@ -2,6 +2,9 @@ package validation
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -92,5 +95,168 @@ func TestWriteBenchmarkReportHuman(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("human report missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestRunBenchmarkWithRepoListMultiEcosystem(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "mixed")
+	if err := os.MkdirAll(filepath.Join(repo, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"package.json":     `{"name":"mixed","version":"1.0.0","license":"MIT","repository":"github:example/mixed","dependencies":{"axios":"^1.6.0"}}`,
+		"src/client.ts":    `import axios from "axios";`,
+		"requirements.txt": "requests==2.31.0\n",
+		"go.mod":           "module example.com/mixed\n\nrequire github.com/google/uuid v1.6.0\n",
+		"Cargo.lock":       "[[package]]\nname = \"serde\"\nversion = \"1.0.0\"\n",
+	}
+	for rel, content := range files {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repoList := filepath.Join(root, "repos.json")
+	body := `[{"name":"mixed","path":"` + repo + `","ecosystems":["npm","pypi","go","cargo"],"repo_type":"mixed-js-python-repo","expected_min_direct_dependencies":3,"expected_no_false_block":true,"behavior_mode":"disabled","offline":true}]`
+	if err := os.WriteFile(repoList, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report, err := RunBenchmarkPackWithOptions(BenchmarkOptions{
+		FixturesDir:    filepath.Join(root, "fixtures"),
+		DefinitionsDir: filepath.Join(root, "defs"),
+		RepoListPath:   repoList,
+		Offline:        true,
+		Update:         true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Metrics.RealRepoValidationCount != 1 {
+		t.Fatalf("real repo count = %d, want 1", report.Metrics.RealRepoValidationCount)
+	}
+	if report.Metrics.NPMRepoCount != 1 || report.Metrics.PyPIRepoCount != 1 || report.Metrics.GoRepoCount != 1 || report.Metrics.CargoRepoCount != 1 {
+		t.Fatalf("ecosystem counts not recorded: %+v", report.Metrics)
+	}
+	if report.Metrics.FalseBlockCount != 0 || report.Metrics.ScannerCrashCount != 0 {
+		t.Fatalf("unexpected failures: %+v", report.Metrics)
+	}
+	if len(report.RepoValidations) != 1 || report.RepoValidations[0].ScanDurationMs <= 0 {
+		t.Fatalf("repo validation duration not recorded: %+v", report.RepoValidations)
+	}
+	if report.RepoValidations[0].InventoryDurationMs <= 0 ||
+		report.RepoValidations[0].CIScanDurationMs <= 0 ||
+		report.RepoValidations[0].OutputGenerationDurationMs <= 0 {
+		t.Fatalf("repo validation phase durations not recorded: %+v", report.RepoValidations[0])
+	}
+	if report.RepoValidations[0].EvidencePackGenerated && report.RepoValidations[0].EvidencePackDurationMs <= 0 {
+		t.Fatalf("repo validation evidence duration not recorded: %+v", report.RepoValidations[0])
+	}
+	if report.Metrics.RealRepoAverageScanDurationMs <= 0 || report.Metrics.RealRepoP95ScanDurationMs <= 0 {
+		t.Fatalf("real repo duration metrics not recorded: %+v", report.Metrics)
+	}
+	b, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"real_repo_validation_count", "behavior_mode_used", "repo_validations"} {
+		if !bytes.Contains(b, []byte(want)) {
+			t.Fatalf("benchmark JSON missing %q: %s", want, string(b))
+		}
+	}
+}
+
+func TestRunBenchmarkRepoListMissingPathFails(t *testing.T) {
+	root := t.TempDir()
+	repoList := filepath.Join(root, "repos.json")
+	body := `[{"name":"missing","path":"does-not-exist","ecosystems":["npm"],"repo_type":"npm-simple-app","expected_no_false_block":true,"behavior_mode":"disabled"}]`
+	if err := os.WriteFile(repoList, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report, err := RunBenchmarkPackWithOptions(BenchmarkOptions{
+		FixturesDir:    filepath.Join(root, "fixtures"),
+		DefinitionsDir: filepath.Join(root, "defs"),
+		RepoListPath:   repoList,
+		Offline:        true,
+		Update:         true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Pass {
+		t.Fatal("missing repo path should fail benchmark")
+	}
+	if report.Metrics.ScannerCrashCount == 0 {
+		t.Fatalf("expected scanner crash/missing path count, got %+v", report.Metrics)
+	}
+}
+
+func TestClassifyPackageScanError(t *testing.T) {
+	cases := map[string]string{
+		`Get "https://registry.npmjs.org/axios": dial tcp: lookup registry.npmjs.org: no such host`: "network_unavailable",
+		`registry returned 503 service unavailable`:                                                 "registry_unavailable",
+		`package not found`:                         "package_not_found",
+		`parse package metadata: invalid character`: "scanner_failure",
+	}
+	for msg, want := range cases {
+		if got := classifyPackageScanError(errTestType(msg)); got != want {
+			t.Fatalf("classifyPackageScanError(%q) = %q, want %q", msg, got, want)
+		}
+	}
+}
+
+func TestValidateRealRepoSpecBatchOneAliasesAndFalseWarnRate(t *testing.T) {
+	for _, repoType := range []string{"small-npm-app", "react-vite-next-app", "npm-workspace-monorepo", "internal-private-package-repo"} {
+		spec := RealRepoSpec{
+			Name:                     "repo",
+			Path:                     "/tmp/repo",
+			RepoType:                 repoType,
+			ExpectedMaxFalseWarnRate: 0.10,
+		}
+		if err := validateRealRepoSpec(spec); err != nil {
+			t.Fatalf("validateRealRepoSpec(%q) error = %v", repoType, err)
+		}
+	}
+
+	spec := RealRepoSpec{
+		Name:                     "repo",
+		Path:                     "/tmp/repo",
+		RepoType:                 "small-npm-app",
+		ExpectedMaxFalseWarnRate: 10,
+	}
+	if err := validateRealRepoSpec(spec); err == nil {
+		t.Fatal("expected percentage-style false warn threshold to fail")
+	}
+}
+
+func TestRunBenchmarkRepoListEmptyRepoHandled(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "empty")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	repoList := filepath.Join(root, "repos.json")
+	body := `[{"name":"empty","path":"` + repo + `","ecosystems":["npm"],"repo_type":"npm-simple-app","expected_min_direct_dependencies":0,"expected_no_false_block":true,"behavior_mode":"disabled","offline":true}]`
+	if err := os.WriteFile(repoList, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	report, err := RunBenchmarkPackWithOptions(BenchmarkOptions{
+		FixturesDir:    filepath.Join(root, "fixtures"),
+		DefinitionsDir: filepath.Join(root, "defs"),
+		RepoListPath:   repoList,
+		Offline:        true,
+		Update:         true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Metrics.RealRepoValidationCount != 1 {
+		t.Fatalf("real repo count = %d, want 1", report.Metrics.RealRepoValidationCount)
+	}
+	if report.Metrics.ScannerCrashCount != 0 {
+		t.Fatalf("empty repo should not be a scanner crash: %+v", report.Metrics)
 	}
 }

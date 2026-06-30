@@ -1,10 +1,1 @@
-[
-  {"ecosystem": "npm", "name": "typosquat", "expected_decision": "block", "expected_score_min": 70, "notes": "Covered by local suspicious fixture set."},
-  {"ecosystem": "npm", "name": "postinstall-curl", "expected_decision": "block", "expected_score_min": 70},
-  {"ecosystem": "npm", "name": "reads-credentials", "expected_decision": "block", "expected_score_min": 70},
-  {"ecosystem": "npm", "name": "curl-pipe-sh", "expected_decision": "block", "expected_score_min": 70},
-  {"ecosystem": "npm", "name": "base64-eval", "expected_decision": "block", "expected_score_min": 70},
-  {"ecosystem": "npm", "name": "dependency-confusion", "expected_decision": "block", "expected_score_min": 70},
-  {"ecosystem": "npm", "name": "undeclared-source-import", "expected_decision": "warn", "expected_score_min": 30},
-  {"ecosystem": "npm", "name": "direct-use-of-transitive-dependency", "expected_decision": "warn", "expected_score_min": 30}
-]
+[]

@@ -10,26 +10,26 @@ import (
 )
 
 type JSONResult struct {
-	Ecosystem        string                   `json:"ecosystem"`
-	Package          string                   `json:"package"`
-	Version          string                   `json:"version"`
-	Mode             string                   `json:"mode"`
-	Decision         types.Decision           `json:"decision"`
-	RiskScore        int                      `json:"risk_score"`
-	Thresholds       types.Thresholds         `json:"thresholds"`
-	Reasons          []types.Reason           `json:"reasons"`
-	Vulnerabilities  []types.Vulnerability    `json:"vulnerabilities,omitempty"`
-	Recommended      string                   `json:"recommended_action"`
-	Enforcement      string                   `json:"enforcement,omitempty"`
-	PackageIdentity  types.PackageIdentity    `json:"package_identity,omitempty"`
-	LifecycleScripts []string                 `json:"lifecycle_scripts,omitempty"`
-	Suspicious       []string                 `json:"suspicious_patterns,omitempty"`
-	Sandbox          types.SandboxSummary     `json:"sandbox,omitempty"`
-	ArtifactAnalysis types.ArtifactSummary    `json:"artifact_analysis,omitempty"`
-	PolicyInfo       *types.PolicyEvidence    `json:"policy,omitempty"`
-	RegistryInfo     *types.RegistryEvidence  `json:"registry,omitempty"`
-	TrustInfo        *types.TrustEvidence     `json:"trust,omitempty"`
-	ExceptionInfo    *types.ExceptionEvidence `json:"exception,omitempty"`
+	Ecosystem        string                        `json:"ecosystem"`
+	Package          string                        `json:"package"`
+	Version          string                        `json:"version"`
+	Mode             string                        `json:"mode"`
+	Decision         types.Decision                `json:"decision"`
+	RiskScore        int                           `json:"risk_score"`
+	Thresholds       types.Thresholds              `json:"thresholds"`
+	Reasons          []types.Reason                `json:"reasons"`
+	Vulnerabilities  []types.Vulnerability         `json:"vulnerabilities,omitempty"`
+	Recommended      string                        `json:"recommended_action"`
+	Enforcement      string                        `json:"enforcement,omitempty"`
+	PackageIdentity  types.PackageIdentity         `json:"package_identity,omitempty"`
+	LifecycleScripts []string                      `json:"lifecycle_scripts,omitempty"`
+	Suspicious       []string                      `json:"suspicious_patterns,omitempty"`
+	BehaviorAnalysis types.BehaviorAnalysisSummary `json:"behavior_analysis"`
+	ArtifactAnalysis types.ArtifactSummary         `json:"artifact_analysis,omitempty"`
+	PolicyInfo       *types.PolicyEvidence         `json:"policy,omitempty"`
+	RegistryInfo     *types.RegistryEvidence       `json:"registry,omitempty"`
+	TrustInfo        *types.TrustEvidence          `json:"trust,omitempty"`
+	ExceptionInfo    *types.ExceptionEvidence      `json:"exception,omitempty"`
 }
 
 func isSandboxReason(id string) bool {
@@ -73,7 +73,7 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 			PackageIdentity:  result.Package,
 			LifecycleScripts: result.Lifecycle,
 			Suspicious:       result.Suspicious,
-			Sandbox:          result.Sandbox,
+			BehaviorAnalysis: types.BehaviorAnalysisFromSandbox(result.Sandbox),
 			ArtifactAnalysis: result.Artifact,
 			PolicyInfo:       result.PolicyInfo,
 			RegistryInfo:     result.RegistryInfo,
@@ -112,7 +112,14 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 		}
 		fmt.Fprintln(w)
 
-		fmt.Fprintln(w, "Behavior Analysis (heuristic; scripts run on host, not isolated):")
+		fmt.Fprintf(w, "Behavior Analysis (%s", result.Sandbox.BehaviorMode)
+		if !result.Sandbox.Isolated {
+			fmt.Fprint(w, "; not isolated")
+		}
+		fmt.Fprintln(w, "):")
+		if result.Sandbox.Warning != "" {
+			fmt.Fprintf(w, "- Warning: %s\n", result.Sandbox.Warning)
+		}
 		if result.Sandbox.NotPerformed {
 			fmt.Fprintln(w, "- Not performed")
 			fmt.Fprintf(w, "- Reason: %s\n", result.Sandbox.NotPerfReason)
@@ -235,8 +242,11 @@ func emptyLatest(v string) string {
 }
 
 func RecommendedAction(result types.ScanResult) string {
+	if result.Decision == types.DecisionBlock {
+		return "Do not install this package."
+	}
 	if result.Sandbox.Enabled && result.Sandbox.NotPerformed && result.Package.Ecosystem != "pypi" {
-		return "Review package before installing. Heuristic behavior analysis runs only on Linux/macOS; note it executes lifecycle scripts on the host without isolation, so use a disposable environment."
+		return "Review package before installing. Requested behavior analysis was not performed."
 	}
 	if result.Recommended != "" {
 		return result.Recommended

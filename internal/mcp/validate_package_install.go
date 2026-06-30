@@ -24,6 +24,7 @@ type ValidatePackageInstallParams struct {
 	ProjectPath           string `json:"project_path"`
 	Mode                  string `json:"mode"`
 	Offline               bool   `json:"offline"`
+	BehaviorMode          string `json:"behavior_mode,omitempty"`
 	Sandbox               bool   `json:"sandbox,omitempty"`
 	SandboxTimeoutSeconds int    `json:"sandbox_timeout_seconds,omitempty"`
 	NetworkMode           string `json:"network_mode,omitempty"`
@@ -31,32 +32,36 @@ type ValidatePackageInstallParams struct {
 	Registry              string `json:"registry"`
 }
 
-type MCPSandboxResult struct {
-	Enabled               bool `json:"enabled"`
-	Available             bool `json:"available"`
-	FindingsCount         int  `json:"findings_count"`
-	CriticalFindingsCount int  `json:"critical_findings_count"`
+type MCPBehaviorAnalysisResult struct {
+	Enabled               bool               `json:"enabled"`
+	Available             bool               `json:"available"`
+	BehaviorMode          types.BehaviorMode `json:"behavior_mode,omitempty"`
+	Isolated              bool               `json:"isolated"`
+	Warning               string             `json:"warning,omitempty"`
+	NotPerformedReason    string             `json:"not_performed_reason,omitempty"`
+	FindingsCount         int                `json:"findings_count"`
+	CriticalFindingsCount int                `json:"critical_findings_count"`
 }
 
 // ValidatePackageInstallResult defines the structured tool response.
 type ValidatePackageInstallResult struct {
-	Ecosystem         string                   `json:"ecosystem"`
-	Package           string                   `json:"package"`
-	Version           string                   `json:"version"`
-	RequestedBy       string                   `json:"requested_by"`
-	Decision          string                   `json:"decision"`
-	RiskScore         int                      `json:"risk_score"`
-	InstallAllowed    bool                     `json:"install_allowed"`
-	Mode              string                   `json:"mode"`
-	Reasons           []types.Reason           `json:"reasons"`
-	Vulnerabilities   []types.Vulnerability    `json:"vulnerabilities"`
-	SafeAlternatives  []string                 `json:"safe_alternatives"`
-	RecommendedAction string                   `json:"recommended_action"`
-	Sandbox           *MCPSandboxResult        `json:"sandbox,omitempty"`
-	Policy            *types.PolicyEvidence    `json:"policy,omitempty"`
-	Registry          *types.RegistryEvidence  `json:"registry,omitempty"`
-	Trust             *types.TrustEvidence     `json:"trust,omitempty"`
-	Exception         *types.ExceptionEvidence `json:"exception,omitempty"`
+	Ecosystem         string                     `json:"ecosystem"`
+	Package           string                     `json:"package"`
+	Version           string                     `json:"version"`
+	RequestedBy       string                     `json:"requested_by"`
+	Decision          string                     `json:"decision"`
+	RiskScore         int                        `json:"risk_score"`
+	InstallAllowed    bool                       `json:"install_allowed"`
+	Mode              string                     `json:"mode"`
+	Reasons           []types.Reason             `json:"reasons"`
+	Vulnerabilities   []types.Vulnerability      `json:"vulnerabilities"`
+	SafeAlternatives  []string                   `json:"safe_alternatives"`
+	RecommendedAction string                     `json:"recommended_action"`
+	BehaviorAnalysis  *MCPBehaviorAnalysisResult `json:"behavior_analysis,omitempty"`
+	Policy            *types.PolicyEvidence      `json:"policy,omitempty"`
+	Registry          *types.RegistryEvidence    `json:"registry,omitempty"`
+	Trust             *types.TrustEvidence       `json:"trust,omitempty"`
+	Exception         *types.ExceptionEvidence   `json:"exception,omitempty"`
 }
 
 // ValidatePackageInstall evaluates if a package install should proceed.
@@ -128,11 +133,24 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 	}
 	pol.Mode = activeMode
 
-	// Sandbox logic in MCP
-	sandboxEnabled := p.Sandbox
-	if !sandboxEnabled {
-		sandboxEnabled = pol.Sandbox.Enabled
+	// Behavior-analysis logic in MCP. Legacy sandbox=true maps to heuristic.
+	// AI-agent requests do not inherit policy-enabled heuristic execution unless
+	// the request explicitly asks for behavior analysis.
+	behaviorMode := types.NormalizeBehaviorMode(pol.Sandbox.BehaviorMode, pol.Sandbox.Enabled)
+	if p.RequestedBy == "ai_agent" && p.BehaviorMode == "" && !p.Sandbox {
+		behaviorMode = types.BehaviorDisabled
 	}
+	if p.BehaviorMode != "" {
+		switch types.BehaviorMode(p.BehaviorMode) {
+		case types.BehaviorDisabled, types.BehaviorHeuristic, types.BehaviorIsolated:
+			behaviorMode = types.BehaviorMode(p.BehaviorMode)
+		default:
+			return CallToolResult{Content: []ToolContent{{Type: "text", Text: serializeError("INVALID_PARAMS", "behavior_mode must be disabled, heuristic, or isolated", nil)}}}
+		}
+	} else if p.Sandbox {
+		behaviorMode = types.BehaviorHeuristic
+	}
+	sandboxEnabled := behaviorMode != types.BehaviorDisabled
 
 	timeoutSecs := p.SandboxTimeoutSeconds
 	if timeoutSecs == 0 {
@@ -180,6 +198,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		scanner.Policy = pol
 		scanner.Offline = e.Offline || p.Offline
 		scanner.SandboxEnabled = sandboxEnabled
+		scanner.BehaviorMode = behaviorMode
 		scanner.RequestedBy = p.RequestedBy
 		scanner.Environment = env
 		scanner.RegistryName = p.Registry
@@ -189,6 +208,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		scanner.Policy = pol
 		scanner.Offline = e.Offline || p.Offline
 		scanner.SandboxEnabled = sandboxEnabled
+		scanner.BehaviorMode = behaviorMode
 		scanner.SandboxTimeout = time.Duration(timeoutSecs) * time.Second
 		scanner.NetworkMode = netMode
 		scanner.RequestedBy = p.RequestedBy
@@ -278,11 +298,15 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		recAction = "Behavior analysis requested but unavailable on this platform; it was not performed. " + recAction
 	}
 
-	var mcpSandbox *MCPSandboxResult
+	var mcpBehavior *MCPBehaviorAnalysisResult
 	if sandboxEnabled {
-		mcpSandbox = &MCPSandboxResult{
+		mcpBehavior = &MCPBehaviorAnalysisResult{
 			Enabled:               res.Sandbox.Enabled,
 			Available:             res.Sandbox.Available,
+			BehaviorMode:          res.Sandbox.BehaviorMode,
+			Isolated:              res.Sandbox.Isolated,
+			Warning:               res.Sandbox.Warning,
+			NotPerformedReason:    res.Sandbox.NotPerfReason,
 			FindingsCount:         sandboxFindingsCount,
 			CriticalFindingsCount: criticalSandboxFindingsCount,
 		}
@@ -301,7 +325,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		Vulnerabilities:   res.Vulnerabilities,
 		SafeAlternatives:  safeAlts,
 		RecommendedAction: recAction,
-		Sandbox:           mcpSandbox,
+		BehaviorAnalysis:  mcpBehavior,
 		Policy:            res.PolicyInfo,
 		Registry:          res.RegistryInfo,
 		Trust:             res.TrustInfo,
