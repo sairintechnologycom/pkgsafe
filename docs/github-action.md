@@ -1,23 +1,35 @@
 # PkgSafe GitHub Action
 
-The PkgSafe GitHub Action automatically detects risky npm dependency changes before they are merged into your repository.
+The PkgSafe GitHub Action detects risky npm dependency changes before they are
+merged. PkgSafe v1.0.0 is npm-first GA: package-lock scanning, policy gates,
+SARIF, and Markdown summaries are the production path. PyPI, Go, and Cargo
+coverage remains preview and is not npm-equivalent yet.
 
-It runs policy-driven package risk scans on pull requests, updates a PR summary comment, and uploads SARIF findings to GitHub Code Scanning.
+The action runs `pkgsafe ci scan`, uploads SARIF findings to GitHub Code
+Scanning when enabled, and can post or update a pull request Markdown summary.
 
 ## Inputs
 
 | Input | Description | Required | Default |
 |---|---|---|---|
 | `lockfile` | Path to `package-lock.json` | No | `package-lock.json` |
-| `policy` | Path to PkgSafe policy file | No | `.pkgsafe/policy.yaml` |
+| `dependency-file` | Path to a dependency file such as `requirements.txt` or `pyproject.toml` for preview ecosystem scans | No | `""` |
+| `ecosystem` | Ecosystem to scan: `npm`, `pypi`, or empty for autodetect | No | `""` |
+| `policy` | Path to PkgSafe policy file; ignored if the file does not exist | No | `.pkgsafe/policy.yaml` |
 | `mode` | PkgSafe mode: `audit`, `warn`, or `block` | No | `warn` |
 | `fail-on` | Minimum decision that fails the workflow: `none`, `warn`, `block` | No | `block` |
 | `changed-only` | Only scan dependencies changed in the pull request | No | `true` |
 | `baseline` | Baseline branch for changed dependency detection | No | `main` |
-| `sandbox` | Deprecated compatibility input for `--behavior heuristic`; runs lifecycle scripts on the host without OS isolation and is not containment | No | `false` |
+| `sandbox` | Deprecated compatibility input for `--behavior heuristic`; executes lifecycle scripts on the runner host without OS isolation and is not a security sandbox | No | `false` |
 | `offline` | Use offline local vulnerability database only | No | `false` |
 | `upload-sarif` | Upload SARIF results to GitHub Code Scanning | No | `true` |
 | `comment-pr` | Post or update pull request summary comment | No | `true` |
+| `policy-pack` | Installed or bundled PkgSafe policy pack name/path | No | `""` |
+| `registry-config` | Path to `registries.yaml` for private registry routing | No | `""` |
+| `enterprise-mode` | Enable enterprise evidence fields in reports | No | `true` |
+| `generate-evidence-pack` | Generate a governance evidence pack | No | `true` |
+| `evidence-pack-output` | Path for generated evidence pack | No | `pkgsafe-evidence-pack.zip` |
+| `upload-evidence-artifact` | Upload the evidence pack as a workflow artifact | No | `true` |
 | `pkgsafe-version` | PkgSafe version to install | No | `latest` |
 
 ## Outputs
@@ -33,17 +45,18 @@ It runs policy-driven package risk scans on pull requests, updates a PR summary 
 | `sarif-report` | Path to SARIF report |
 | `markdown-summary` | Path to Markdown summary |
 
-## Example Workflow
+## Minimal Pull Request Workflow
 
-Add this workflow file (e.g., `.github/workflows/pkgsafe.yml`) to your repository:
+Copy this into another npm repository as `.github/workflows/pkgsafe.yml`:
 
 ```yaml
 name: PkgSafe Dependency Gate
 
 on:
   pull_request:
-    branches:
-      - main
+    paths:
+      - "package-lock.json"
+      - ".pkgsafe/**"
 
 permissions:
   contents: read
@@ -70,18 +83,125 @@ jobs:
             pkgsafe-${{ runner.os }}-
 
       - name: Run PkgSafe
-        uses: your-org/pkgsafe-action@v0.1.0
+        uses: niyam-ai/pkgsafe@v1.0.0
         with:
           lockfile: package-lock.json
-          policy: .pkgsafe/policy.yaml
           mode: warn
           fail-on: block
           changed-only: true
           baseline: main
-          sandbox: false
           upload-sarif: true
           comment-pr: true
 ```
+
+This scans npm dependencies from `package-lock.json` on pull requests. With
+`fail-on: block`, the workflow fails only when the overall decision is `block`;
+`warn` findings are reported but do not fail the job. Set `fail-on: warn` to
+fail on both `warn` and `block`, or `fail-on: none` to report only.
+
+`upload-sarif: true` uploads scan findings to GitHub Code Scanning through
+`github/codeql-action/upload-sarif`. `comment-pr: true` writes a Markdown
+summary as a pull request comment.
+
+## Advanced Workflow
+
+Use this when you have a policy file, want offline scans from a warmed PkgSafe
+database, and want to scan only changed lockfile dependencies:
+
+```yaml
+name: PkgSafe Advanced Dependency Gate
+
+on:
+  pull_request:
+    paths:
+      - "package-lock.json"
+      - ".pkgsafe/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  pkgsafe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore PkgSafe DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.pkgsafe
+          key: pkgsafe-${{ runner.os }}-${{ hashFiles('package-lock.json', '.pkgsafe/policy.yaml') }}
+          restore-keys: |
+            pkgsafe-${{ runner.os }}-
+
+      - name: Run PkgSafe with policy
+        uses: niyam-ai/pkgsafe@v1.0.0
+        with:
+          lockfile: package-lock.json
+          policy: .pkgsafe/policy.yaml
+          mode: block
+          fail-on: block
+          changed-only: true
+          baseline: main
+          offline: true
+          upload-sarif: true
+          comment-pr: true
+          generate-evidence-pack: false
+```
+
+`offline: true` uses only local cached advisory and package metadata. It is best
+paired with a scheduled job or prior connected scan that runs `pkgsafe update-db`;
+otherwise the scan can fail or warn when required data is missing.
+
+`changed-only: true` is supported for pull requests with enough Git history to
+diff against `baseline`; keep `fetch-depth: 0` in checkout.
+
+## Scheduled OSV Cache Warmup
+
+The composite Action does not expose a generic `command` input, so use the CLI
+directly for scheduled vulnerability database refreshes. This keeps offline PR
+scans useful by warming `~/.pkgsafe` on a schedule.
+
+```yaml
+name: PkgSafe OSV Cache Warmup
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  pkgsafe-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache PkgSafe DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.pkgsafe
+          key: pkgsafe-${{ runner.os }}-osv-${{ github.run_id }}
+          restore-keys: |
+            pkgsafe-${{ runner.os }}-osv-
+            pkgsafe-${{ runner.os }}-
+
+      - name: Install PkgSafe
+        run: |
+          curl -sSL https://raw.githubusercontent.com/niyam-ai/pkgsafe/main/scripts/install.sh | sh
+
+      - name: Warm vulnerability database
+        run: |
+          pkgsafe update-db --ecosystem all
+          pkgsafe db status
+```
+
+This scheduled workflow updates the local OSV database cache. It does not change
+scanner behavior, and it should be treated as an availability optimization for
+offline scans rather than a release verification step.
 
 ## Pull Request Commenting
 

@@ -1,0 +1,97 @@
+name: Scanner bug
+description: PkgSafe crashed, hung, produced malformed output, or behaved incorrectly.
+title: "[scanner-bug] "
+labels: ["scanner_crash"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Use this for scanner crashes, unexpected exits, malformed output,
+        private registry scan failures, OSV/update-db issues, and GitHub Action
+        scanner behavior. Do not paste secrets, tokens, private registry
+        credentials, `.npmrc` auth values, proprietary source code, or unreleased
+        package contents.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feedback category
+      options:
+        - scanner_crash
+        - performance_issue
+        - private_registry_issue
+        - osv_update_issue
+        - github_action_issue
+        - docs_issue
+        - ecosystem_preview_gap
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should PkgSafe have done instead?
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or workflow
+      description: Exact command or GitHub Action workflow snippet, with secrets removed.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PkgSafe version
+      description: Output of `pkgsafe version`.
+      placeholder: "pkgsafe v1.0.0 (abc1234)"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS / platform
+      description: Operating system and architecture.
+      placeholder: "macOS arm64, Linux amd64, Windows amd64"
+    validations:
+      required: true
+  - type: dropdown
+    id: ecosystem
+    attributes:
+      label: Ecosystem
+      options:
+        - npm (GA)
+        - pypi (preview)
+        - go (preview)
+        - cargo (preview)
+        - N/A
+    validations:
+      required: true
+  - type: dropdown
+    id: connectivity
+    attributes:
+      label: Online or offline?
+      options:
+        - Connected
+        - Offline (--offline)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: sanitized_output
+    attributes:
+      label: Sanitized output
+      description: >-
+        Paste relevant output, JSON, or stack trace. Remove secrets, tokens,
+        private registry credentials, internal hostnames, and proprietary code.
+      render: shell
+    validations:
+      required: false

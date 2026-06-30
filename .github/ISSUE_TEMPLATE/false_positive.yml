@@ -1,20 +1,30 @@
 name: False positive
 description: PkgSafe flagged a package (warn/block) that you believe is actually safe.
 title: "[false-positive] "
-labels: ["false-positive", "beta"]
+labels: ["false_positive"]
 body:
   - type: markdown
     attributes:
       value: >-
         Use this when PkgSafe returned **warn** or **block** for a package you
         believe should be **allow**. Please include the scan output so we can
-        see which rules fired.
+        see which rules fired. Do not paste secrets, tokens, private registry
+        credentials, `.npmrc` auth values, proprietary source code, or unreleased
+        package contents.
   - type: input
-    id: package
+    id: package_name
     attributes:
-      label: Package name and version
-      description: The exact package and version that was flagged.
-      placeholder: "example-package@1.2.3"
+      label: Package name
+      description: The exact package that was flagged.
+      placeholder: "example-package"
+    validations:
+      required: true
+  - type: input
+    id: package_version
+    attributes:
+      label: Package version
+      description: The exact version that was flagged.
+      placeholder: "1.2.3"
     validations:
       required: true
   - type: dropdown
@@ -22,10 +32,10 @@ body:
     attributes:
       label: Ecosystem
       options:
-        - npm
-        - pypi
-        - go
-        - cargo
+        - npm (GA)
+        - pypi (preview)
+        - go (preview)
+        - cargo (preview)
     validations:
       required: true
   - type: dropdown
@@ -38,6 +48,31 @@ body:
         - block
     validations:
       required: true
+  - type: input
+    id: risk_score
+    attributes:
+      label: Risk score
+      description: The risk score PkgSafe reported.
+      placeholder: "62"
+    validations:
+      required: true
+  - type: input
+    id: rule_ids
+    attributes:
+      label: Rule IDs
+      description: Comma-separated rule IDs from the scan output.
+      placeholder: "lifecycle_script_present, network_command_in_lifecycle"
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command used
+      description: Exact command or GitHub Action inputs used, with secrets removed.
+      placeholder: "pkgsafe scan-npm-package example-package --version 1.2.3 --json"
+      render: shell
+    validations:
+      required: true
   - type: textarea
     id: why-safe
     attributes:
@@ -47,14 +82,36 @@ body:
         review, expected lifecycle behavior, etc.).
     validations:
       required: true
+  - type: dropdown
+    id: lifecycle_scripts
+    attributes:
+      label: Does the package have lifecycle scripts?
+      options:
+        - "Yes"
+        - "No"
+        - "Not sure"
+    validations:
+      required: true
+  - type: dropdown
+    id: private_registry
+    attributes:
+      label: Was a private registry involved?
+      description: Do not paste private registry credentials or tokens.
+      options:
+        - "No"
+        - "Yes, with details sanitized"
+        - "Not sure"
+    validations:
+      required: true
   - type: textarea
     id: scan-output
     attributes:
-      label: Scan output / risk reasons
+      label: Sanitized scan output / risk reasons
       description: >-
-        Paste the full scan output, ideally `--json`, including the `reasons`
-        array and `risk_score`.
-      render: shell
+        Paste sanitized scan output, ideally `--json`, including `decision`,
+        `risk_score`, `rule_id` values, and `reasons`. Remove secrets, tokens,
+        internal hostnames, private registry credentials, and proprietary code.
+      render: json
     validations:
       required: true
   - type: input

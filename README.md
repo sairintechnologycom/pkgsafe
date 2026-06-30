@@ -8,28 +8,44 @@ PkgSafe is a local-first package safety CLI for developer and AI-agent workflows
 
 ## Install
 
-PkgSafe is a single static binary (CGo-free). Pick one:
+PkgSafe is a single static binary (CGo-free). PkgSafe v1.0.0 is npm-first GA:
+npm package and lockfile scanning are the production scope; PyPI, Go, and Cargo
+remain preview coverage and are not npm-equivalent yet.
 
-**Pre-built release** (recommended once a release is tagged):
+Install a published release:
 
 ```bash
-# Download the archive for your OS/arch from the Releases page, then:
-tar -xzf pkgsafe_<version>_<os>_<arch>.tar.gz
+VERSION=1.0.0
+OS=linux
+ARCH=amd64
+curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
+tar -xzf "pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 sudo mv pkgsafe /usr/local/bin/
 pkgsafe version
+pkgsafe doctor
 ```
 
-Release archives ship a `checksums.txt` (SHA-256) plus a cosign signature and
-per-archive SBOMs. Verify before trusting a binary:
+See [docs/install.md](docs/install.md) for macOS arm64, macOS amd64, Linux
+amd64, and Windows zip examples.
+
+Release archives ship `checksums.txt`, a cosign signature, GitHub Artifact
+Attestations, and per-archive SBOMs. Verify before trusting a binary:
 
 ```bash
+curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/checksums.txt"
+curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/checksums.txt.sig"
+curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/checksums.txt.pem"
 sha256sum -c checksums.txt
 cosign verify-blob \
   --certificate checksums.txt.pem --signature checksums.txt.sig \
   --certificate-identity-regexp 'https://github.com/.*/pkgsafe/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
+gh attestation verify "pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz" --repo niyam-ai/pkgsafe
 ```
+
+Full release checks are documented in
+[docs/release-verification.md](docs/release-verification.md).
 
 **From source** (Go 1.25+):
 
@@ -110,6 +126,14 @@ make package
 ```
 
 Artifacts are written to `dist/`.
+
+## Feedback
+
+For false positives, false blocks, scanner crashes, private registry issues,
+OSV/update-db issues, and GitHub Action adoption problems, see
+[docs/feedback.md](docs/feedback.md). Reports should include sanitized output
+and rule IDs when available; do not paste secrets, tokens, private registry
+credentials, or proprietary source code.
 
 ## MCP tool
 

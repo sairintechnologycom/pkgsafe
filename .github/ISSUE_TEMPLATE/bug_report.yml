@@ -1,16 +1,18 @@
 name: Bug report
 description: Something in PkgSafe behaved incorrectly, crashed, or produced wrong output.
 title: "[bug] "
-labels: ["bug", "beta"]
+labels: ["scanner_crash"]
 body:
   - type: markdown
     attributes:
       value: >-
-        Thanks for testing the private beta. For a package that was flagged but
-        should be safe use the **False positive** template; for a risky package
-        that was allowed use the **False negative** template. Suspected
-        vulnerabilities IN PkgSafe itself go through SECURITY.md private
-        disclosure, not here.
+        Use this for crashes, malformed output, or broken command behavior. For
+        a package that was flagged but should be safe use the **False positive**
+        template; for a risky package that was allowed use the **False
+        negative** template. Suspected vulnerabilities IN PkgSafe itself go
+        through SECURITY.md private disclosure, not here. Do not paste secrets,
+        tokens, private registry credentials, `.npmrc` auth values, proprietary
+        source code, or unreleased package contents.
   - type: textarea
     id: what-happened
     attributes:
@@ -40,7 +42,7 @@ body:
     attributes:
       label: PkgSafe version
       description: Output of `pkgsafe version`.
-      placeholder: "v0.2.0-beta.1"
+      placeholder: "pkgsafe v1.0.0 (abc1234)"
     validations:
       required: true
   - type: input
@@ -56,10 +58,10 @@ body:
       label: Ecosystem
       description: Which package ecosystem was involved? Select N/A if not ecosystem-specific.
       options:
-        - npm
-        - pypi
-        - go
-        - cargo
+        - npm (GA)
+        - pypi (preview)
+        - go (preview)
+        - cargo (preview)
         - N/A
     validations:
       required: true

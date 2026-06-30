@@ -1,7 +1,7 @@
 name: False negative
 description: PkgSafe allowed a package that you believe is risky or malicious.
 title: "[false-negative] "
-labels: ["false-negative", "beta", "security-relevant"]
+labels: ["false_block"]
 body:
   - type: markdown
     attributes:
@@ -9,7 +9,9 @@ body:
         Use this when PkgSafe returned **allow** (or only **warn**) for a
         package you believe should have been **blocked** or escalated. If this
         is a vulnerability IN PkgSafe itself, follow the private disclosure in
-        SECURITY.md instead.
+        SECURITY.md instead. Do not paste secrets, tokens, private registry
+        credentials, `.npmrc` auth values, proprietary source code, or unreleased
+        package contents.
   - type: input
     id: package
     attributes:
@@ -23,10 +25,10 @@ body:
     attributes:
       label: Ecosystem
       options:
-        - npm
-        - pypi
-        - go
-        - cargo
+        - npm (GA)
+        - pypi (preview)
+        - go (preview)
+        - cargo (preview)
     validations:
       required: true
   - type: dropdown
@@ -51,10 +53,11 @@ body:
   - type: textarea
     id: scan-output
     attributes:
-      label: Scan output
+      label: Sanitized scan output
       description: >-
-        Paste the full scan output, ideally `--json`, including `decision`,
-        `risk_score`, and any `reasons`.
+        Paste sanitized scan output, ideally `--json`, including `decision`,
+        `risk_score`, and any `reasons`. Remove secrets, tokens, internal
+        hostnames, private registry credentials, and proprietary code.
       render: shell
     validations:
       required: true

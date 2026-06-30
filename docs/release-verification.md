@@ -1,6 +1,28 @@
 # Release Verification
 
 Use these checks before trusting a downloaded PkgSafe release artifact.
+PkgSafe v1.0.0 is npm-first GA. PyPI, Go, and Cargo coverage remains preview
+and is not npm-equivalent yet.
+
+## Download Release Assets
+
+Pick the archive for your platform and download it with the release integrity
+files. This Linux amd64 example pins v1.0.0:
+
+```bash
+VERSION=1.0.0
+OS=linux
+ARCH=amd64
+ARCHIVE="pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
+BASE_URL="https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}"
+
+curl -LO "${BASE_URL}/${ARCHIVE}"
+curl -LO "${BASE_URL}/checksums.txt"
+curl -LO "${BASE_URL}/checksums.txt.sig"
+curl -LO "${BASE_URL}/checksums.txt.pem"
+```
+
+For Windows, use `ARCHIVE="pkgsafe_${VERSION}_windows_amd64.zip"`.
 
 ## Checksums
 
@@ -8,7 +30,10 @@ Download `checksums.txt` and the archive for your platform into the same
 directory.
 
 ```bash
+# Linux
 sha256sum -c checksums.txt
+
+# macOS
 shasum -a 256 -c checksums.txt
 ```
 
@@ -46,7 +71,7 @@ The command must print `Verified OK`.
 Verify GitHub Artifact Attestation provenance for the downloaded archive:
 
 ```bash
-gh attestation verify pkgsafe_<version>_<os>_<arch>.tar.gz --repo sairintechnologycom/pkgsafe
+gh attestation verify pkgsafe_<version>_<os>_<arch>.tar.gz --repo niyam-ai/pkgsafe
 ```
 
 The attestation must resolve to the PkgSafe release workflow for the expected
@@ -64,3 +89,23 @@ After extracting the archive, confirm the binary reports the expected version:
 ```bash
 ./pkgsafe version
 ```
+
+A v1.0.0 release build reports:
+
+```text
+pkgsafe v1.0.0 (<commit>)
+```
+
+Local development builds may report a `-dev` version or `none` commit instead.
+
+## Doctor
+
+Run `doctor` to check local runtime readiness and connected advisory endpoints:
+
+```bash
+./pkgsafe doctor
+```
+
+If you are verifying in a restricted or offline environment, use the doctor
+output to distinguish local binary readiness from registry or OSV reachability
+problems.
