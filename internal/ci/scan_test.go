@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestCI_RunScan_DefaultLockfileNotFound(t *testing.T) {

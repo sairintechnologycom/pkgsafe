@@ -17,10 +17,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestMCPServer(t *testing.T) {

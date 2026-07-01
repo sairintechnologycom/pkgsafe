@@ -1,6 +1,6 @@
 package sandbox
 
-import "github.com/niyam-ai/pkgsafe/internal/types"
+import "github.com/sairintechnologycom/pkgsafe/internal/types"
 
 type SandboxResult struct {
 	ScriptName      string                 `json:"name"`

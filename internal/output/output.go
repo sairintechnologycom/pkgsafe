@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 type JSONResult struct {

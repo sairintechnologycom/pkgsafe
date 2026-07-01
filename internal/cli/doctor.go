@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	"github.com/niyam-ai/pkgsafe/internal/version"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/version"
 )
 
 type DoctorReport struct {

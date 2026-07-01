@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/niyam-ai/pkgsafe/internal/intercept"
+	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
 )
 
 func RunIntercept(args []string) error {

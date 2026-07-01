@@ -15,15 +15,15 @@ import (
 	"strings"
 	"time"
 
-	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
-	npminventory "github.com/niyam-ai/pkgsafe/internal/deps/npm"
-	"github.com/niyam-ai/pkgsafe/internal/intercept"
-	"github.com/niyam-ai/pkgsafe/internal/mcp"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/report"
-	"github.com/niyam-ai/pkgsafe/internal/sandbox"
-	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	anpm "github.com/sairintechnologycom/pkgsafe/internal/analyzer/npm"
+	npminventory "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
+	"github.com/sairintechnologycom/pkgsafe/internal/mcp"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/report"
+	"github.com/sairintechnologycom/pkgsafe/internal/sandbox"
+	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 const (

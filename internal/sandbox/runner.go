@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 // SandboxRunner performs heuristic behavior analysis of package lifecycle

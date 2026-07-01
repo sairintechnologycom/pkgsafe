@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	"github.com/niyam-ai/pkgsafe/internal/report"
-	"github.com/niyam-ai/pkgsafe/internal/validation"
-	versionpkg "github.com/niyam-ai/pkgsafe/internal/version"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/report"
+	"github.com/sairintechnologycom/pkgsafe/internal/validation"
+	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
 )
 
 func cmdReport(args []string) error {

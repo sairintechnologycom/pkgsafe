@@ -3,7 +3,7 @@ package policy
 import (
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func MatchScopedRule(rule ScopedRule, pkg types.PackageIdentity, regName string, requestedBy string) bool {

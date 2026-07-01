@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 )
 
 type PackageManagerExecutor interface {

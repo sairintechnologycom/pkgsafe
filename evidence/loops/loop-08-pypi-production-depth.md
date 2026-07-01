@@ -91,10 +91,10 @@ ruby -e 'text = File.read("docs/known-limitations.md"); links = text.scan(/\[[^\
 Focused test coverage:
 
 ```text
-ok   github.com/niyam-ai/pkgsafe/internal/analyzer/pypi
-ok   github.com/niyam-ai/pkgsafe/internal/deps/python
-ok   github.com/niyam-ai/pkgsafe/internal/scanner/pypi
-ok   github.com/niyam-ai/pkgsafe/internal/policy
+ok   github.com/sairintechnologycom/pkgsafe/internal/analyzer/pypi
+ok   github.com/sairintechnologycom/pkgsafe/internal/deps/python
+ok   github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi
+ok   github.com/sairintechnologycom/pkgsafe/internal/policy
 ```
 
 Default policy validation:

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	"github.com/niyam-ai/pkgsafe/internal/enterprise"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
 )
 
 func TestExportVerifyAndImportSignedBundle(t *testing.T) {

@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/ci"
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/ci"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 type ProductionReadinessReport struct {
@@ -850,7 +850,7 @@ func githubRepo() string {
 	}
 	out, err := exec.Command("git", "remote", "get-url", "origin").Output()
 	if err != nil {
-		return "niyam-ai/pkgsafe"
+		return "sairintechnologycom/pkgsafe"
 	}
 	repo := strings.TrimSpace(string(out))
 	repo = strings.TrimSuffix(repo, ".git")
@@ -860,7 +860,7 @@ func githubRepo() string {
 	if idx := strings.Index(repo, "github.com/"); idx >= 0 {
 		return strings.TrimPrefix(repo[idx:], "github.com/")
 	}
-	return "niyam-ai/pkgsafe"
+	return "sairintechnologycom/pkgsafe"
 }
 
 func firstExistingFile(paths []string) string {

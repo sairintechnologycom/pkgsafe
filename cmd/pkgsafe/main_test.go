@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/api"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/validation"
+	"github.com/sairintechnologycom/pkgsafe/internal/api"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/validation"
 )
 
 func TestReorderFlagsAllowsTrailingCommandFlags(t *testing.T) {

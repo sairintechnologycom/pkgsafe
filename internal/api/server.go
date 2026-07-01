@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
-	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
+	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 // Hardening defaults. Override via Config.

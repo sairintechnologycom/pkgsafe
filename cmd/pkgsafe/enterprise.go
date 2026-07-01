@@ -11,9 +11,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/niyam-ai/pkgsafe/internal/enterprise"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 )
 
 // resolveTrustedKeys returns the default trusted keys plus, if keyPath is set,

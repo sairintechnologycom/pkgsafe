@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 )
 
 // NormalizePyPIName normalizes PyPI package names according to Python package normalization rules:

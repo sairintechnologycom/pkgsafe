@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 )
 
 type SarifDescription struct {
@@ -122,7 +122,7 @@ func ExportSarif(r *RepositoryRiskReport) (string, error) {
 				Tool: SarifTool{
 					Driver: SarifDriver{
 						Name:           "PkgSafe",
-						InformationURI: "https://github.com/niyam-ai/pkgsafe",
+						InformationURI: "https://github.com/sairintechnologycom/pkgsafe",
 						Rules:          rules,
 					},
 				},

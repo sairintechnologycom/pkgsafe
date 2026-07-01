@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/audit"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/report"
+	"github.com/sairintechnologycom/pkgsafe/internal/audit"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/report"
 )
 
 // GenerateGovernanceReportParams defines input for generate_governance_report.

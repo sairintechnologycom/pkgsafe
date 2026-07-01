@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/niyam-ai/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 )
 
 // ExportSIEM formats the risk events in JSONL for SIEM intake.

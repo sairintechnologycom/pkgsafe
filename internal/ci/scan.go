@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	pydeps "github.com/niyam-ai/pkgsafe/internal/deps/python"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
-	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	pydeps "github.com/sairintechnologycom/pkgsafe/internal/deps/python"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
+	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 // ScanError is a helper struct containing an error message and a recommended exit code.

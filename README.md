@@ -18,7 +18,7 @@ Install a published release:
 VERSION=1.0.0
 OS=linux
 ARCH=amd64
-curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
+curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 tar -xzf "pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 sudo mv pkgsafe /usr/local/bin/
 pkgsafe version
@@ -32,16 +32,16 @@ Release archives ship `checksums.txt`, a cosign signature, GitHub Artifact
 Attestations, and per-archive SBOMs. Verify before trusting a binary:
 
 ```bash
-curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/checksums.txt"
-curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/checksums.txt.sig"
-curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/checksums.txt.pem"
+curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/checksums.txt"
+curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/checksums.txt.sig"
+curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/checksums.txt.pem"
 sha256sum -c checksums.txt
 cosign verify-blob \
   --certificate checksums.txt.pem --signature checksums.txt.sig \
   --certificate-identity-regexp 'https://github.com/.*/pkgsafe/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
-gh attestation verify "pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz" --repo niyam-ai/pkgsafe
+gh attestation verify "pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz" --repo sairintechnologycom/pkgsafe
 ```
 
 Full release checks are documented in
@@ -50,7 +50,7 @@ Full release checks are documented in
 **From source** (Go 1.25+):
 
 ```bash
-go install github.com/niyam-ai/pkgsafe/cmd/pkgsafe@latest
+go install github.com/sairintechnologycom/pkgsafe/cmd/pkgsafe@latest
 # or, from a clone, with version metadata baked in:
 make build && ./dist/pkgsafe version
 ```

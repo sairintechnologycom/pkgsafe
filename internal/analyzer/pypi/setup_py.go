@@ -3,8 +3,8 @@ package pypi
 import (
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/risk"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func AnalyzeSetupPy(path, lower string) ([]types.Reason, []string) {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 )
 
 func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor PackageManagerExecutor) error {

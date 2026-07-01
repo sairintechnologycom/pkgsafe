@@ -3,7 +3,7 @@ package report
 import (
 	"encoding/json"
 
-	"github.com/niyam-ai/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 )
 
 // ExportJSON formats a report as pretty-printed JSON text.

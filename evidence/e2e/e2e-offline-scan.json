@@ -1,0 +1,257 @@
+{
+  "ecosystem": "npm",
+  "package": "lodash",
+  "version": "4.17.20",
+  "mode": "warn",
+  "decision": "block",
+  "risk_score": 100,
+  "thresholds": {
+    "allow_max_score": 29,
+    "warn_max_score": 69,
+    "block_min_score": 70
+  },
+  "reasons": [
+    {
+      "rule_id": "known_vulnerability_medium",
+      "severity": "medium",
+      "message": "Package version has a medium severity advisory",
+      "evidence": "GHSA-29mw-wpgm-hmr9",
+      "score": 25
+    },
+    {
+      "rule_id": "known_vulnerability_high",
+      "severity": "high",
+      "message": "Package version has a high severity advisory",
+      "evidence": "GHSA-35jh-r3h4-6jhm",
+      "score": 50
+    },
+    {
+      "rule_id": "known_vulnerability_medium",
+      "severity": "medium",
+      "message": "Package version has a medium severity advisory",
+      "evidence": "GHSA-f23m-r3pf-42rh",
+      "score": 25
+    },
+    {
+      "rule_id": "known_vulnerability_high",
+      "severity": "high",
+      "message": "Package version has a high severity advisory",
+      "evidence": "GHSA-r5fr-rjxr-66jc",
+      "score": 50
+    },
+    {
+      "rule_id": "known_vulnerability_high",
+      "severity": "high",
+      "message": "Package version has a high severity advisory",
+      "evidence": "GHSA-xxjr-mmjv-4gpg",
+      "score": 50
+    },
+    {
+      "rule_id": "trusted_package_reduction",
+      "severity": "informational",
+      "message": "Package is listed as trusted by policy",
+      "score": -20
+    },
+    {
+      "rule_id": "score_clamped",
+      "severity": "informational",
+      "message": "Score clamped to 100",
+      "score": 0
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "id": "GHSA-29mw-wpgm-hmr9",
+      "source": "OSV",
+      "ecosystem": "npm",
+      "package_name": "lodash",
+      "aliases": [
+        "CVE-2020-28500"
+      ],
+      "severity": "medium",
+      "summary": "Regular Expression Denial of Service (ReDoS) in lodash",
+      "details": "All versions of package lodash prior to 4.17.21 are vulnerable to Regular Expression Denial of Service (ReDoS) via the `toNumber`, `trim` and `trimEnd` functions. \n\nSteps to reproduce (provided by reporter Liyuan Chen):\n```js\nvar lo = require('lodash');\n\nfunction build_blank(n) {\n    var ret = \"1\"\n    for (var i = 0; i \u003c n; i++) {\n        ret += \" \"\n    }\n    return ret + \"1\";\n}\nvar s = build_blank(50000) var time0 = Date.now();\nlo.trim(s) \nvar time_cost0 = Date.now() - time0;\nconsole.log(\"time_cost0: \" + time_cost0);\nvar time1 = Date.now();\nlo.toNumber(s) var time_cost1 = Date.now() - time1;\nconsole.log(\"time_cost1: \" + time_cost1);\nvar time2 = Date.now();\nlo.trimEnd(s);\nvar time_cost2 = Date.now() - time2;\nconsole.log(\"time_cost2: \" + time_cost2);\n```",
+      "fixed_versions": [
+        "4.17.21"
+      ],
+      "references": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2020-28500",
+        "https://github.com/github/advisory-database/pull/6139",
+        "https://github.com/lodash/lodash/pull/5065",
+        "https://github.com/lodash/lodash/pull/5065/commits/02906b8191d3c100c193fe6f7b27d1c40f200bb7",
+        "https://github.com/lodash/lodash/commit/c4847ebe7d14540bb28a8b932a9ce1b9ecbfee1a",
+        "https://www.oracle.com/security-alerts/cpuoct2021.html",
+        "https://www.oracle.com/security-alerts/cpujul2022.html",
+        "https://www.oracle.com/security-alerts/cpujan2022.html",
+        "https://www.oracle.com//security-alerts/cpujul2021.html",
+        "https://snyk.io/vuln/SNYK-JS-LODASH-1018905",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1074893",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBLODASH-1074895",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1074892",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARS-1074894",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGFUJIONWEBJARS-1074896",
+        "https://security.netapp.com/advisory/ntap-20210312-0006",
+        "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/lodash-rails/CVE-2020-28500.yml",
+        "https://github.com/lodash/lodash/blob/npm/trimEnd.js%23L8",
+        "https://github.com/lodash/lodash",
+        "https://cert-portal.siemens.com/productcert/pdf/ssa-637483.pdf"
+      ],
+      "published_at": "2022-01-06T20:30:46Z",
+      "modified_at": "2025-09-29T21:12:31Z",
+      "fetched_at": "2026-07-01T07:59:07Z"
+    },
+    {
+      "id": "GHSA-35jh-r3h4-6jhm",
+      "source": "OSV",
+      "ecosystem": "npm",
+      "package_name": "lodash",
+      "aliases": [
+        "CVE-2021-23337"
+      ],
+      "severity": "high",
+      "summary": "Command Injection in lodash",
+      "details": "`lodash` versions prior to 4.17.21 are vulnerable to Command Injection via the template function.",
+      "fixed_versions": [
+        "4.17.21"
+      ],
+      "references": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2021-23337",
+        "https://github.com/lodash/lodash/commit/3469357cff396a26c363f8c1b5a91dde28ba4b1c",
+        "https://www.oracle.com/security-alerts/cpuoct2021.html",
+        "https://www.oracle.com/security-alerts/cpujul2022.html",
+        "https://www.oracle.com/security-alerts/cpujan2022.html",
+        "https://www.oracle.com//security-alerts/cpujul2021.html",
+        "https://snyk.io/vuln/SNYK-JS-LODASH-1040724",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSNPM-1074929",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWERGITHUBLODASH-1074931",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARSBOWER-1074928",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGWEBJARS-1074930",
+        "https://snyk.io/vuln/SNYK-JAVA-ORGFUJIONWEBJARS-1074932",
+        "https://security.netapp.com/advisory/ntap-20210312-0006",
+        "https://github.com/rubysec/ruby-advisory-db/blob/master/gems/lodash-rails/CVE-2021-23337.yml",
+        "https://github.com/lodash/lodash/blob/ddfd9b11a0126db2302cb70ec9973b66baec0975/lodash.js#L14851",
+        "https://github.com/lodash/lodash",
+        "https://cert-portal.siemens.com/productcert/pdf/ssa-637483.pdf"
+      ],
+      "published_at": "2021-05-06T16:05:51Z",
+      "modified_at": "2025-08-12T21:55:57Z",
+      "fetched_at": "2026-07-01T07:59:07Z"
+    },
+    {
+      "id": "GHSA-f23m-r3pf-42rh",
+      "source": "OSV",
+      "ecosystem": "npm",
+      "package_name": "lodash",
+      "aliases": [
+        "CVE-2026-2950"
+      ],
+      "severity": "medium",
+      "summary": "lodash vulnerable to Prototype Pollution via array path bypass in `_.unset` and `_.omit`",
+      "details": "### Impact\n\nLodash versions 4.17.23 and earlier are vulnerable to prototype pollution in the `_.unset` and `_.omit` functions. The fix for [CVE-2025-13465](https://github.com/lodash/lodash/security/advisories/GHSA-xxjr-mmjv-4gpg) only guards against string key members, so an attacker can bypass the check by passing array-wrapped path segments. This allows deletion of properties from built-in prototypes such as `Object.prototype`, `Number.prototype`, and `String.prototype`.\n\nThe issue permits deletion of prototype properties but does not allow overwriting their original behavior.\n\n### Patches\n\nThis issue is patched in 4.18.0.\n\n### Workarounds\n\nNone. Upgrade to the patched version.",
+      "fixed_versions": [
+        "4.18.0"
+      ],
+      "references": [
+        "https://github.com/lodash/lodash/security/advisories/GHSA-f23m-r3pf-42rh",
+        "https://github.com/lodash/lodash/security/advisories/GHSA-xxjr-mmjv-4gpg",
+        "https://nvd.nist.gov/vuln/detail/CVE-2026-2950",
+        "https://github.com/lodash/lodash"
+      ],
+      "published_at": "2026-04-01T23:50:27Z",
+      "modified_at": "2026-04-02T17:29:51Z",
+      "fetched_at": "2026-07-01T07:59:07Z"
+    },
+    {
+      "id": "GHSA-r5fr-rjxr-66jc",
+      "source": "OSV",
+      "ecosystem": "npm",
+      "package_name": "lodash",
+      "aliases": [
+        "CVE-2026-4800"
+      ],
+      "severity": "high",
+      "summary": "lodash vulnerable to Code Injection via `_.template` imports key names",
+      "details": "### Impact\n\nThe fix for [CVE-2021-23337](https://github.com/advisories/GHSA-35jh-r3h4-6jhm) added validation for the `variable` option in `_.template` but did not apply the same validation to `options.imports` key names. Both paths flow into the same `Function()` constructor sink.\n\nWhen an application passes untrusted input as `options.imports` key names, an attacker can inject default-parameter expressions that execute arbitrary code at template compilation time.\n\nAdditionally, `_.template` uses `assignInWith` to merge imports, which enumerates inherited properties via `for..in`. If `Object.prototype` has been polluted by any other vector, the polluted keys are copied into the imports object and passed to `Function()`.\n\n### Patches\n\nUsers should upgrade to version 4.18.0.\n\nThe fix applies two changes:\n1. Validate `importsKeys` against the existing `reForbiddenIdentifierChars` regex (same check already used for the `variable` option)\n2. Replace `assignInWith` with `assignWith` when merging imports, so only own properties are enumerated\n\n### Workarounds\n\nDo not pass untrusted input as key names in `options.imports`. Only use developer-controlled, static key names.",
+      "fixed_versions": [
+        "4.18.0"
+      ],
+      "references": [
+        "https://github.com/lodash/lodash/security/advisories/GHSA-r5fr-rjxr-66jc",
+        "https://nvd.nist.gov/vuln/detail/CVE-2026-4800",
+        "https://github.com/lodash/lodash/commit/3469357cff396a26c363f8c1b5a91dde28ba4b1c",
+        "https://cna.openjsf.org/security-advisories.html",
+        "https://github.com/advisories/GHSA-35jh-r3h4-6jhm",
+        "https://github.com/lodash/lodash"
+      ],
+      "published_at": "2026-04-01T23:51:12Z",
+      "modified_at": "2026-04-02T17:29:57Z",
+      "fetched_at": "2026-07-01T07:59:07Z"
+    },
+    {
+      "id": "GHSA-xxjr-mmjv-4gpg",
+      "source": "OSV",
+      "ecosystem": "npm",
+      "package_name": "lodash",
+      "aliases": [
+        "CVE-2025-13465"
+      ],
+      "severity": "high",
+      "summary": "Lodash has Prototype Pollution Vulnerability in `_.unset` and `_.omit` functions",
+      "details": "### Impact\n\nLodash versions 4.0.0 through 4.17.22 are vulnerable to prototype pollution in the `_.unset` and `_.omit` functions. An attacker can pass crafted paths which cause Lodash to delete methods from global prototypes. \n\nThe issue permits deletion of properties but does not allow overwriting their original behavior.  \n\n### Patches\n\nThis issue is patched on 4.17.23.",
+      "fixed_versions": [
+        "4.17.23"
+      ],
+      "references": [
+        "https://github.com/lodash/lodash/security/advisories/GHSA-xxjr-mmjv-4gpg",
+        "https://nvd.nist.gov/vuln/detail/CVE-2025-13465",
+        "https://github.com/lodash/lodash/commit/edadd452146f7e4bad4ea684e955708931d84d81",
+        "https://cert-portal.siemens.com/productcert/html/ssa-253495.html",
+        "https://github.com/lodash/lodash"
+      ],
+      "published_at": "2026-01-21T23:01:22Z",
+      "modified_at": "2026-06-09T11:15:10Z",
+      "fetched_at": "2026-07-01T07:59:07Z"
+    }
+  ],
+  "recommended_action": "Do not install this package.",
+  "enforcement": "Install should not proceed",
+  "package_identity": {
+    "ecosystem": "npm",
+    "name": "lodash",
+    "version": "4.17.20"
+  },
+  "behavior_analysis": {
+    "mode": "disabled",
+    "enabled": false,
+    "executed": false,
+    "isolated": false,
+    "runner": "none",
+    "not_performed": true,
+    "reason": "behavior analysis disabled by policy"
+  },
+  "artifact_analysis": {
+    "wheel_available": false,
+    "source_distribution_available": false,
+    "yanked": false,
+    "setup_py_present": false,
+    "native_extension": false
+  },
+  "policy": {
+    "source": "local",
+    "name": "default",
+    "version": "0.1.0",
+    "owner": "local"
+  },
+  "registry": {
+    "name": "default",
+    "type": "public",
+    "url": "https://registry.npmjs.org/",
+    "auth_method": ""
+  },
+  "trust": {
+    "matched": false
+  },
+  "exception": {
+    "matched": false
+  }
+}

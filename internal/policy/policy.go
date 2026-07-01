@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 	"gopkg.in/yaml.v3"
 )
 

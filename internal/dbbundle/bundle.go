@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	"github.com/niyam-ai/pkgsafe/internal/enterprise"
-	versionpkg "github.com/niyam-ai/pkgsafe/internal/version"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
+	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
 )
 
 const (

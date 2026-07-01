@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 // namedFile is a file path paired with its already-read contents. Callers read

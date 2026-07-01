@@ -3,8 +3,8 @@ package mcp
 import (
 	"fmt"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 type AgentInstruction struct {

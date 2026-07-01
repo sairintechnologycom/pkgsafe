@@ -1,14 +1,17 @@
 APP := pkgsafe
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
-VERPKG := github.com/niyam-ai/pkgsafe/internal/version
+VERPKG := github.com/sairintechnologycom/pkgsafe/internal/version
 LDFLAGS := -s -w -X $(VERPKG).Version=$(VERSION) -X $(VERPKG).Commit=$(COMMIT)
 DIST := dist
 
-.PHONY: test build sbom package clean cross
+.PHONY: test build sbom package clean cross check-public-boundary
 
 test:
 	go test ./...
+
+check-public-boundary:
+	scripts/check-public-boundary.sh
 
 build:
 	mkdir -p $(DIST)
@@ -31,7 +34,7 @@ package: cross
 
 sbom:
 	mkdir -p $(DIST)
-	printf '{\n  "spdxVersion": "SPDX-2.3",\n  "dataLicense": "CC0-1.0",\n  "SPDXID": "SPDXRef-DOCUMENT",\n  "name": "pkgsafe-$(VERSION)",\n  "documentNamespace": "https://github.com/niyam-ai/pkgsafe/sbom/$(VERSION)",\n  "creationInfo": {"creators": ["Tool: PkgSafe Makefile"], "created": "1970-01-01T00:00:00Z"},\n  "packages": [{"name": "pkgsafe", "SPDXID": "SPDXRef-Package-pkgsafe", "versionInfo": "$(VERSION)", "downloadLocation": "NOASSERTION", "filesAnalyzed": false}]\n}\n' > $(DIST)/sbom.spdx.json
+	printf '{\n  "spdxVersion": "SPDX-2.3",\n  "dataLicense": "CC0-1.0",\n  "SPDXID": "SPDXRef-DOCUMENT",\n  "name": "pkgsafe-$(VERSION)",\n  "documentNamespace": "https://github.com/sairintechnologycom/pkgsafe/sbom/$(VERSION)",\n  "creationInfo": {"creators": ["Tool: PkgSafe Makefile"], "created": "1970-01-01T00:00:00Z"},\n  "packages": [{"name": "pkgsafe", "SPDXID": "SPDXRef-Package-pkgsafe", "versionInfo": "$(VERSION)", "downloadLocation": "NOASSERTION", "filesAnalyzed": false}]\n}\n' > $(DIST)/sbom.spdx.json
 
 clean:
 	rm -rf $(DIST)

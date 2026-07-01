@@ -101,7 +101,7 @@ rg -n "secure sandbox|secure containment|full PyPI|PyPI GA|full Go|full Cargo|Sa
 Focused tamper test:
 
 ```text
-ok  	github.com/niyam-ai/pkgsafe/internal/dbbundle	0.287s
+ok  	github.com/sairintechnologycom/pkgsafe/internal/dbbundle	0.287s
 ```
 
 Signed export:

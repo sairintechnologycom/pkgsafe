@@ -1,6 +1,6 @@
 package ci
 
-import "github.com/niyam-ai/pkgsafe/internal/types"
+import "github.com/sairintechnologycom/pkgsafe/internal/types"
 
 type BehaviorAnalysisSummary struct {
 	Enabled               bool `json:"enabled"`

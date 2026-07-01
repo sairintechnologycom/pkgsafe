@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseGoMod(t *testing.T) {
-	content := []byte(`module github.com/niyam-ai/pkgsafe
+	content := []byte(`module github.com/sairintechnologycom/pkgsafe
 
 go 1.25.0
 

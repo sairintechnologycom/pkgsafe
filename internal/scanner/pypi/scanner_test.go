@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestScanPackage_ResolvesLatestAndScansArtifact(t *testing.T) {

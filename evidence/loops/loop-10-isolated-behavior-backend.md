@@ -112,11 +112,11 @@ Linux-only isolated backend.
 Focused tests:
 
 ```text
-ok  	github.com/niyam-ai/pkgsafe/internal/sandbox
-ok  	github.com/niyam-ai/pkgsafe/internal/scanner/npm
-ok  	github.com/niyam-ai/pkgsafe/internal/scanner/pypi
-ok  	github.com/niyam-ai/pkgsafe/internal/output
-ok  	github.com/niyam-ai/pkgsafe/cmd/pkgsafe
+ok  	github.com/sairintechnologycom/pkgsafe/internal/sandbox
+ok  	github.com/sairintechnologycom/pkgsafe/internal/scanner/npm
+ok  	github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi
+ok  	github.com/sairintechnologycom/pkgsafe/internal/output
+ok  	github.com/sairintechnologycom/pkgsafe/cmd/pkgsafe
 ```
 
 Host/backend availability:

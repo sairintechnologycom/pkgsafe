@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestJSONOutputIncludesReasonFields(t *testing.T) {

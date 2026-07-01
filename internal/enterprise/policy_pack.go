@@ -7,8 +7,8 @@ import (
 	"sort"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 	"gopkg.in/yaml.v3"
 )
 

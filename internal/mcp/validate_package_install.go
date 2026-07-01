@@ -6,15 +6,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/agent"
-	"github.com/niyam-ai/pkgsafe/internal/intercept"
-	"github.com/niyam-ai/pkgsafe/internal/output"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	"github.com/niyam-ai/pkgsafe/internal/risk"
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
-	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/agent"
+	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
+	"github.com/sairintechnologycom/pkgsafe/internal/output"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
+	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 // ValidatePackageInstallParams defines params for validating package installation.

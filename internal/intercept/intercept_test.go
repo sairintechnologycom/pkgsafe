@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestExtractSafetyFlags(t *testing.T) {

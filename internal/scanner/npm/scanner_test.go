@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	"github.com/niyam-ai/pkgsafe/internal/output"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/output"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestScanPackageResolvesLatestAndScansTarball(t *testing.T) {

@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/enterprise"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	"github.com/niyam-ai/pkgsafe/internal/risk"
-	"github.com/niyam-ai/pkgsafe/internal/types"
-	"github.com/niyam-ai/pkgsafe/internal/version"
+	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/version"
 	"gopkg.in/yaml.v3"
 )
 

@@ -334,7 +334,7 @@ Most user-facing surfaces eventually emit or embed this contract:
 
 ## Repo State Notes
 
-- Go module path: `github.com/niyam-ai/pkgsafe`
+- Go module path: `github.com/sairintechnologycom/pkgsafe`
 - Go version in `go.mod`: `1.25.0`
 - Current architecture doc is minimal and older than the current package surface; this file is the more detailed current-state map.
 - `graphify extract . --no-cluster --out .` was attempted but requires an LLM API key because the repo contains documentation files. Without `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or another supported provider key, Graphify refuses full semantic extraction for this mixed code/docs corpus.

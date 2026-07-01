@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/niyam-ai/pkgsafe/internal/feedback"
+	"github.com/sairintechnologycom/pkgsafe/internal/feedback"
 )
 
 func cmdFeedback(args []string) error {

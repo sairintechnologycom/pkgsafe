@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	"github.com/niyam-ai/pkgsafe/internal/types"
-	versionpkg "github.com/niyam-ai/pkgsafe/internal/version"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
+	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
 )
 
 type Options struct {

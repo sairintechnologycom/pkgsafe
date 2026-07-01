@@ -28,7 +28,7 @@ Define the extension package manifest.
   "displayName": "PkgSafe",
   "description": "Pre-installation security firewall for open-source dependencies",
   "version": "0.1.0",
-  "publisher": "niyam-ai",
+  "publisher": "sairintechnologycom",
   "engines": {
     "vscode": "^1.74.0"
   },

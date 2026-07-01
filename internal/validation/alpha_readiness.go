@@ -13,16 +13,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/enterprise"
-	"github.com/niyam-ai/pkgsafe/internal/intercept"
-	"github.com/niyam-ai/pkgsafe/internal/mcp"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/report"
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
+	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
+	"github.com/sairintechnologycom/pkgsafe/internal/mcp"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/report"
+	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 type AlphaReadinessReport struct {

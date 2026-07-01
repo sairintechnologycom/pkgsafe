@@ -1,4 +1,4 @@
-module github.com/niyam-ai/pkgsafe
+module github.com/sairintechnologycom/pkgsafe
 
 go 1.25.0
 

@@ -6,7 +6,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 )
 
 // ExportHTML outputs a styled, single-file HTML report.

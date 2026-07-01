@@ -14,7 +14,7 @@ v1.0.0; replace `VERSION` only when intentionally installing a newer release.
 VERSION=1.0.0
 OS=darwin
 ARCH=arm64
-curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
+curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 tar -xzf "pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 sudo mv pkgsafe /usr/local/bin/pkgsafe
 pkgsafe version
@@ -27,7 +27,7 @@ pkgsafe doctor
 VERSION=1.0.0
 OS=darwin
 ARCH=amd64
-curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
+curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 tar -xzf "pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 sudo mv pkgsafe /usr/local/bin/pkgsafe
 pkgsafe version
@@ -40,7 +40,7 @@ pkgsafe doctor
 VERSION=1.0.0
 OS=linux
 ARCH=amd64
-curl -LO "https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
+curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 tar -xzf "pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
 sudo mv pkgsafe /usr/local/bin/pkgsafe
 pkgsafe version
@@ -56,7 +56,7 @@ $Version = "1.0.0"
 $Os = "windows"
 $Arch = "amd64"
 $Archive = "pkgsafe_${Version}_${Os}_${Arch}.zip"
-Invoke-WebRequest -Uri "https://github.com/niyam-ai/pkgsafe/releases/download/v${Version}/${Archive}" -OutFile $Archive
+Invoke-WebRequest -Uri "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${Version}/${Archive}" -OutFile $Archive
 Expand-Archive -Path $Archive -DestinationPath .
 .\pkgsafe.exe version
 .\pkgsafe.exe doctor
@@ -74,7 +74,7 @@ VERSION=1.0.0
 OS=linux
 ARCH=amd64
 ARCHIVE="pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
-BASE_URL="https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}"
+BASE_URL="https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}"
 
 curl -LO "${BASE_URL}/${ARCHIVE}"
 curl -LO "${BASE_URL}/checksums.txt"
@@ -106,7 +106,7 @@ cosign verify-blob \
 Verify GitHub Artifact Attestation provenance for the archive:
 
 ```bash
-gh attestation verify "${ARCHIVE}" --repo niyam-ai/pkgsafe
+gh attestation verify "${ARCHIVE}" --repo sairintechnologycom/pkgsafe
 ```
 
 Extract and run the binary:
