@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/niyam-ai/pkgsafe/internal/types"
 )
 
 func TestFakeHomeAndCanaries(t *testing.T) {
@@ -359,6 +360,19 @@ func TestRunLifecycleScript(t *testing.T) {
 			t.Error("expected encoded_payload_execution finding")
 		}
 	})
+}
+
+func TestSelectRunnerForIsolatedModeDoesNotFallbackToHeuristic(t *testing.T) {
+	selection := SelectRunner(context.Background(), types.BehaviorIsolated)
+	if selection.Meta.Name == "fake-home-process" {
+		t.Fatal("isolated mode must not fall back to heuristic host execution")
+	}
+	if !selection.Meta.Isolated {
+		t.Fatal("isolated mode selection should be marked isolated")
+	}
+	if !selection.Meta.Available && selection.Meta.Unavailable == "" {
+		t.Fatal("unavailable isolated runner must report a reason")
+	}
 }
 
 func TestSandboxContainment(t *testing.T) {

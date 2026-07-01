@@ -1,0 +1,8 @@
+schema_version: "1.0"
+mode: warn
+
+rules:
+  known_malware_indicator:
+    enabled: true
+    severity: high
+    score: 20

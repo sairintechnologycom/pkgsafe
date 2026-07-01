@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadPolicyFromYAML(t *testing.T) {
@@ -102,6 +103,77 @@ thresholds:
 	}
 	if got := err.Error(); got == "" || !strings.Contains(got, "invalid policy") {
 		t.Fatalf("expected clear invalid policy error, got %q", got)
+	}
+}
+
+func TestPolicyRejectsUnsupportedSchemaVersion(t *testing.T) {
+	path := writeTempPolicy(t, `
+schema_version: "9.9"
+mode: warn
+`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected unsupported schema version error")
+	}
+	if !strings.Contains(err.Error(), "unsupported schema_version") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPolicyRejectsWeakenedHardBlockRule(t *testing.T) {
+	path := writeTempPolicy(t, `
+schema_version: "1.0"
+mode: warn
+rules:
+  known_malware_indicator:
+    enabled: true
+    severity: high
+    score: 20
+`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected weakened hard-block rule error")
+	}
+	if !strings.Contains(err.Error(), "known_malware_indicator must remain critical") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPolicyRejectsForceAcceptWithoutReason(t *testing.T) {
+	path := writeTempPolicy(t, `
+schema_version: "1.0"
+mode: warn
+install_interception:
+  enabled: true
+  default_mode: warn
+  allow_force_risk_accept: true
+  force_risk_accept_requires_reason: false
+  block_known_malware_always: true
+  block_credential_access_always: true
+`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected force risk accept reason error")
+	}
+	if !strings.Contains(err.Error(), "force risk accept must require a reason") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPolicyRejectsExceptionWithoutAuditFields(t *testing.T) {
+	pol := Default()
+	pol.Exceptions = []Exception{{
+		ID:           "EXC-1",
+		Ecosystem:    "npm",
+		Package:      "legacy",
+		AllowedUntil: time.Now().Add(24 * time.Hour),
+	}}
+	err := Validate(pol)
+	if err == nil {
+		t.Fatal("expected missing exception reason error")
+	}
+	if !strings.Contains(err.Error(), "reason is required") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

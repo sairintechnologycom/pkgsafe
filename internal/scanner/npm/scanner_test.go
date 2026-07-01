@@ -377,4 +377,22 @@ func TestSandboxScannerIntegration(t *testing.T) {
 	if len(resTrusted.Sandbox.ScriptsExecuted) != 0 {
 		t.Fatalf("expected trusted BLOCK package to never execute lifecycle scripts, got %+v", resTrusted.Sandbox.ScriptsExecuted)
 	}
+
+	scanner.BehaviorMode = types.BehaviorIsolated
+	resIsolated, err := scanner.ScanPackage("fixture", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resIsolated.Sandbox.Isolated {
+		t.Fatal("expected isolated behavior mode metadata")
+	}
+	if resIsolated.Sandbox.Runner == "fake-home-process" {
+		t.Fatal("isolated behavior mode must not fall back to heuristic runner")
+	}
+	if !resIsolated.Sandbox.NotPerformed || !strings.Contains(resIsolated.Sandbox.NotPerfReason, "static analysis already blocked") {
+		t.Fatalf("expected static BLOCK skip reason, got %+v", resIsolated.Sandbox)
+	}
+	if len(resIsolated.Sandbox.ScriptsExecuted) != 0 {
+		t.Fatalf("expected isolated BLOCK package to never execute lifecycle scripts, got %+v", resIsolated.Sandbox.ScriptsExecuted)
+	}
 }

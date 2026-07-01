@@ -2,3 +2,4 @@ dist/
 /pkgsafe
 *.db
 .pkgsafe/
+pkgsafe-team-evidence.zip

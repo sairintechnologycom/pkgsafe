@@ -743,6 +743,36 @@ func TestUnapprovedRegistryURLBlocked(t *testing.T) {
 	}
 }
 
+func TestPyPIPrivatePrefixUsesNormalizedName(t *testing.T) {
+	pol := policy.Default()
+	pol.Registries.Registries = map[string]map[string]policy.RegistryConfig{
+		"pypi": {
+			"company": {
+				Type:            "private",
+				URL:             "https://pypi.company.test/simple/",
+				Enabled:         true,
+				PackagePrefixes: []string{"company-internal"},
+			},
+		},
+	}
+	res := types.ScanResult{
+		Package:  types.PackageIdentity{Ecosystem: "pypi", Name: "company_internal_pkg", Version: "1.0.0"},
+		Score:    0,
+		Decision: types.DecisionAllow,
+	}
+	res = risk.ApplyEnterpriseControls(res, pol, "default", policy.RegistryConfig{Type: "public", URL: "https://pypi.org/simple/"}, "human", "developer")
+	found := false
+	for _, r := range res.Reasons {
+		if r.ID == "dependency_confusion_candidate" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected normalized PyPI private prefix to produce dependency confusion finding: %+v", res.Reasons)
+	}
+}
+
 func TestTokensRedacted(t *testing.T) {
 	secretURL := "https://myusername:mypassword@npm.company.com/path"
 	redactedURL := registry.RedactURL(secretURL)

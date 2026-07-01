@@ -70,10 +70,22 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 	var depsToScan []Dependency
 	var changedPkgs []ChangedPackage
 	isChangedOnlyScan := false
+	baselineType := ""
 
 	if changedOnly {
-		dir := filepath.Dir(lockfile)
-		if IsGitRepo(dir) {
+		if baselineBytes, ok, err := baselineFileContent(opts.Baseline); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: baseline file %s could not be read: %v. Falling back to full scan.\n", opts.Baseline, err)
+		} else if ok {
+			deps, details, err := DiffLockfilesDetailed(currentBytes, baselineBytes)
+			if err == nil {
+				depsToScan = deps
+				changedPkgs = details
+				isChangedOnlyScan = true
+				baselineType = "file"
+			} else {
+				fmt.Fprintf(os.Stderr, "Warning: failed to diff baseline file %s: %v. Falling back to full scan.\n", opts.Baseline, err)
+			}
+		} else if dir := filepath.Dir(lockfile); IsGitRepo(dir) {
 			gitRoot, err := GetGitRoot(dir)
 			if err == nil {
 				// Get relative path of lockfile with respect to git root
@@ -88,6 +100,7 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 							depsToScan = deps
 							changedPkgs = details
 							isChangedOnlyScan = true
+							baselineType = "git_ref"
 						} else {
 							fmt.Fprintf(os.Stderr, "Warning: failed to diff lockfiles: %v. Falling back to full scan.\n", err)
 						}
@@ -272,6 +285,9 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 	if isChangedOnlyScan {
 		fmt.Println("Changed dependency scan enabled.")
 		fmt.Printf("Baseline: %s\n", opts.Baseline)
+		if baselineType != "" {
+			fmt.Printf("Baseline Type: %s\n", baselineType)
+		}
 		fmt.Printf("Changed packages found: %d\n\n", len(changedPkgs))
 		for _, cp := range changedPkgs {
 			if cp.FromVersion == "added" {
@@ -310,12 +326,34 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		Ecosystem:         "npm",
 		ChangedOnly:       isChangedOnlyScan,
 		Baseline:          opts.Baseline,
+		BaselineType:      baselineType,
 		Summary:           summary,
 		Findings:          findings,
 		PolicyPack:        policyPack,
 		PolicyPackVersion: policyPackVersion,
 		ExceptionsUsed:    exceptionsUsed,
 	}, nil
+}
+
+func baselineFileContent(path string) ([]byte, bool, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, false, nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, true, err
+	}
+	if info.IsDir() {
+		return nil, true, fmt.Errorf("baseline path is a directory")
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, true, err
+	}
+	return content, true, nil
 }
 
 func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResult, error) {

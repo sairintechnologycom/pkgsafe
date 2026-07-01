@@ -69,6 +69,11 @@ func AnalyzeDir(dir string, md Metadata, pol policy.Policy) (Analysis, error) {
 			strings.HasSuffix(base, ".py") ||
 			strings.HasPrefix(slashRel, "scripts/") ||
 			strings.HasPrefix(slashRel, "bin/")
+		if nativeExtensionName(slashRel) {
+			artifact.NativeExtension = true
+			findings = risk.AddReason(findings, "pypi_native_extension", "Package artifact contains native extension or native source files", slashRel)
+			suspicious = append(suspicious, "native extension: "+slashRel)
+		}
 		if !inspect {
 			return nil
 		}
@@ -93,6 +98,11 @@ func AnalyzeDir(dir string, md Metadata, pol policy.Policy) (Analysis, error) {
 					findings = risk.AddReason(findings, "pypi_unknown_build_backend", "pyproject.toml uses an unusual or unknown build backend", backend)
 				}
 			}
+		}
+		if strings.HasSuffix(base, ".py") {
+			staticFindings, staticSuspicious := AnalyzePythonStaticPatterns(slashRel, lower)
+			findings = append(findings, staticFindings...)
+			suspicious = append(suspicious, staticSuspicious...)
 		}
 		for _, pat := range RiskyPatterns() {
 			if strings.Contains(lower, strings.ToLower(pat)) {

@@ -19,7 +19,7 @@ Scanning when enabled, and can post or update a pull request Markdown summary.
 | `mode` | PkgSafe mode: `audit`, `warn`, or `block` | No | `warn` |
 | `fail-on` | Minimum decision that fails the workflow: `none`, `warn`, `block` | No | `block` |
 | `changed-only` | Only scan dependencies changed in the pull request | No | `true` |
-| `baseline` | Baseline branch for changed dependency detection | No | `main` |
+| `baseline` | Baseline Git ref or baseline `package-lock.json` file for changed dependency detection | No | `main` |
 | `sandbox` | Deprecated compatibility input for `--behavior heuristic`; executes lifecycle scripts on the runner host without OS isolation and is not a security sandbox | No | `false` |
 | `offline` | Use offline local vulnerability database only | No | `false` |
 | `upload-sarif` | Upload SARIF results to GitHub Code Scanning | No | `true` |
@@ -30,7 +30,6 @@ Scanning when enabled, and can post or update a pull request Markdown summary.
 | `generate-evidence-pack` | Generate a governance evidence pack | No | `true` |
 | `evidence-pack-output` | Path for generated evidence pack | No | `pkgsafe-evidence-pack.zip` |
 | `upload-evidence-artifact` | Upload the evidence pack as a workflow artifact | No | `true` |
-| `pkgsafe-version` | PkgSafe version to install | No | `latest` |
 
 ## Outputs
 
@@ -44,6 +43,7 @@ Scanning when enabled, and can post or update a pull request Markdown summary.
 | `json-report` | Path to JSON report |
 | `sarif-report` | Path to SARIF report |
 | `markdown-summary` | Path to Markdown summary |
+| `evidence-pack` | Path to generated evidence pack ZIP when evidence generation is enabled |
 
 ## Minimal Pull Request Workflow
 
@@ -158,7 +158,52 @@ paired with a scheduled job or prior connected scan that runs `pkgsafe update-db
 otherwise the scan can fail or warn when required data is missing.
 
 `changed-only: true` is supported for pull requests with enough Git history to
-diff against `baseline`; keep `fetch-depth: 0` in checkout.
+diff against `baseline`; keep `fetch-depth: 0` in checkout. `baseline` can also
+point at a checked-in baseline lockfile such as `.pkgsafe/baseline-package-lock.json`.
+
+## Baseline File Workflow
+
+Use a baseline file when you want PR scans to compare against an approved
+dependency snapshot instead of a branch ref:
+
+```yaml
+name: PkgSafe Baseline Dependency Gate
+
+on:
+  pull_request:
+    paths:
+      - "package-lock.json"
+      - ".pkgsafe/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  pkgsafe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run PkgSafe against baseline file
+        uses: niyam-ai/pkgsafe@v1.0.0
+        with:
+          lockfile: package-lock.json
+          changed-only: true
+          baseline: .pkgsafe/baseline-package-lock.json
+          fail-on: block
+          upload-sarif: true
+          comment-pr: true
+```
+
+With `fail-on: block`, the workflow fails only for `block`. With
+`fail-on: warn`, both `warn` and `block` fail the workflow. With
+`fail-on: none`, PkgSafe reports findings without failing the workflow.
+
+SARIF upload requires `permissions.security-events: write` and
+`upload-sarif: true`. If your repository does not use GitHub Code Scanning, set
+`upload-sarif: false`; the Action still writes JSON and Markdown outputs.
 
 ## Scheduled OSV Cache Warmup
 

@@ -2,9 +2,12 @@ package main
 
 import (
 	"crypto/ed25519"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -29,7 +32,7 @@ func resolveTrustedKeys(keyPath string) ([]ed25519.PublicKey, error) {
 
 func cmdPolicy(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: pkgsafe policy [validate|explain|pack]")
+		return fmt.Errorf("usage: pkgsafe policy [validate|explain|test|pack]")
 	}
 
 	switch args[0] {
@@ -79,6 +82,7 @@ func cmdPolicy(args []string) error {
 		fmt.Printf(`PkgSafe Policy Summary
 
 Policy: %s
+Schema Version: %s
 Mode: %s
 Owner: %s
 Version: %s
@@ -103,7 +107,10 @@ Controls:
 - Credential access always blocked
 - AI-agent warn requires confirmation
 - Force risk accept: %s
+- Force risk accept requires reason: %s
+- Override audit log: %s
 - Private registry packages: trusted only when registry matches approved source
+- Hard-block rules: enforced
 
 Trusted packages:
 - npm: %d entries
@@ -117,6 +124,7 @@ Active exceptions:
 - %d entries
 `,
 			nonEmpty(pol.PolicyPackName, "enterprise-standard"),
+			nonEmpty(pol.SchemaVersion, "1.0"),
 			pol.Mode,
 			nonEmpty(pol.PolicyPackOwner, "Platform Engineering"),
 			nonEmpty(pol.PolicyPackVersion, "2026.06.01"),
@@ -127,6 +135,8 @@ Active exceptions:
 			boolEnabled(pol.Ecosystems.NPM.Enabled),
 			boolEnabled(pol.Ecosystems.PyPI.Enabled),
 			boolEnabled(pol.InstallInterception.AllowForceRiskAccept),
+			boolEnabled(pol.InstallInterception.ForceRiskAcceptRequiresReason),
+			registry.RedactSecrets(nonEmpty(pol.InstallInterception.AuditLogPath, "disabled")),
 			npmTrusted,
 			pypiTrusted,
 			npmBlocked,
@@ -135,11 +145,118 @@ Active exceptions:
 		)
 		return nil
 
+	case "test":
+		return cmdPolicyTest(args[1:])
+
 	case "pack":
 		return cmdPolicyPack(args[1:])
 	default:
 		return fmt.Errorf("unknown policy subcommand %q", args[0])
 	}
+}
+
+type policyTestResult struct {
+	Path          string `json:"path"`
+	ExpectedValid bool   `json:"expected_valid"`
+	Passed        bool   `json:"passed"`
+	Error         string `json:"error,omitempty"`
+}
+
+func cmdPolicyTest(args []string) error {
+	fs := flag.NewFlagSet("policy-test", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() < 1 {
+		return fmt.Errorf("usage: pkgsafe policy test [--json] <file-or-dir>")
+	}
+	results, err := runPolicyTests(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	allPassed := true
+	for _, result := range results {
+		if !result.Passed {
+			allPassed = false
+			break
+		}
+	}
+	if *asJSON {
+		b, err := json.MarshalIndent(struct {
+			Pass    bool               `json:"pass"`
+			Results []policyTestResult `json:"results"`
+		}{Pass: allPassed, Results: results}, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(b))
+	} else {
+		for _, result := range results {
+			status := "PASS"
+			if !result.Passed {
+				status = "FAIL"
+			}
+			expectation := "valid"
+			if !result.ExpectedValid {
+				expectation = "invalid"
+			}
+			fmt.Printf("[%s] %s expected=%s", status, result.Path, expectation)
+			if result.Error != "" {
+				fmt.Printf(" error=%s", result.Error)
+			}
+			fmt.Println()
+		}
+	}
+	if !allPassed {
+		return exitError{code: 1, err: fmt.Errorf("policy fixture tests failed")}
+	}
+	return nil
+}
+
+func runPolicyTests(path string) ([]policyTestResult, error) {
+	var files []string
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() {
+		err := filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			ext := strings.ToLower(filepath.Ext(p))
+			if ext == ".yaml" || ext == ".yml" {
+				files = append(files, p)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		files = append(files, path)
+	}
+	sort.Strings(files)
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no policy fixtures found in %s", path)
+	}
+	var results []policyTestResult
+	for _, file := range files {
+		base := filepath.Base(file)
+		expectedValid := !(strings.HasPrefix(base, "invalid-") || strings.Contains(base, ".invalid."))
+		_, err := policy.Load(file)
+		result := policyTestResult{Path: file, ExpectedValid: expectedValid}
+		if err != nil {
+			result.Error = registry.RedactSecrets(err.Error())
+		}
+		result.Passed = (err == nil) == expectedValid
+		results = append(results, result)
+	}
+	return results, nil
 }
 
 func cmdPolicyPack(args []string) error {
@@ -277,13 +394,18 @@ func cmdRegistry(args []string) error {
 		return fmt.Errorf("usage: pkgsafe registry [list|test|auth]")
 	}
 
-	pol, err := policy.ResolvePolicy("", "", "", "", "")
-	if err != nil {
-		return err
-	}
-
 	switch args[0] {
 	case "list":
+		fs := flag.NewFlagSet("registry-list", flag.ContinueOnError)
+		policyPath := fs.String("policy", "", "path to policy file")
+		registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		pol, err := policy.ResolvePolicy("", "", *policyPath, "", *registryConfig)
+		if err != nil {
+			return err
+		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 		fmt.Fprintln(w, "NAME\tECOSYSTEM\tTYPE\tURL\tAUTH METHOD")
 		for eco, regs := range pol.Registries.Registries {
@@ -295,10 +417,51 @@ func cmdRegistry(args []string) error {
 		return nil
 
 	case "test":
-		if len(args) < 2 {
-			return fmt.Errorf("usage: pkgsafe registry test <name>")
+		fs := flag.NewFlagSet("registry-test", flag.ContinueOnError)
+		policyPath := fs.String("policy", "", "path to policy file")
+		registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+		ecosystem := fs.String("ecosystem", "", "ecosystem for package routing test: npm or pypi")
+		packageName := fs.String("package", "", "package name for routing test")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
 		}
-		name := args[1]
+		pol, err := policy.ResolvePolicy("", "", *policyPath, "", *registryConfig)
+		if err != nil {
+			return err
+		}
+		if *packageName != "" || *ecosystem != "" {
+			if *packageName == "" || *ecosystem == "" {
+				return fmt.Errorf("usage: pkgsafe registry test --ecosystem <npm|pypi> --package <name>")
+			}
+			res, err := registry.TestPackageRouting(*ecosystem, *packageName, pol)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Registry Routing Test: %s/%s\n\n", res.Ecosystem, res.Package)
+			if res.NormalizedName != "" {
+				fmt.Printf("Normalized Package: %s\n", res.NormalizedName)
+			}
+			fmt.Printf("Resolved Registry: %s\n", res.RegistryName)
+			fmt.Printf("Registry Type: %s\n", res.RegistryType)
+			fmt.Printf("Registry URL: %s\n", res.RegistryURL)
+			fmt.Printf("Private Match: %s\n", boolEnabled(res.PrivateMatch))
+			if res.PrivateRegistry != "" {
+				fmt.Printf("Private Registry: %s\n", res.PrivateRegistry)
+			}
+			fmt.Printf("Public Fallback: %s\n", boolEnabled(res.PublicFallback))
+			fmt.Printf("Status: %s\n", res.Status)
+			if res.Reason != "" {
+				fmt.Printf("Reason: %s\n", registry.RedactSecrets(res.Reason))
+			}
+			if res.Status != "OK" {
+				return exitError{code: 1, err: fmt.Errorf("registry routing test failed")}
+			}
+			return nil
+		}
+		if fs.NArg() < 1 {
+			return fmt.Errorf("usage: pkgsafe registry test <name> OR pkgsafe registry test --ecosystem <npm|pypi> --package <name>")
+		}
+		name := fs.Arg(0)
 		res, err := registry.TestRegistry(name, pol)
 		if err != nil {
 			return err

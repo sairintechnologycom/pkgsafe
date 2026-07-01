@@ -13,11 +13,19 @@ func RedactURL(rawURL string) string {
 	if err != nil {
 		// Fallback to regex if parsing fails
 		reURLBasicAuth := regexp.MustCompile(`(?i)(https?://)([^:@/ \t\n\r]+):([^@/ \t\n\r]+)(@)`)
-		return reURLBasicAuth.ReplaceAllString(rawURL, "$1REDACTED:REDACTED$4")
+		redacted := reURLBasicAuth.ReplaceAllString(rawURL, "$1REDACTED:REDACTED$4")
+		return redactURLQuerySecrets(redacted)
 	}
 	if u.User != nil {
 		u.User = url.UserPassword("REDACTED", "REDACTED")
 	}
+	q := u.Query()
+	for key := range q {
+		if isSecretKey(key) {
+			q.Set(key, "REDACTED")
+		}
+	}
+	u.RawQuery = q.Encode()
 	return u.String()
 }
 
@@ -26,6 +34,7 @@ func RedactSecrets(input string) string {
 	// 1. Redact basic auth URLs
 	reURLBasicAuth := regexp.MustCompile(`(?i)(https?://)([^:@/ \t\n\r]+):([^@/ \t\n\r]+)(@)`)
 	input = reURLBasicAuth.ReplaceAllString(input, "${1}REDACTED:REDACTED${4}")
+	input = redactURLQuerySecrets(input)
 
 	// 2. Redact standard Auth header bearer tokens
 	reBearer := regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9\-\._~\+\/=]+`)
@@ -80,4 +89,19 @@ func RedactSecrets(input string) string {
 	}
 
 	return input
+}
+
+func redactURLQuerySecrets(input string) string {
+	reQuerySecret := regexp.MustCompile(`(?i)([?&][^=\s&]*(?:token|key|secret|password|auth|credential)[^=\s&]*=)[^&\s]+`)
+	return reQuerySecret.ReplaceAllString(input, "${1}REDACTED")
+}
+
+func isSecretKey(key string) bool {
+	k := strings.ToLower(key)
+	for _, word := range []string{"token", "key", "secret", "password", "auth", "credential"} {
+		if strings.Contains(k, word) {
+			return true
+		}
+	}
+	return false
 }

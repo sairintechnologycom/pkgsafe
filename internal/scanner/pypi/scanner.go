@@ -184,7 +184,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 			NotPerformed: true,
 		}
 		if behaviorMode == types.BehaviorIsolated {
-			res.Sandbox.NotPerfReason = "PyPI isolated behavior analysis backend is not implemented or unavailable. Static analysis completed only."
+			res.Sandbox.NotPerfReason = "PyPI isolated behavior analysis is unavailable for this package flow. Static analysis completed only."
 		} else {
 			res.Sandbox.Warning = "PyPI heuristic behavior analysis is disabled; setup/build hooks are not executed without isolated backend."
 			res.Sandbox.NotPerfReason = "PyPI behavior analysis is not implemented yet. Static analysis completed only."

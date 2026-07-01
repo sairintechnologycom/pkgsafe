@@ -42,7 +42,7 @@ inputs:
     default: "true"
 
   baseline:
-    description: "Baseline branch for changed dependency detection"
+    description: "Baseline Git ref or baseline package-lock JSON file for changed dependency detection"
     required: false
     default: "main"
 
@@ -95,11 +95,6 @@ inputs:
     description: "Upload evidence pack as workflow artifact"
     required: false
     default: "true"
-
-  pkgsafe-version:
-    description: "PkgSafe version to install"
-    required: false
-    default: "latest"
 
 outputs:
   decision:

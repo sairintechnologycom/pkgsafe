@@ -49,6 +49,7 @@ type ScanResult struct {
 	Ecosystem         string    `json:"ecosystem,omitempty"`
 	ChangedOnly       bool      `json:"changed_only"`
 	Baseline          string    `json:"baseline"`
+	BaselineType      string    `json:"baseline_type,omitempty"`
 	Summary           Summary   `json:"summary"`
 	Findings          []Finding `json:"findings"`
 	PolicyPack        string    `json:"policy_pack,omitempty"`

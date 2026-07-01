@@ -166,6 +166,7 @@ type ArtifactSummary struct {
 	Yanked                      bool   `json:"yanked"`
 	BuildBackend                string `json:"build_backend,omitempty"`
 	SetupPyPresent              bool   `json:"setup_py_present"`
+	NativeExtension             bool   `json:"native_extension"`
 	SandboxNote                 string `json:"behavior_analysis_note,omitempty"`
 }
 
@@ -230,7 +231,7 @@ func BehaviorAnalysisFromSandbox(s SandboxSummary) BehaviorAnalysisSummary {
 		if !s.Available {
 			out.NotPerformed = true
 			if out.Reason == "" {
-				out.Reason = "isolated behavior analysis backend is not implemented or unavailable"
+				out.Reason = "isolated behavior analysis backend is unavailable"
 			}
 		}
 	}
@@ -242,6 +243,9 @@ type SandboxScriptResult struct {
 	ExitCode   int              `json:"exit_code"`
 	TimedOut   bool             `json:"timed_out"`
 	DurationMs int64            `json:"duration_ms"`
+	Runner     string           `json:"runner,omitempty"`
+	Isolated   bool             `json:"isolated"`
+	Trace      []string         `json:"trace,omitempty"`
 	Findings   []SandboxFinding `json:"findings,omitempty"`
 }
 

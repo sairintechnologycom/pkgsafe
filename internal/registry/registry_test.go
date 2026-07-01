@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/niyam-ai/pkgsafe/internal/policy"
@@ -16,7 +17,8 @@ func TestRedactURL(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"https://user:pass@npm.company.com/", "https://REDACTED:REDACTED@npm.company.com/"},
+		{"https://testuser:testpassword@npm.company.com/", "https://REDACTED:REDACTED@npm.company.com/"},
+		{"https://npm.company.com/?token=example-token-value", "https://npm.company.com/?token=REDACTED"},
 		{"https://npm.company.com/", "https://npm.company.com/"},
 		{"http://company.com/pypi", "http://company.com/pypi"},
 	}
@@ -30,8 +32,8 @@ func TestRedactURL(t *testing.T) {
 }
 
 func TestRedactSecrets(t *testing.T) {
-	input := "Authorization: Bearer mysecrettoken123\nAuthorization: Basic dXNlcjpwYXNz"
-	expected := "Authorization: Bearer REDACTED\nAuthorization: Basic REDACTED"
+	input := "Authorization: Bearer mysecrettoken123\nAuthorization: Basic dXNlcjpwYXNz\nURL: https://registry.example.test/?authToken=super-secret-token"
+	expected := "Authorization: Bearer REDACTED\nAuthorization: Basic REDACTED\nURL: https://registry.example.test/?authToken=REDACTED"
 
 	got := registry.RedactSecrets(input)
 	if got != expected {
@@ -231,5 +233,101 @@ func TestPyPINormalizationAndPrivateLeakage(t *testing.T) {
 	}
 	if regCfg.Enabled {
 		t.Errorf("expected default registry to be disabled, but got Enabled: true")
+	}
+}
+
+func TestPackageRoutingPrivateNPMNoPublicFallback(t *testing.T) {
+	pol := policy.Default()
+	pol.Registries.Registries = map[string]map[string]policy.RegistryConfig{
+		"npm": {
+			"company": {
+				URL:     "https://testuser:testpassword@npm.company.test/?token=example-token-value",
+				Type:    "private",
+				Enabled: true,
+				Scopes:  []string{"@company"},
+			},
+			"default": {
+				URL:     "https://registry.npmjs.org/",
+				Type:    "public",
+				Enabled: false,
+			},
+		},
+	}
+
+	res, err := registry.TestPackageRouting("npm", "@company/api", pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != "OK" {
+		t.Fatalf("expected OK routing status, got %+v", res)
+	}
+	if res.RegistryName != "company" || res.RegistryType != "private" {
+		t.Fatalf("expected private company registry, got %+v", res)
+	}
+	if !res.PrivateMatch || res.PublicFallback {
+		t.Fatalf("expected private match without public fallback, got %+v", res)
+	}
+	if strings.Contains(res.RegistryURL, "pass") || strings.Contains(res.RegistryURL, "example-token") {
+		t.Fatalf("registry routing URL leaked secret: %s", res.RegistryURL)
+	}
+}
+
+func TestPackageRoutingDisabledPrivateRegistryBlocks(t *testing.T) {
+	pol := policy.Default()
+	pol.Registries.Registries = map[string]map[string]policy.RegistryConfig{
+		"npm": {
+			"company": {
+				URL:     "https://npm.company.test/",
+				Type:    "private",
+				Enabled: false,
+				Scopes:  []string{"@company"},
+			},
+			"default": {
+				URL:     "https://registry.npmjs.org/",
+				Type:    "public",
+				Enabled: true,
+			},
+		},
+	}
+
+	res, err := registry.TestPackageRouting("npm", "@company/api", pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != "BLOCK" {
+		t.Fatalf("expected disabled private registry to block instead of falling back, got %+v", res)
+	}
+	if res.RegistryName != "company" || res.PublicFallback {
+		t.Fatalf("expected disabled private registry without public fallback, got %+v", res)
+	}
+}
+
+func TestPackageRoutingPyPINormalizedPrefix(t *testing.T) {
+	pol := policy.Default()
+	pol.Registries.Registries = map[string]map[string]policy.RegistryConfig{
+		"pypi": {
+			"company": {
+				URL:             "https://pypi.company.test/simple/",
+				Type:            "private",
+				Enabled:         true,
+				PackagePrefixes: []string{"company-internal"},
+			},
+			"default": {
+				URL:     "https://pypi.org/simple/",
+				Type:    "public",
+				Enabled: false,
+			},
+		},
+	}
+
+	res, err := registry.TestPackageRouting("pypi", "Company_Internal.Pkg", pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != "OK" || res.RegistryName != "company" {
+		t.Fatalf("expected normalized PyPI package to route privately, got %+v", res)
+	}
+	if res.NormalizedName != "company-internal-pkg" {
+		t.Fatalf("expected normalized name company-internal-pkg, got %q", res.NormalizedName)
 	}
 }

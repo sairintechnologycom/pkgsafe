@@ -8,9 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/niyam-ai/pkgsafe/internal/api"
+	"github.com/niyam-ai/pkgsafe/internal/policy"
 	"github.com/niyam-ai/pkgsafe/internal/validation"
 )
 
@@ -58,7 +61,7 @@ func TestBetaEvidenceRenderAndJSONDoNotLeakSecrets(t *testing.T) {
 		BehaviorModeSummary:   "behavior analysis disabled by default",
 		SecurityGateStatus:    map[string]string{"rollout_readiness": "pass"},
 		ReleaseArtifactStatus: map[string]string{"sbom": "present"},
-		KnownLimitations:      []string{"isolated behavior backend is not implemented"},
+		KnownLimitations:      []string{"isolated behavior backend is experimental and Linux-only"},
 		Recommendation:        "PRIVATE_BETA_READY",
 	}
 	md := []byte(renderBetaEvidenceMarkdown(evidence))
@@ -137,6 +140,98 @@ func TestWriteBetaEvidenceZip(t *testing.T) {
 	}
 }
 
+func TestWriteTeamEvidenceZip(t *testing.T) {
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "pkgsafe-team-evidence.zip")
+	evidence := teamEvidenceReport{
+		SchemaVersion:      "1.0",
+		EvidenceKind:       "team-evidence",
+		GeneratedAt:        "2026-06-30T00:00:00Z",
+		Tool:               "pkgsafe",
+		PkgSafeVersion:     "v1.0.1",
+		PkgSafeCommit:      "abc1234",
+		RepositoryCount:    1,
+		RepositoriesPassed: 1,
+		Policy: teamEvidencePolicySummary{
+			Source:      "embedded default",
+			PackName:    "default-policy",
+			PackVersion: "1",
+			Owner:       "local",
+		},
+		OSVDBStatus: "pass: cached",
+		ReleaseVerificationStatus: map[string]string{
+			"checksums": "verified",
+		},
+		Repositories: []teamEvidenceRepoSummary{{
+			Name:       "repo-one",
+			Path:       "/tmp/repo-one",
+			Ecosystems: []string{"npm"},
+			DependencyCounts: dependencyCounts{
+				Direct: 1,
+				Total:  1,
+			},
+			AllowCount:     1,
+			PolicyVersion:  "1",
+			ScanTimestamp:  "2026-06-30T00:00:00Z",
+			PkgSafeVersion: "v1.0.1",
+			Status:         "pass",
+			Passed:         true,
+			EvidenceArtifactStatus: artifactStatus{
+				JSON:            true,
+				SARIF:           true,
+				MarkdownSummary: true,
+				EvidencePack:    true,
+			},
+		}},
+		KnownLimitations: []string{"local-first"},
+	}
+	if err := writeTeamEvidenceZip(out, evidence, validation.BenchmarkReport{}, policy.Default()); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.OpenReader(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+	seen := map[string]bool{}
+	for _, f := range zr.File {
+		seen[f.Name] = true
+		if !f.Modified.Equal(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)) {
+			t.Fatalf("zip file %s has non-deterministic timestamp %s", f.Name, f.Modified)
+		}
+	}
+	for _, want := range []string{
+		"pkgsafe-team-evidence/manifest.json",
+		"pkgsafe-team-evidence/summary/team-evidence-summary.json",
+		"pkgsafe-team-evidence/summary/team-evidence-summary.md",
+		"pkgsafe-team-evidence/per-repo/repo-one/summary.json",
+		"pkgsafe-team-evidence/per-repo/repo-one/summary.md",
+		"pkgsafe-team-evidence/policy/policy-summary.json",
+		"pkgsafe-team-evidence/status/osv-db-status.md",
+		"pkgsafe-team-evidence/status/release-verification-status.md",
+		"pkgsafe-team-evidence/known-limitations.md",
+	} {
+		if !seen[want] {
+			t.Fatalf("zip missing %s; saw %#v", want, seen)
+		}
+	}
+}
+
+func TestValidateTeamRepoListRejectsEmptyList(t *testing.T) {
+	tmp := t.TempDir()
+	repoList := filepath.Join(tmp, "repos.json")
+	if err := os.WriteFile(repoList, []byte("[]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := validateTeamRepoList(repoList)
+	if err == nil {
+		t.Fatal("expected empty repo-list error")
+	}
+	if !strings.Contains(err.Error(), "is empty") {
+		t.Fatalf("expected clear empty repo-list error, got %v", err)
+	}
+}
+
 func TestCIScanUsageError(t *testing.T) {
 	err := run([]string{"ci", "scan", "--lockfile", "nonexistent-lockfile-for-main-test.json", "--fail-on", "invalid-value"})
 	if err == nil {
@@ -148,6 +243,36 @@ func TestCIScanUsageError(t *testing.T) {
 	}
 	if eErr.code != 2 {
 		t.Fatalf("expected exit code 2 (usage error), got %d", eErr.code)
+	}
+}
+
+func TestPolicyTestFixtures(t *testing.T) {
+	err := run([]string{"policy", "test", filepath.Join("..", "..", "testdata", "policy-fixtures")})
+	if err != nil {
+		t.Fatalf("policy test fixtures failed: %v", err)
+	}
+}
+
+func TestRegistryTestPackageRoutingCLI(t *testing.T) {
+	policyPath := filepath.Join(t.TempDir(), "policy.yaml")
+	if err := os.WriteFile(policyPath, []byte(`
+mode: warn
+registries:
+  npm:
+    company:
+      url: "https://npm.company.test/"
+      type: private
+      enabled: true
+      scopes: ["@company"]
+    default:
+      url: "https://registry.npmjs.org/"
+      type: public
+      enabled: false
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"registry", "test", "--policy", policyPath, "--ecosystem", "npm", "--package", "@company/api"}); err != nil {
+		t.Fatalf("registry package routing test failed: %v", err)
 	}
 }
 

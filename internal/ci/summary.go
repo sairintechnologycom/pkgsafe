@@ -338,13 +338,35 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 	fmt.Fprintf(&sb, "**Decision:** %s  \n", strings.ToUpper(result.Decision))
 	fmt.Fprintf(&sb, "**Mode:** %s  \n", strings.ToUpper(result.Mode))
 	fmt.Fprintf(&sb, "**Fail On:** %s  \n", strings.ToUpper(result.FailOn))
+	fmt.Fprintf(&sb, "**Workflow Result:** %s  \n", workflowResultText(result))
 	if result.PolicyPack != "" {
 		fmt.Fprintf(&sb, "**Policy Pack:** %s@%s  \n", result.PolicyPack, result.PolicyPackVersion)
 	}
 	if len(result.ExceptionsUsed) > 0 {
 		fmt.Fprintf(&sb, "**Exceptions Used:** %s  \n", strings.Join(result.ExceptionsUsed, ", "))
 	}
+	if result.Ecosystem != "" {
+		fmt.Fprintf(&sb, "**Ecosystem:** %s  \n", result.Ecosystem)
+	}
+	if len(result.DependencyFiles) > 0 {
+		fmt.Fprintf(&sb, "**Dependency Files:** %s  \n", strings.Join(result.DependencyFiles, ", "))
+	} else if result.Lockfile != "" {
+		fmt.Fprintf(&sb, "**Lockfile:** %s  \n", result.Lockfile)
+	}
+	fmt.Fprintf(&sb, "**Changed Only:** %t  \n", result.ChangedOnly)
+	if result.Baseline != "" {
+		fmt.Fprintf(&sb, "**Baseline:** %s", result.Baseline)
+		if result.BaselineType != "" {
+			fmt.Fprintf(&sb, " (%s)", result.BaselineType)
+		}
+		sb.WriteString("  \n")
+	}
 	fmt.Fprintf(&sb, "**Packages Scanned:** %d  \n\n", result.Summary.PackagesScanned)
+
+	sb.WriteString("### Counts\n\n")
+	sb.WriteString("| Allow | Warn | Block | Unknown | Vulnerabilities |\n")
+	sb.WriteString("|---:|---:|---:|---:|---:|\n")
+	fmt.Fprintf(&sb, "| %d | %d | %d | %d | %d |\n\n", result.Summary.Allow, result.Summary.Warn, result.Summary.Block, result.Summary.Unknown, result.Summary.VulnerabilityCount)
 	if result.Summary.VulnerabilityCount > 0 {
 		fmt.Fprintf(&sb, "**Vulnerabilities:** %d  \n", result.Summary.VulnerabilityCount)
 		for _, sev := range []string{"critical", "high", "medium", "low"} {
@@ -367,6 +389,7 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 			return issues[i].RiskScore > issues[j].RiskScore
 		})
 
+		sb.WriteString("### Warn / Block Findings\n\n")
 		sb.WriteString("| Package | Version | Decision | Score | Top Reason |\n")
 		sb.WriteString("|---|---:|---|---:|---|\n")
 		for _, f := range issues {
@@ -382,6 +405,7 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 		}
 		sb.WriteString("\n")
 	} else {
+		sb.WriteString("### Warn / Block Findings\n\n")
 		sb.WriteString("No blocked or warning dependencies found.\n\n")
 	}
 
@@ -406,11 +430,15 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 
 	sb.WriteString("### Recommended Action\n\n")
 	if result.Decision == "block" {
-		sb.WriteString("Remove or replace blocked dependencies before merging.\n")
+		sb.WriteString("Remove or replace blocked dependencies before merging. With `fail-on: block`, this workflow fails for BLOCK findings.\n")
 	} else if result.Decision == "warn" {
-		sb.WriteString("Review warning dependencies before merging.\n")
+		if result.FailOn == "warn" {
+			sb.WriteString("Review warning dependencies before merging. With `fail-on: warn`, this workflow fails for WARN and BLOCK findings.\n")
+		} else {
+			sb.WriteString("Review warning dependencies before merging. With `fail-on: block`, WARN findings are reported without failing the workflow.\n")
+		}
 	} else {
-		sb.WriteString("All packages are allowed by policy.\n")
+		sb.WriteString("All scanned packages are allowed by policy.\n")
 	}
 	sb.WriteString("\n")
 
@@ -443,6 +471,22 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 	}
 
 	return os.WriteFile(path, []byte(sb.String()), 0o644)
+}
+
+func workflowResultText(result *ScanResult) string {
+	switch result.FailOn {
+	case "warn":
+		if result.Decision == "warn" || result.Decision == "block" {
+			return "fails on WARN or BLOCK"
+		}
+	case "block":
+		if result.Decision == "block" {
+			return "fails on BLOCK"
+		}
+	case "none":
+		return "reports only"
+	}
+	return "passes"
 }
 
 func topVulnerableFindings(findings []Finding, limit int) []Finding {

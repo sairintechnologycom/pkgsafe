@@ -1,0 +1,163 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "PkgSafe",
+          "informationUri": "https://github.com/your-org/pkgsafe",
+          "rules": [
+            {
+              "id": "lifecycle_script_present",
+              "shortDescription": {
+                "text": "Package defines a postinstall script"
+              }
+            },
+            {
+              "id": "known_vulnerability_medium",
+              "shortDescription": {
+                "text": "Package version has a medium severity advisory"
+              }
+            },
+            {
+              "id": "known_vulnerability_high",
+              "shortDescription": {
+                "text": "Package version has a high severity advisory"
+              }
+            },
+            {
+              "id": "GHSA-67mh-4wv8-2f99",
+              "shortDescription": {
+                "text": "Known Vulnerability: esbuild enables any website to send any requests to the development server and read the response"
+              }
+            },
+            {
+              "id": "GHSA-gv7w-rqvm-qjhr",
+              "shortDescription": {
+                "text": "Known Vulnerability: Withdrawn Advisory: esbuild: Missing binary integrity verification in Deno module enables remote code execution via NPM_CONFIG_REGISTRY"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "lifecycle_script_present",
+          "level": "warning",
+          "message": {
+            "text": "lifecycle_script_present in package esbuild@0.19.0: Package defines a postinstall script"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/ci-scenarios/warn/package-lock.json"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "package": "esbuild",
+            "version": "0.19.0"
+          }
+        },
+        {
+          "ruleId": "known_vulnerability_medium",
+          "level": "warning",
+          "message": {
+            "text": "known_vulnerability_medium in package esbuild@0.19.0: Package version has a medium severity advisory"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/ci-scenarios/warn/package-lock.json"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "package": "esbuild",
+            "version": "0.19.0"
+          }
+        },
+        {
+          "ruleId": "known_vulnerability_high",
+          "level": "error",
+          "message": {
+            "text": "known_vulnerability_high in package esbuild@0.19.0: Package version has a high severity advisory"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/ci-scenarios/warn/package-lock.json"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "package": "esbuild",
+            "version": "0.19.0"
+          }
+        },
+        {
+          "ruleId": "GHSA-67mh-4wv8-2f99",
+          "level": "warning",
+          "message": {
+            "text": "Known advisory GHSA-67mh-4wv8-2f99 (medium) affects esbuild@0.19.0: esbuild enables any website to send any requests to the development server and read the response. Fixed in: 0.25.0."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/ci-scenarios/warn/package-lock.json"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "package": "esbuild",
+            "version": "0.19.0"
+          }
+        },
+        {
+          "ruleId": "GHSA-gv7w-rqvm-qjhr",
+          "level": "error",
+          "message": {
+            "text": "Known advisory GHSA-gv7w-rqvm-qjhr (high) affects esbuild@0.19.0: Withdrawn Advisory: esbuild: Missing binary integrity verification in Deno module enables remote code execution via NPM_CONFIG_REGISTRY. Fixed in: 0.28.1."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "testdata/ci-scenarios/warn/package-lock.json"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "package": "esbuild",
+            "version": "0.19.0"
+          }
+        }
+      ]
+    }
+  ]
+}

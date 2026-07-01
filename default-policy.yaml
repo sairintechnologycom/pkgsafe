@@ -1,3 +1,5 @@
+schema_version: "1.0"
+
 mode: warn
 
 thresholds:
@@ -236,6 +238,41 @@ rules:
     score: 100
 
   pypi_unknown_build_backend:
+    enabled: true
+    severity: medium
+    score: 20
+
+  pypi_eval_exec_usage:
+    enabled: true
+    severity: high
+    score: 45
+
+  pypi_base64_exec_payload:
+    enabled: true
+    severity: critical
+    score: 100
+
+  pypi_network_call:
+    enabled: true
+    severity: high
+    score: 40
+
+  pypi_credential_path_access:
+    enabled: true
+    severity: critical
+    score: 100
+
+  pypi_env_secret_access:
+    enabled: true
+    severity: high
+    score: 40
+
+  pypi_cloud_metadata_access:
+    enabled: true
+    severity: critical
+    score: 100
+
+  pypi_native_extension:
     enabled: true
     severity: medium
     score: 20

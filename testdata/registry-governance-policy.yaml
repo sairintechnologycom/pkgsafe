@@ -1,0 +1,30 @@
+schema_version: "1.0"
+
+mode: warn
+
+registries:
+  npm:
+    company:
+      url: "https://testuser:testpassword@npm.company.test/?token=example-token-value"
+      type: private
+      enabled: true
+      scopes: ["@company"]
+    offline-company:
+      url: "https://npm-offline.company.test/"
+      type: private
+      enabled: false
+      scopes: ["@offline"]
+    default:
+      url: "https://registry.npmjs.org/"
+      type: public
+      enabled: false
+  pypi:
+    company:
+      url: "https://pypi.company.test/simple/"
+      type: private
+      enabled: true
+      package_prefixes: ["company-internal"]
+    default:
+      url: "https://pypi.org/simple/"
+      type: public
+      enabled: false

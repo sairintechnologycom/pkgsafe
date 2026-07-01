@@ -198,6 +198,10 @@ performs a real bulk OSV sync so you can scan offline afterward; until a package
 has been synced/cached, an `--offline` scan of it will fail or warn rather than
 silently pass. OSV lookups **fail closed** — a network/rate-limit error surfaces
 `vulnerability_data_unavailable` rather than scoring the package clean.
+For air-gapped environments, export, verify, and import signed advisory bundles
+with `pkgsafe db export-bundle`, `pkgsafe db verify-bundle`, and
+`pkgsafe db import-bundle`; see
+[docs/offline-intelligence-bundle.md](docs/offline-intelligence-bundle.md).
 
 **Behavior analysis is disabled by default and must be requested explicitly.**
 Use `--behavior heuristic` only in disposable environments: it runs lifecycle

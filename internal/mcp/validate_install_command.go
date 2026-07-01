@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/niyam-ai/pkgsafe/internal/agent"
+	"github.com/niyam-ai/pkgsafe/internal/intercept"
 	"github.com/niyam-ai/pkgsafe/internal/policy"
 	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
 	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
@@ -16,6 +18,7 @@ type ValidateInstallCommandParams struct {
 	ProjectPath string `json:"project_path"`
 	Mode        string `json:"mode"`
 	Offline     bool   `json:"offline"`
+	RequestedBy string `json:"requested_by"`
 }
 
 // ValidateInstallCommandPackage represents the status of a single package in the command.
@@ -34,6 +37,7 @@ type ValidateInstallCommandResult struct {
 	InstallAllowed    bool                            `json:"install_allowed"`
 	Packages          []ValidateInstallCommandPackage `json:"packages"`
 	RecommendedAction string                          `json:"recommended_action"`
+	AgentInstruction  AgentInstruction                `json:"agent_instruction"`
 }
 
 // ValidateInstallCommand extracts and scans packages in an install command string.
@@ -47,6 +51,9 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 			}},
 			IsError: true,
 		}
+	}
+	if p.RequestedBy == "" {
+		p.RequestedBy = "ai_agent"
 	}
 
 	parsedPkgs, err := agent.ParseInstallCommand(p.Command)
@@ -144,7 +151,11 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 			installAllowed = false
 		} else { // ModeWarn
 			// Default to AI agent settings for validation command
-			installAllowed = pol.MCP.AIAgentDefaultInstallAllowedOnWarn
+			if p.RequestedBy == "ai_agent" {
+				installAllowed = pol.MCP.AIAgentDefaultInstallAllowedOnWarn
+			} else {
+				installAllowed = pol.MCP.HumanDefaultInstallAllowedOnWarn
+			}
 		}
 	}
 
@@ -154,6 +165,8 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 	} else if overallDecision == "warn" {
 		recommendedAction = "Review warnings and risks before proceeding."
 	}
+	decision := types.Decision(overallDecision)
+	instruction := agentInstruction(decision, installAllowed, p.RequestedBy, pol.Mode)
 
 	toolRes := ValidateInstallCommandResult{
 		Command:           p.Command,
@@ -162,7 +175,27 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 		InstallAllowed:    installAllowed,
 		Packages:          packages,
 		RecommendedAction: recommendedAction,
+		AgentInstruction:  instruction,
 	}
+
+	auditPackages := make([]intercept.AuditPackage, 0, len(packages))
+	for _, pkg := range packages {
+		auditPackages = append(auditPackages, intercept.AuditPackage{
+			Name:      pkg.Name,
+			Version:   pkg.Version,
+			Decision:  pkg.Decision,
+			RiskScore: pkg.RiskScore,
+		})
+	}
+	_ = intercept.LogAudit(pol, intercept.AuditEntry{
+		Command:         p.Command,
+		Ecosystem:       ecosystem,
+		Packages:        auditPackages,
+		Mode:            string(pol.Mode),
+		InstallExecuted: false,
+		OverrideUsed:    false,
+		Reason:          fmt.Sprintf("mcp validate_install_command requested_by=%s action=%s allowed=%t", p.RequestedBy, instruction.Action, installAllowed),
+	})
 
 	bResult, _ := json.MarshalIndent(toolRes, "", "  ")
 	return CallToolResult{
