@@ -297,14 +297,14 @@ Acceptance criteria:
 * IDE can call local PkgSafe service.
 * No cloud account required for basic usage.
 
-## Phase 10: Commercial Platform
+## Phase 10: Downstream Extensions
 
 **Timeline:** Later
-**Priority:** Monetization
+**Priority:** Boundary-aware ecosystem growth
 
 Objective:
 
-Convert PkgSafe into a commercial product.
+Keep the public repository focused on the local-first OSS core while allowing downstream distributions to extend it through implementation-free public interfaces.
 
 Open-source core:
 
@@ -314,18 +314,11 @@ Open-source core:
 * MCP server
 * JSON output
 
-Paid features:
+Downstream extension policy:
 
-* Curated malware intelligence
-* Enterprise policy sync
-* Private registry support
-* Air-gapped package DB
-* Team dashboard
-* Audit reports
-* SSO/RBAC
-* ServiceNow integration
-* SIEM integration
-* Azure DevOps and GitHub Enterprise support
+* Public interfaces may be added when they are implementation-free.
+* Private implementation belongs outside this public repository.
+* Review `docs/architecture/open-core-boundary.md` before adding extension points.
 
 ## 2. Implementation Plan for Next Sprint
 
@@ -416,19 +409,11 @@ Recommended model:
 * MCP server
 * GitHub Action
 
-### Commercial extensions
+### Downstream extension model
 
-* Enterprise policy sync
-* Private registry support
-* Air-gapped DB
-* Curated malware feed
-* Audit dashboard
-* SSO/RBAC
-* SIEM export
-* ServiceNow integration
-* Organization-wide reporting
+The public repo may expose OSS-safe extension interfaces. Downstream distributions may provide their own implementations outside this repository.
 
-This model increases adoption while preserving a monetization path.
+This model keeps the public footprint restricted to OSS core behavior and implementation-free contracts.
 
 ## 5. Competitive Differentiation
 
