@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/version"
+	"github.com/Masterminds/semver/v3"
+	"github.com/sairintechnologycom/pkgsafe/internal/version"
 )
 
 type Compatibility struct {
@@ -62,18 +63,25 @@ func ValidateMetadata(meta Metadata) error {
 }
 
 func compareVersions(v1, v2 string) int {
-	// Simple version comparison for standard semver format
+	ver1, err1 := semver.NewVersion(v1)
+	ver2, err2 := semver.NewVersion(v2)
+	if err1 == nil && err2 == nil {
+		return ver1.Compare(ver2)
+	}
+
+	// Fall back to numeric core comparison for non-semver local builds.
 	var major1, minor1, patch1 int
 	var major2, minor2, patch2 int
 	fmt.Sscanf(v1, "%d.%d.%d", &major1, &minor1, &patch1)
 	fmt.Sscanf(v2, "%d.%d.%d", &major2, &minor2, &patch2)
-	if major1 != major2 {
+	switch {
+	case major1 != major2:
 		return major1 - major2
-	}
-	if minor1 != minor2 {
+	case minor1 != minor2:
 		return minor1 - minor2
+	default:
+		return patch1 - patch2
 	}
-	return patch1 - patch2
 }
 
 func (m Metadata) IsExpired() bool {

@@ -1,0 +1,44 @@
+schema_version: "1.0"
+mode: warn
+
+thresholds:
+  allow_max_score: 29
+  warn_max_score: 69
+  block_min_score: 70
+
+ci:
+  fail_on: block
+  changed_only: true
+  comment_pr: true
+  upload_sarif: true
+
+install_interception:
+  enabled: true
+  default_mode: warn
+  confirm_on_warn: true
+  allow_yes_on_warn: true
+  allow_force_risk_accept: true
+  force_risk_accept_requires_reason: true
+  block_known_malware_always: true
+  block_credential_access_always: true
+  ai_agent_warn_requires_confirmation: true
+  non_interactive_warn_blocks_by_default: true
+  audit_log_enabled: true
+  audit_log_path: "~/.pkgsafe/audit.log"
+
+trusted_package_rules:
+  - name: "@company/*"
+    version_range: "*"
+    registry: company
+    reason: "Approved internal scope"
+    owner: "platform-security"
+
+exceptions:
+  - id: "EXC-2030-001"
+    ecosystem: npm
+    package: legacy-build-tool
+    version_range: "<=1.4.2"
+    allowed_until: 2030-12-31T23:59:59Z
+    approved_by: security@example.com
+    reason: "Temporary migration exception"
+    max_decision_allowed: warn

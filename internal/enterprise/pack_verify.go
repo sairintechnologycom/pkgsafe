@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 	"gopkg.in/yaml.v3"
 )
 

@@ -3,8 +3,8 @@ package ci
 import (
 	"sync"
 
-	"github.com/niyam-ai/pkgsafe/internal/logging"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/logging"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 // defaultScanConcurrency bounds how many dependency scans run at once. Scans are

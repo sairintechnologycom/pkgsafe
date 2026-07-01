@@ -3,7 +3,7 @@ package npm
 import (
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestDiffInventories(t *testing.T) {

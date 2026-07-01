@@ -1,0 +1,10 @@
+schema_version: "1.0"
+mode: warn
+
+install_interception:
+  enabled: true
+  default_mode: warn
+  allow_force_risk_accept: true
+  force_risk_accept_requires_reason: false
+  block_known_malware_always: true
+  block_credential_access_always: true

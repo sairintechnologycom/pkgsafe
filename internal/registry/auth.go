@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 )
 
 func AddAuthHeader(req *http.Request, cfg policy.RegistryConfig) error {

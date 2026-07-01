@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/enterprise"
+	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
 )
 
 // signedPackSrc writes a minimal valid pack source dir and returns its path.

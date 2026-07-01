@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestMCPValidatePackageInstallWithEnterpriseFields(t *testing.T) {

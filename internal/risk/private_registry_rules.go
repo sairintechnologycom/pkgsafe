@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func CheckPrivateRegistryRules(pkg types.PackageIdentity, regName string, regCfg policy.RegistryConfig, pol policy.Policy) []types.Reason {
@@ -13,12 +14,13 @@ func CheckPrivateRegistryRules(pkg types.PackageIdentity, regName string, regCfg
 
 	// 1. HTTP registry URL warning/block
 	if strings.HasPrefix(regCfg.URL, "http://") {
+		redactedURL := registry.RedactURL(regCfg.URL)
 		// HTTP is insecure, warn or block
 		findings = append(findings, types.Reason{
 			ID:          "http_registry_warning",
 			Severity:    "high",
-			Description: fmt.Sprintf("Registry URL %s uses insecure HTTP protocol", regCfg.URL),
-			Evidence:    regCfg.URL,
+			Description: fmt.Sprintf("Registry URL %s uses insecure HTTP protocol", redactedURL),
+			Evidence:    redactedURL,
 			ScoreImpact: 40,
 		})
 	}
@@ -67,7 +69,7 @@ func CheckPrivateRegistryRules(pkg types.PackageIdentity, regName string, regCfg
 		for otherName, otherCfg := range pol.Registries.Registries["pypi"] {
 			if otherCfg.Type == "private" {
 				for _, pref := range otherCfg.PackagePrefixes {
-					if strings.HasPrefix(pkg.Name, pref) {
+					if registry.MatchPyPIPrefix(pkg.Name, []string{pref}) {
 						if isPublic {
 							findings = append(findings, types.Reason{
 								ID:          "private_scope_public_registry",

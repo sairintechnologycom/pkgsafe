@@ -17,10 +17,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestMCPServer(t *testing.T) {
@@ -239,6 +239,9 @@ func TestMCPServer(t *testing.T) {
 		if valRes.InstallAllowed {
 			t.Errorf("expected install_allowed false, got true")
 		}
+		if valRes.AgentInstruction.Action != "never_install" {
+			t.Errorf("expected agent instruction never_install, got %+v", valRes.AgentInstruction)
+		}
 	})
 
 	// 5. requested_by = ai_agent with warn sets install_allowed = false
@@ -267,6 +270,9 @@ func TestMCPServer(t *testing.T) {
 		if valRes.InstallAllowed {
 			t.Errorf("expected install_allowed false for ai_agent, got true")
 		}
+		if valRes.AgentInstruction.Action != "ask_human" && valRes.AgentInstruction.Action != "never_install" {
+			t.Errorf("expected ai agent instruction ask_human or never_install, got %+v", valRes.AgentInstruction)
+		}
 		// Confirm the ai_agent_requested_suspicious_package rule is in reasons
 		foundAgentRule := false
 		for _, r := range valRes.Reasons {
@@ -277,6 +283,17 @@ func TestMCPServer(t *testing.T) {
 		}
 		if !foundAgentRule {
 			t.Errorf("expected ai_agent_requested_suspicious_package to be in reasons")
+		}
+		auditLog := filepath.Join(tmpHome, ".pkgsafe", "audit.log")
+		auditBytes, err := os.ReadFile(auditLog)
+		if err != nil {
+			t.Fatalf("expected MCP audit log: %v", err)
+		}
+		if !bytes.Contains(auditBytes, []byte("mcp validate_package_install npm/")) {
+			t.Fatalf("expected validate_package_install audit entry, got %s", string(auditBytes))
+		}
+		if !bytes.Contains(auditBytes, []byte("requested_by=ai_agent")) {
+			t.Fatalf("expected requested_by in audit entry, got %s", string(auditBytes))
 		}
 	})
 
@@ -306,6 +323,9 @@ func TestMCPServer(t *testing.T) {
 		}
 		if !valRes.InstallAllowed {
 			t.Errorf("expected install_allowed true for human in warn mode, got false")
+		}
+		if valRes.AgentInstruction.Action != "ask_human" {
+			t.Errorf("expected warn decision to advise human review, got %+v", valRes.AgentInstruction)
 		}
 	})
 
@@ -460,6 +480,17 @@ func TestMCPServer(t *testing.T) {
 
 		if len(vicRes.Packages) != 2 {
 			t.Fatalf("expected 2 packages, got %d", len(vicRes.Packages))
+		}
+		if vicRes.AgentInstruction.Action == "" {
+			t.Fatalf("expected validate_install_command agent instruction")
+		}
+		auditLog := filepath.Join(tmpHome, ".pkgsafe", "audit.log")
+		auditBytes, err := os.ReadFile(auditLog)
+		if err != nil {
+			t.Fatalf("expected MCP command audit log: %v", err)
+		}
+		if !bytes.Contains(auditBytes, []byte("mcp validate_install_command requested_by=ai_agent")) {
+			t.Fatalf("expected validate_install_command audit entry, got %s", string(auditBytes))
 		}
 	})
 
@@ -652,6 +683,26 @@ func TestMCPServer(t *testing.T) {
 		// Stderr should not leak into stdout
 		if outBuf.Len() > 0 {
 			t.Fatalf("stdout contains unrequested output: %q", outBuf.String())
+		}
+	})
+
+	t.Run("malformed request returns json rpc only on stdout", func(t *testing.T) {
+		inReader := strings.NewReader("{bad json}\n")
+		var outBuf bytes.Buffer
+		err := Serve(ServerConfig{}, inReader, &outBuf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(strings.TrimSpace(outBuf.String()), "\n")
+		if len(lines) != 1 {
+			t.Fatalf("expected one JSON-RPC response line, got %q", outBuf.String())
+		}
+		var resp Response
+		if err := json.Unmarshal([]byte(lines[0]), &resp); err != nil {
+			t.Fatalf("stdout was not JSON-RPC JSON: %q", lines[0])
+		}
+		if resp.Error == nil || resp.Error.Code != -32700 {
+			t.Fatalf("expected parse error response, got %+v", resp)
 		}
 	})
 }

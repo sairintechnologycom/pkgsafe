@@ -14,7 +14,7 @@ VERSION=1.0.0
 OS=linux
 ARCH=amd64
 ARCHIVE="pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
-BASE_URL="https://github.com/niyam-ai/pkgsafe/releases/download/v${VERSION}"
+BASE_URL="https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}"
 
 curl -LO "${BASE_URL}/${ARCHIVE}"
 curl -LO "${BASE_URL}/checksums.txt"
@@ -71,7 +71,7 @@ The command must print `Verified OK`.
 Verify GitHub Artifact Attestation provenance for the downloaded archive:
 
 ```bash
-gh attestation verify pkgsafe_<version>_<os>_<arch>.tar.gz --repo niyam-ai/pkgsafe
+gh attestation verify pkgsafe_<version>_<os>_<arch>.tar.gz --repo sairintechnologycom/pkgsafe
 ```
 
 The attestation must resolve to the PkgSafe release workflow for the expected

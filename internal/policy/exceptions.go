@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func (e Exception) IsExpired() bool {

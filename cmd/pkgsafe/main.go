@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -12,26 +13,27 @@ import (
 	"strings"
 	"time"
 
-	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
-	"github.com/niyam-ai/pkgsafe/internal/api"
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	"github.com/niyam-ai/pkgsafe/internal/ci"
-	"github.com/niyam-ai/pkgsafe/internal/cli"
-	cargodeps "github.com/niyam-ai/pkgsafe/internal/deps/cargo"
-	godeps "github.com/niyam-ai/pkgsafe/internal/deps/golang"
-	npminventory "github.com/niyam-ai/pkgsafe/internal/deps/npm"
-	pydeps "github.com/niyam-ai/pkgsafe/internal/deps/python"
-	"github.com/niyam-ai/pkgsafe/internal/intercept"
-	"github.com/niyam-ai/pkgsafe/internal/mcp"
-	"github.com/niyam-ai/pkgsafe/internal/output"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	scargo "github.com/niyam-ai/pkgsafe/internal/scanner/cargo"
-	sgolang "github.com/niyam-ai/pkgsafe/internal/scanner/golang"
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
-	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
-	"github.com/niyam-ai/pkgsafe/internal/validation"
-	versionpkg "github.com/niyam-ai/pkgsafe/internal/version"
+	anpm "github.com/sairintechnologycom/pkgsafe/internal/analyzer/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/api"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	"github.com/sairintechnologycom/pkgsafe/internal/ci"
+	"github.com/sairintechnologycom/pkgsafe/internal/cli"
+	"github.com/sairintechnologycom/pkgsafe/internal/dbbundle"
+	cargodeps "github.com/sairintechnologycom/pkgsafe/internal/deps/cargo"
+	godeps "github.com/sairintechnologycom/pkgsafe/internal/deps/golang"
+	npminventory "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
+	pydeps "github.com/sairintechnologycom/pkgsafe/internal/deps/python"
+	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
+	"github.com/sairintechnologycom/pkgsafe/internal/mcp"
+	"github.com/sairintechnologycom/pkgsafe/internal/output"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	scargo "github.com/sairintechnologycom/pkgsafe/internal/scanner/cargo"
+	sgolang "github.com/sairintechnologycom/pkgsafe/internal/scanner/golang"
+	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
+	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/validation"
+	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
 )
 
 // version/commit mirror the build-injected values in internal/version so the
@@ -100,6 +102,8 @@ func run(args []string) error {
 		return cmdPolicy(args[1:])
 	case "registry":
 		return cmdRegistry(args[1:])
+	case "feedback":
+		return cmdFeedback(args[1:])
 	case "report":
 		return cmdReport(args[1:])
 	case "mcp":
@@ -109,10 +113,7 @@ func run(args []string) error {
 	case "update-db":
 		return cmdUpdateDB(args[1:])
 	case "db":
-		if len(args) > 1 && args[1] == "status" {
-			return cmdDBStatus(args[2:])
-		}
-		return fmt.Errorf("unknown subcommand. usage: pkgsafe db status")
+		return cmdDB(args[1:])
 	case "doctor":
 		return cmdDoctor(args[1:])
 	case "inventory":
@@ -175,6 +176,10 @@ Usage:
   pkgsafe test benchmark [--json] [--fixtures <dir>] [--offline] [--repo <path>] [--repo-list <path>]
   pkgsafe test rollout-readiness [--json]
   pkgsafe test production-readiness [--json] [--fixtures <dir>] [--repo <path>]
+  pkgsafe db status
+  pkgsafe db export-bundle --output <path> [--db <path>] [--signing-key <key.pem>]
+  pkgsafe db verify-bundle [--key <pubkey.pem>] <path>
+  pkgsafe db import-bundle [--key <pubkey.pem>] [--db <path>] <path>
   pkgsafe doctor [--json] [--policy <path>] [--registry-config <path>] [--skip-network]
   pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
   pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
@@ -188,13 +193,16 @@ Usage:
   pkgsafe policy pack install [--key <pubkey.pem>] <path>
   pkgsafe policy pack list
   pkgsafe policy pack export --output <path>
-  pkgsafe registry list
-  pkgsafe registry test <name>
+  pkgsafe registry list [--policy <path>] [--registry-config <path>]
+  pkgsafe registry test [--policy <path>] [--registry-config <path>] <name>
+  pkgsafe registry test [--policy <path>] [--registry-config <path>] --ecosystem <npm|pypi> --package <name>
   pkgsafe registry auth status
+  pkgsafe feedback create --input <scan.json> [--output-dir <dir>] [--reason <text>] [--command <command>]
   pkgsafe report generate [--repo <path>] [--output <path>] [--format <format>] [--type <type>]
   pkgsafe report evidence-pack [--repo <path>] [--output <path>]
   pkgsafe report beta-evidence [--repo <path>] [--repo-list <path>] [--output <path>] [--json-output <path>]
   pkgsafe report ga-evidence [--repo <path>] [--repo-list <path>] [--output <path>] [--json-output <path>]
+  pkgsafe report team-evidence --repo-list <path> [--output <path>]
   pkgsafe report exceptions [--output <path>]
   pkgsafe report overrides [--output <path>]
   pkgsafe report policy [--policy-pack <name>] [--output <path>]
@@ -926,14 +934,116 @@ func cmdUpdateDB(args []string) error {
 	fs := flag.NewFlagSet("update-db", flag.ContinueOnError)
 	eco := fs.String("ecosystem", "all", "ecosystem to sync: npm, pypi, go, cargo, or all")
 	src := fs.String("source", "osv", "threat database source")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	return cli.UpdateDB("", *eco, *src)
 }
 
+func cmdDB(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("unknown subcommand. usage: pkgsafe db [status|export-bundle|verify-bundle|import-bundle]")
+	}
+	switch args[0] {
+	case "status":
+		return cmdDBStatus(args[1:])
+	case "export-bundle":
+		return cmdDBExportBundle(args[1:])
+	case "verify-bundle":
+		return cmdDBVerifyBundle(args[1:])
+	case "import-bundle":
+		return cmdDBImportBundle(args[1:])
+	default:
+		return fmt.Errorf("unknown db subcommand %q", args[0])
+	}
+}
+
 func cmdDBStatus(args []string) error {
 	return cli.DBStatus("")
+}
+
+func cmdDBExportBundle(args []string) error {
+	fs := flag.NewFlagSet("db-export-bundle", flag.ContinueOnError)
+	dbPath := fs.String("db", "", "path to PkgSafe SQLite database")
+	outputPath := fs.String("output", "", "path to write offline intelligence bundle")
+	signingKey := fs.String("signing-key", "", "ed25519 private key PEM for signing the bundle")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if *outputPath == "" {
+		return fmt.Errorf("usage: pkgsafe db export-bundle --output <path> [--db <path>] [--signing-key <key.pem>]")
+	}
+	manifest, err := dbbundle.Export(*dbPath, *outputPath, *signingKey)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Offline intelligence bundle exported.")
+	fmt.Printf("Output: %s\n", *outputPath)
+	fmt.Printf("Vulnerability records: %d\n", manifest.VulnerabilityCount)
+	fmt.Printf("Indexed packages: %d\n", manifest.IndexedPackageCount)
+	fmt.Printf("Signed: %s\n", boolEnabled(manifest.Signature.Present))
+	return nil
+}
+
+func cmdDBVerifyBundle(args []string) error {
+	fs := flag.NewFlagSet("db-verify-bundle", flag.ContinueOnError)
+	keyPath := fs.String("key", "", "trusted ed25519 public key PEM")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: pkgsafe db verify-bundle [--key <pubkey.pem>] <path>")
+	}
+	var keys []ed25519.PublicKey
+	if *keyPath != "" {
+		resolved, err := resolveTrustedKeys(*keyPath)
+		if err != nil {
+			return err
+		}
+		keys = resolved
+	}
+	res, err := dbbundle.Verify(fs.Arg(0), keys)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Offline intelligence bundle verified.")
+	fmt.Printf("Bundle: %s\n", fs.Arg(0))
+	fmt.Printf("Checksum: %s\n", boolEnabled(res.ChecksumOK))
+	fmt.Printf("Signature present: %s\n", boolEnabled(res.SignaturePresent))
+	fmt.Printf("Signature verified: %s\n", boolEnabled(res.SignatureVerified))
+	fmt.Printf("Vulnerability records: %d\n", res.Manifest.VulnerabilityCount)
+	fmt.Printf("Indexed packages: %d\n", res.Manifest.IndexedPackageCount)
+	return nil
+}
+
+func cmdDBImportBundle(args []string) error {
+	fs := flag.NewFlagSet("db-import-bundle", flag.ContinueOnError)
+	keyPath := fs.String("key", "", "trusted ed25519 public key PEM")
+	dbPath := fs.String("db", "", "path to write PkgSafe SQLite database")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: pkgsafe db import-bundle [--key <pubkey.pem>] [--db <path>] <path>")
+	}
+	var keys []ed25519.PublicKey
+	if *keyPath != "" {
+		resolved, err := resolveTrustedKeys(*keyPath)
+		if err != nil {
+			return err
+		}
+		keys = resolved
+	}
+	res, err := dbbundle.Import(fs.Arg(0), *dbPath, keys)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Offline intelligence bundle imported.")
+	fmt.Printf("Bundle: %s\n", fs.Arg(0))
+	fmt.Printf("Checksum: %s\n", boolEnabled(res.ChecksumOK))
+	fmt.Printf("Signature verified: %s\n", boolEnabled(res.SignatureVerified))
+	fmt.Printf("Vulnerability records: %d\n", res.Manifest.VulnerabilityCount)
+	return nil
 }
 
 func cmdDoctor(args []string) error {
@@ -1038,7 +1148,7 @@ func flagNeedsValue(arg string) bool {
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network", "behavior",
 		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token",
-		"base", "repo", "repo-list", "fixtures", "definitions":
+		"base", "repo", "repo-list", "fixtures", "definitions", "db", "output", "signing-key", "key":
 		return true
 	default:
 		return false
@@ -1058,7 +1168,7 @@ func cmdCIScan(args []string) error {
 	sarifOutput := fs.String("sarif-output", "", "path to write SARIF report")
 	summaryOutput := fs.String("summary-output", "", "path to write Markdown summary")
 	changedOnly := fs.Bool("changed-only", false, "only scan changed dependencies")
-	baseline := fs.String("baseline", "main", "baseline branch for diffing")
+	baseline := fs.String("baseline", "main", "baseline Git ref or package-lock JSON file for diffing")
 	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
 	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic")
 	offline := fs.Bool("offline", false, "use offline database only")

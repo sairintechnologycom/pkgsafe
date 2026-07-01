@@ -3,7 +3,7 @@ package sandbox
 import (
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 )
 
 type SandboxRequest struct {

@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
-	npminventory "github.com/niyam-ai/pkgsafe/internal/deps/npm"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	anpm "github.com/sairintechnologycom/pkgsafe/internal/analyzer/npm"
+	npminventory "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 type GoldenDep struct {

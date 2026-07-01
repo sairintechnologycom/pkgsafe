@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/audit"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/audit"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 )
 
 // ExportMarkdown formats the Repository Risk Report as Markdown text.

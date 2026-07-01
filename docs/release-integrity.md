@@ -108,13 +108,13 @@ by hand.
 Verify with the GitHub CLI (`gh auth login` first if needed):
 
 ```bash
-gh attestation verify "${ARCHIVE}" --owner niyam-ai
+gh attestation verify "${ARCHIVE}" --owner sairintechnologycom
 ```
 
 You can also verify against the full repository:
 
 ```bash
-gh attestation verify "${ARCHIVE}" --repo niyam-ai/pkgsafe
+gh attestation verify "${ARCHIVE}" --repo sairintechnologycom/pkgsafe
 ```
 
 `gh` downloads the attestation from GitHub, checks the artifact's digest against

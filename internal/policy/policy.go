@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 	"gopkg.in/yaml.v3"
 )
 
@@ -93,6 +93,7 @@ type PackageManagersSettings struct {
 }
 
 type Policy struct {
+	SchemaVersion       string
 	Mode                Mode
 	Ecosystems          EcosystemSettings
 	Thresholds          types.Thresholds
@@ -122,7 +123,8 @@ type Policy struct {
 
 func Default() Policy {
 	return Policy{
-		Mode: ModeWarn,
+		SchemaVersion: "1.0",
+		Mode:          ModeWarn,
 		Ecosystems: EcosystemSettings{
 			NPM:  EcosystemSetting{Enabled: true},
 			PyPI: EcosystemSetting{Enabled: true},
@@ -189,6 +191,13 @@ func Default() Policy {
 			"pypi_setup_py_network_call":             {Enabled: true, Severity: "critical", Score: 100},
 			"pypi_setup_py_credential_access":        {Enabled: true, Severity: "critical", Score: 100},
 			"pypi_unknown_build_backend":             {Enabled: true, Severity: "medium", Score: 20},
+			"pypi_eval_exec_usage":                   {Enabled: true, Severity: "high", Score: 45},
+			"pypi_base64_exec_payload":               {Enabled: true, Severity: "critical", Score: 100},
+			"pypi_network_call":                      {Enabled: true, Severity: "high", Score: 40},
+			"pypi_credential_path_access":            {Enabled: true, Severity: "critical", Score: 100},
+			"pypi_env_secret_access":                 {Enabled: true, Severity: "high", Score: 40},
+			"pypi_cloud_metadata_access":             {Enabled: true, Severity: "critical", Score: 100},
+			"pypi_native_extension":                  {Enabled: true, Severity: "medium", Score: 20},
 			"pypi_ai_package_squatting_candidate":    {Enabled: true, Severity: "high", Score: 25},
 			"dependency_confusion_candidate":         {Enabled: true, Severity: "critical", Score: 100},
 			"private_scope_public_registry":          {Enabled: true, Severity: "critical", Score: 100},
@@ -302,8 +311,17 @@ func Load(path string) (Policy, error) {
 }
 
 func Validate(pol Policy) error {
+	if pol.SchemaVersion != "" && pol.SchemaVersion != "1.0" {
+		return fmt.Errorf("unsupported schema_version %q", pol.SchemaVersion)
+	}
 	if pol.Mode != ModeAudit && pol.Mode != ModeWarn && pol.Mode != ModeBlock {
 		return fmt.Errorf("mode must be one of audit, warn, block")
+	}
+	if pol.CI.FailOn != "" && pol.CI.FailOn != "none" && pol.CI.FailOn != "warn" && pol.CI.FailOn != "block" {
+		return fmt.Errorf("ci.fail_on must be one of none, warn, block")
+	}
+	if pol.InstallInterception.AllowForceRiskAccept && !pol.InstallInterception.ForceRiskAcceptRequiresReason {
+		return fmt.Errorf("force risk accept must require a reason")
 	}
 	t := pol.Thresholds
 	if t.AllowMaxScore < 0 || t.WarnMaxScore < 0 || t.BlockMinScore < 0 ||
@@ -354,6 +372,21 @@ func Validate(pol Policy) error {
 		if exc.IsExpired() {
 			return fmt.Errorf("exception %s is expired", exc.ID)
 		}
+		if strings.TrimSpace(exc.ID) == "" {
+			return fmt.Errorf("exception id is required")
+		}
+		if strings.TrimSpace(exc.Package) == "" {
+			return fmt.Errorf("exception %s package is required", exc.ID)
+		}
+		if strings.TrimSpace(exc.Reason) == "" {
+			return fmt.Errorf("exception %s reason is required", exc.ID)
+		}
+		if strings.TrimSpace(exc.ApprovedBy) == "" {
+			return fmt.Errorf("exception %s approved_by is required", exc.ID)
+		}
+	}
+	if err := validateHardBlockInvariants(pol); err != nil {
+		return err
 	}
 
 	// 3. Invalid wildcard patterns
@@ -365,6 +398,48 @@ func Validate(pol Policy) error {
 		}
 	}
 
+	return nil
+}
+
+func validateHardBlockInvariants(pol Policy) error {
+	hardBlockRules := []string{
+		"blocked_package",
+		"known_malware_indicator",
+		"credential_path_reference",
+		"credential_canary_read",
+		"credential_canary_exfiltration_attempt",
+		"cloud_metadata_access",
+		"npm_token_access",
+		"ssh_key_access",
+		"env_secret_access",
+		"shell_download_execute",
+		"pypi_setup_py_network_call",
+		"pypi_setup_py_credential_access",
+		"dependency_confusion_candidate",
+		"private_scope_public_registry",
+		"unapproved_registry_url",
+	}
+	for _, id := range hardBlockRules {
+		rule, ok := pol.Rules[id]
+		if !ok {
+			return fmt.Errorf("hard-block rule %s is missing", id)
+		}
+		if !rule.Enabled {
+			return fmt.Errorf("hard-block rule %s cannot be disabled", id)
+		}
+		if rule.Severity != "critical" {
+			return fmt.Errorf("hard-block rule %s must remain critical", id)
+		}
+		if rule.Score < pol.Thresholds.BlockMinScore {
+			return fmt.Errorf("hard-block rule %s score must be >= block_min_score", id)
+		}
+	}
+	if !pol.InstallInterception.BlockKnownMalwareAlways {
+		return fmt.Errorf("block_known_malware_always must remain true")
+	}
+	if !pol.InstallInterception.BlockCredentialAccessAlways {
+		return fmt.Errorf("block_credential_access_always must remain true")
+	}
 	return nil
 }
 
@@ -464,6 +539,8 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 		if indent == 0 {
 			section, subsection, ruleID = key, "", ""
 			switch key {
+			case "schema_version":
+				pol.SchemaVersion = unquote(val)
 			case "mode":
 				pol.Mode = ParseMode(unquote(val))
 			case "thresholds", "rules", "mcp", "sandbox", "ci", "ecosystems", "install_interception", "package_managers", "registries", "scoped_rules", "exceptions", "trusted_package_rules", "blocked_package_rules":

@@ -1,12 +1,15 @@
 package sandbox
 
-import "github.com/niyam-ai/pkgsafe/internal/types"
+import "github.com/sairintechnologycom/pkgsafe/internal/types"
 
 type SandboxResult struct {
 	ScriptName      string                 `json:"name"`
 	ExitCode        int                    `json:"exit_code"`
 	TimedOut        bool                   `json:"timed_out"`
 	DurationMs      int64                  `json:"duration_ms"`
+	Runner          string                 `json:"runner,omitempty"`
+	Isolated        bool                   `json:"isolated"`
+	Trace           []string               `json:"trace,omitempty"`
 	FileReads       []FileAccess           `json:"file_reads,omitempty"`
 	FileWrites      []FileAccess           `json:"file_writes,omitempty"`
 	ProcessExecs    []ProcessExec          `json:"process_execs,omitempty"`

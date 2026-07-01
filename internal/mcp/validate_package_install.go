@@ -2,17 +2,19 @@ package mcp
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/agent"
-	"github.com/niyam-ai/pkgsafe/internal/output"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	"github.com/niyam-ai/pkgsafe/internal/risk"
-	snpm "github.com/niyam-ai/pkgsafe/internal/scanner/npm"
-	spypi "github.com/niyam-ai/pkgsafe/internal/scanner/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/agent"
+	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
+	"github.com/sairintechnologycom/pkgsafe/internal/output"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
+	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 // ValidatePackageInstallParams defines params for validating package installation.
@@ -57,6 +59,7 @@ type ValidatePackageInstallResult struct {
 	Vulnerabilities   []types.Vulnerability      `json:"vulnerabilities"`
 	SafeAlternatives  []string                   `json:"safe_alternatives"`
 	RecommendedAction string                     `json:"recommended_action"`
+	AgentInstruction  AgentInstruction           `json:"agent_instruction"`
 	BehaviorAnalysis  *MCPBehaviorAnalysisResult `json:"behavior_analysis,omitempty"`
 	Policy            *types.PolicyEvidence      `json:"policy,omitempty"`
 	Registry          *types.RegistryEvidence    `json:"registry,omitempty"`
@@ -287,6 +290,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		installAllowed = false
 	}
 
+	instruction := agentInstruction(res.Decision, installAllowed, p.RequestedBy, pol.Mode)
 	var safeAlts []string
 	alts := agent.GetSafeAlternatives(p.Name)
 	for _, alt := range alts {
@@ -325,12 +329,28 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		Vulnerabilities:   res.Vulnerabilities,
 		SafeAlternatives:  safeAlts,
 		RecommendedAction: recAction,
+		AgentInstruction:  instruction,
 		BehaviorAnalysis:  mcpBehavior,
 		Policy:            res.PolicyInfo,
 		Registry:          res.RegistryInfo,
 		Trust:             res.TrustInfo,
 		Exception:         res.ExceptionInfo,
 	}
+
+	_ = intercept.LogAudit(pol, intercept.AuditEntry{
+		Command:   fmt.Sprintf("mcp validate_package_install %s/%s@%s", res.Package.Ecosystem, res.Package.Name, res.Package.Version),
+		Ecosystem: res.Package.Ecosystem,
+		Packages: []intercept.AuditPackage{{
+			Name:      res.Package.Name,
+			Version:   res.Package.Version,
+			Decision:  string(res.Decision),
+			RiskScore: res.Score,
+		}},
+		Mode:            string(pol.Mode),
+		InstallExecuted: false,
+		OverrideUsed:    false,
+		Reason:          fmt.Sprintf("mcp requested_by=%s action=%s allowed=%t", p.RequestedBy, instruction.Action, installAllowed),
+	})
 
 	b, _ := json.MarshalIndent(toolRes, "", "  ")
 	return CallToolResult{

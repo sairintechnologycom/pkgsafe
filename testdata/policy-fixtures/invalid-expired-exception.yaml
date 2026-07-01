@@ -1,0 +1,12 @@
+schema_version: "1.0"
+mode: warn
+
+exceptions:
+  - id: "EXC-PAST-001"
+    ecosystem: npm
+    package: legacy-build-tool
+    version_range: "<=1.4.2"
+    allowed_until: 2020-01-01T00:00:00Z
+    approved_by: security@example.com
+    reason: "Expired migration exception"
+    max_decision_allowed: warn

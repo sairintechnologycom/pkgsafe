@@ -89,3 +89,99 @@ ruff = "^0.5.0"
 		t.Fatalf("poetry group dependency not parsed: %+v", got["ruff"])
 	}
 }
+
+func TestParsePoetryAndUVLockFiles(t *testing.T) {
+	for _, name := range []string{"poetry.lock", "uv.lock"} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), name)
+			if err := os.WriteFile(path, []byte(`
+[[package]]
+name = "Requests"
+version = "2.31.0"
+
+[[package]]
+name = "urllib3"
+version = "2.2.1"
+`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			deps, err := ParseFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]Dependency{}
+			for _, dep := range deps {
+				got[dep.Name] = dep
+			}
+			if got["requests"].Version != "2.31.0" || got["requests"].Specifier != "==2.31.0" {
+				t.Fatalf("requests lock entry not parsed: %+v", got["requests"])
+			}
+			if got["urllib3"].Version != "2.2.1" {
+				t.Fatalf("urllib3 lock entry not parsed: %+v", got["urllib3"])
+			}
+		})
+	}
+}
+
+func TestParsePipfileAndPipfileLock(t *testing.T) {
+	dir := t.TempDir()
+	pipfile := filepath.Join(dir, "Pipfile")
+	if err := os.WriteFile(pipfile, []byte(`
+[packages]
+requests = "==2.31.0"
+flask = "*"
+pydantic = {version = "==2.7.0"}
+
+[dev-packages]
+pytest = ">=8"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	deps, err := ParseFile(pipfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]Dependency{}
+	for _, dep := range deps {
+		got[dep.Name] = dep
+	}
+	if got["requests"].Version != "2.31.0" {
+		t.Fatalf("Pipfile requests pin not parsed: %+v", got["requests"])
+	}
+	if got["flask"].Pinned {
+		t.Fatalf("Pipfile flask should be unpinned: %+v", got["flask"])
+	}
+	if got["pydantic"].Version != "2.7.0" {
+		t.Fatalf("Pipfile inline table not parsed: %+v", got["pydantic"])
+	}
+	if got["pytest"].Specifier != ">=8" {
+		t.Fatalf("Pipfile dev package not parsed: %+v", got["pytest"])
+	}
+
+	lock := filepath.Join(dir, "Pipfile.lock")
+	if err := os.WriteFile(lock, []byte(`{
+  "default": {
+    "requests": {"version": "==2.31.0"},
+    "flask": {"version": "*"}
+  },
+  "develop": {
+    "pytest": {"version": "==8.2.0"}
+  }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lockDeps, err := ParseFile(lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = map[string]Dependency{}
+	for _, dep := range lockDeps {
+		got[dep.Name] = dep
+	}
+	if got["requests"].Version != "2.31.0" || got["pytest"].Version != "8.2.0" {
+		t.Fatalf("Pipfile.lock pins not parsed: %+v", got)
+	}
+	if got["flask"].Pinned {
+		t.Fatalf("Pipfile.lock wildcard should be unpinned: %+v", got["flask"])
+	}
+}

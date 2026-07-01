@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func Evaluate(pkg types.PackageIdentity, findings []types.Reason, lifecycle []string, suspicious []string, alternatives []string, pol policy.Policy) types.ScanResult {

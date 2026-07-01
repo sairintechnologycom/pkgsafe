@@ -1,6 +1,6 @@
 package ci
 
-import "github.com/niyam-ai/pkgsafe/internal/types"
+import "github.com/sairintechnologycom/pkgsafe/internal/types"
 
 type BehaviorAnalysisSummary struct {
 	Enabled               bool `json:"enabled"`
@@ -49,6 +49,7 @@ type ScanResult struct {
 	Ecosystem         string    `json:"ecosystem,omitempty"`
 	ChangedOnly       bool      `json:"changed_only"`
 	Baseline          string    `json:"baseline"`
+	BaselineType      string    `json:"baseline_type,omitempty"`
 	Summary           Summary   `json:"summary"`
 	Findings          []Finding `json:"findings"`
 	PolicyPack        string    `json:"policy_pack,omitempty"`

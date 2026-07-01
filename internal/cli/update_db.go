@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
-	"github.com/niyam-ai/pkgsafe/internal/logging"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/intel/osv"
+	"github.com/sairintechnologycom/pkgsafe/internal/logging"
 )
 
 // saveBatchSize bounds how many advisory rows are written per transaction.

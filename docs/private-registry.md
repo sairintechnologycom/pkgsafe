@@ -35,6 +35,31 @@ registries:
 Validate routing:
 
 ```bash
-pkgsafe registry test npm-internal
-pkgsafe registry test pypi-internal
+pkgsafe registry test --policy .pkgsafe/policy.yaml npm-internal
+pkgsafe registry test --policy .pkgsafe/policy.yaml pypi-internal
+pkgsafe registry test --policy .pkgsafe/policy.yaml --ecosystem npm --package @company/api
+pkgsafe registry test --policy .pkgsafe/policy.yaml --ecosystem pypi --package company_internal_pkg
+```
+
+The package routing test prints the resolved registry, whether a private
+scope/prefix matched, whether public fallback would occur, and a `BLOCK` status
+when the policy disables fallback. PyPI package names are normalized first, so
+`company_internal_pkg`, `company.internal.pkg`, and `Company-Internal-Pkg` match
+the same `company-internal` private prefix.
+
+To fail closed for internal packages, keep the public default disabled for the
+ecosystem that must not fall back:
+
+```yaml
+registries:
+  npm:
+    npm-internal:
+      type: private
+      enabled: true
+      url: https://npm.company.example/
+      scopes: ["@company"]
+    default:
+      type: public
+      enabled: false
+      url: https://registry.npmjs.org/
 ```

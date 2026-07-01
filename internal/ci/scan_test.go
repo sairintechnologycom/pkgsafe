@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 func TestCI_RunScan_DefaultLockfileNotFound(t *testing.T) {
@@ -150,6 +150,57 @@ func TestCI_DiffLockfiles(t *testing.T) {
 	}
 }
 
+func TestCI_RunScan_ChangedOnlyBaselineFile(t *testing.T) {
+	tmp := t.TempDir()
+	baselinePath := filepath.Join(tmp, "baseline-package-lock.json")
+	currentPath := filepath.Join(tmp, "package-lock.json")
+	baseline := `{
+		"name": "fixture-app",
+		"version": "1.0.0",
+		"lockfileVersion": 3,
+		"packages": {
+			"": { "name": "fixture-app", "version": "1.0.0" },
+			"node_modules/axios": { "version": "1.6.0" }
+		}
+	}`
+	current := `{
+		"name": "fixture-app",
+		"version": "1.0.0",
+		"lockfileVersion": 3,
+		"packages": {
+			"": { "name": "fixture-app", "version": "1.0.0" },
+			"node_modules/axios": { "version": "1.7.9" },
+			"node_modules/lodash": { "version": "4.17.21" }
+		}
+	}`
+	if err := os.WriteFile(baselinePath, []byte(baseline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(currentPath, []byte(current), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := RunScan(ScanOptions{
+		LockfilePath:         currentPath,
+		ChangedOnlySpecified: true,
+		ChangedOnly:          true,
+		Baseline:             baselinePath,
+		FailOn:               "block",
+		Offline:              true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.ChangedOnly {
+		t.Fatal("expected changed-only scan")
+	}
+	if res.BaselineType != "file" {
+		t.Fatalf("expected baseline_type=file, got %q", res.BaselineType)
+	}
+	if res.Summary.PackagesScanned != 2 {
+		t.Fatalf("expected 2 changed packages scanned, got %d", res.Summary.PackagesScanned)
+	}
+}
+
 func TestCI_ScanOutputs(t *testing.T) {
 	tmp := t.TempDir()
 	lockfilePath := filepath.Join(tmp, "package-lock.json")
@@ -255,6 +306,56 @@ trusted_packages:
 	markdownContent := string(mb)
 	if !strings.Contains(markdownContent, "## PkgSafe Dependency Gate") {
 		t.Fatal("Markdown summary does not contain header")
+	}
+}
+
+func TestWriteSummaryOutputIncludesActionContext(t *testing.T) {
+	tmp := t.TempDir()
+	out := filepath.Join(tmp, "summary.md")
+	result := &ScanResult{
+		SchemaVersion: "1.0",
+		Tool:          "pkgsafe",
+		Command:       "ci scan",
+		Mode:          "warn",
+		FailOn:        "warn",
+		Decision:      "warn",
+		Lockfile:      "package-lock.json",
+		Ecosystem:     "npm",
+		ChangedOnly:   true,
+		Baseline:      ".pkgsafe/baseline.json",
+		BaselineType:  "file",
+		Summary: Summary{
+			PackagesScanned: 1,
+			Warn:            1,
+		},
+		Findings: []Finding{{
+			Ecosystem: "npm",
+			Package:   "example",
+			Version:   "1.2.3",
+			Decision:  "warn",
+			RiskScore: 42,
+			Direct:    true,
+			Reasons:   []types.Reason{{ID: "lifecycle_script_present", Severity: "medium", Description: "Package defines a postinstall script", ScoreImpact: 20}},
+		}},
+	}
+	if err := WriteSummaryOutput(out, result); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary := string(b)
+	for _, want := range []string{
+		"**Workflow Result:** fails on WARN or BLOCK",
+		"**Changed Only:** true",
+		"**Baseline:** .pkgsafe/baseline.json (file)",
+		"| Allow | Warn | Block | Unknown | Vulnerabilities |",
+		"With `fail-on: warn`, this workflow fails for WARN and BLOCK findings.",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary missing %q:\n%s", want, summary)
+		}
 	}
 }
 

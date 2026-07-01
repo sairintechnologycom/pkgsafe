@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/git"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/git"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 type ChangedDependency struct {

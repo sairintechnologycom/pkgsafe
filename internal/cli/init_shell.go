@@ -3,7 +3,7 @@ package cli
 import (
 	"os"
 
-	"github.com/niyam-ai/pkgsafe/internal/intercept"
+	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
 )
 
 func InitShell(args []string) error {

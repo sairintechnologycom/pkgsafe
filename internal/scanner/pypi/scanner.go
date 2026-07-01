@@ -7,18 +7,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/agent"
-	apypi "github.com/niyam-ai/pkgsafe/internal/analyzer/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	"github.com/niyam-ai/pkgsafe/internal/intel"
-	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	rpypi "github.com/niyam-ai/pkgsafe/internal/registry/pypi"
-	"github.com/niyam-ai/pkgsafe/internal/risk"
-	"github.com/niyam-ai/pkgsafe/internal/types"
-	"github.com/niyam-ai/pkgsafe/internal/typosquat"
+	"github.com/sairintechnologycom/pkgsafe/internal/agent"
+	apypi "github.com/sairintechnologycom/pkgsafe/internal/analyzer/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/intel"
+	"github.com/sairintechnologycom/pkgsafe/internal/intel/osv"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/typosquat"
 )
 
 type Scanner struct {
@@ -184,7 +184,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 			NotPerformed: true,
 		}
 		if behaviorMode == types.BehaviorIsolated {
-			res.Sandbox.NotPerfReason = "PyPI isolated behavior analysis backend is not implemented or unavailable. Static analysis completed only."
+			res.Sandbox.NotPerfReason = "PyPI isolated behavior analysis is unavailable for this package flow. Static analysis completed only."
 		} else {
 			res.Sandbox.Warning = "PyPI heuristic behavior analysis is disabled; setup/build hooks are not executed without isolated backend."
 			res.Sandbox.NotPerfReason = "PyPI behavior analysis is not implemented yet. Static analysis completed only."

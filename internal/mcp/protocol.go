@@ -93,7 +93,7 @@ func GetToolsList() ToolListResult {
 		Tools: []Tool{
 			{
 				Name:        "validate_package_install",
-				Description: "Validate whether a package should be installed based on vulnerability database and risk policy.",
+				Description: "Validate whether a package should be installed. For AI agents, BLOCK means never install and WARN means ask a human before installing.",
 				InputSchema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -135,7 +135,7 @@ func GetToolsList() ToolListResult {
 						"behavior_mode": map[string]any{
 							"type":        "string",
 							"enum":        []string{"disabled", "heuristic", "isolated"},
-							"description": "Behavior analysis mode. Heuristic runs lifecycle scripts on the host without isolation; isolated requires a real isolation backend.",
+							"description": "Behavior analysis mode. Heuristic runs lifecycle scripts on the host without isolation; isolated is experimental, Linux-only, and requires bubblewrap.",
 							"default":     "disabled",
 						},
 						"sandbox": map[string]any{
@@ -166,7 +166,7 @@ func GetToolsList() ToolListResult {
 					"properties": map[string]any{
 						"ecosystem": map[string]any{
 							"type":        "string",
-							"enum":        []string{"npm"},
+							"enum":        []string{"npm", "pypi"},
 							"description": "Package ecosystem",
 							"default":     "npm",
 						},
@@ -247,13 +247,19 @@ func GetToolsList() ToolListResult {
 			},
 			{
 				Name:        "validate_install_command",
-				Description: "Extract and validate packages from a full install command string (e.g. 'npm install axios lodash').",
+				Description: "Extract and validate packages from a full install command string. For AI agents, BLOCK means never install and WARN means ask a human before installing.",
 				InputSchema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"command": map[string]any{
 							"type":        "string",
-							"description": "The npm install command string to extract packages from",
+							"description": "The npm or pip install command string to extract packages from",
+						},
+						"requested_by": map[string]any{
+							"type":        "string",
+							"enum":        []string{"human", "ai_agent"},
+							"description": "Who is requesting the package installation",
+							"default":     "ai_agent",
 						},
 						"project_path": map[string]any{
 							"type":        "string",

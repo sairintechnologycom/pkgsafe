@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/sairintechnologycom/pkgsafe/internal/version"
 	"gopkg.in/yaml.v3"
 )
 
@@ -223,10 +224,17 @@ func loadPolicyPack(name string) (Policy, error) {
 		fmt.Fprintf(os.Stderr, "Warning: policy pack %s is expired\n", meta.Name)
 	}
 	// Min version check
-	if meta.Compatibility.MinPkgSafeVersion != "" {
-		// Check if version is below (Hardcode current version to 0.1.0)
-		if meta.Compatibility.MinPkgSafeVersion > "0.1.0" {
-			return Policy{}, fmt.Errorf("PkgSafe version 0.1.0 is below the minimum required version %s", meta.Compatibility.MinPkgSafeVersion)
+	if meta.Compatibility.MinPkgSafeVersion != "" && !version.IsDev() {
+		currentVersion, currentErr := semver.NewVersion(version.Version)
+		minVersion, minErr := semver.NewVersion(meta.Compatibility.MinPkgSafeVersion)
+		if currentErr != nil {
+			return Policy{}, fmt.Errorf("invalid PkgSafe version %q: %w", version.Version, currentErr)
+		}
+		if minErr != nil {
+			return Policy{}, fmt.Errorf("invalid minimum PkgSafe version %q: %w", meta.Compatibility.MinPkgSafeVersion, minErr)
+		}
+		if currentVersion.LessThan(minVersion) {
+			return Policy{}, fmt.Errorf("PkgSafe version %s is below the minimum required version %s", version.Version, meta.Compatibility.MinPkgSafeVersion)
 		}
 	}
 

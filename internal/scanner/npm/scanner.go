@@ -9,19 +9,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/agent"
-	anpm "github.com/niyam-ai/pkgsafe/internal/analyzer/npm"
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	"github.com/niyam-ai/pkgsafe/internal/db"
-	npminventory "github.com/niyam-ai/pkgsafe/internal/deps/npm"
-	"github.com/niyam-ai/pkgsafe/internal/intel"
-	"github.com/niyam-ai/pkgsafe/internal/intel/osv"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	rnpm "github.com/niyam-ai/pkgsafe/internal/registry/npm"
-	"github.com/niyam-ai/pkgsafe/internal/risk"
-	"github.com/niyam-ai/pkgsafe/internal/sandbox"
-	"github.com/niyam-ai/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/agent"
+	anpm "github.com/sairintechnologycom/pkgsafe/internal/analyzer/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	npminventory "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/intel"
+	"github.com/sairintechnologycom/pkgsafe/internal/intel/osv"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	"github.com/sairintechnologycom/pkgsafe/internal/sandbox"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
 type Scanner struct {
@@ -207,33 +207,28 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
 	behaviorEnabled := behaviorMode != types.BehaviorDisabled
-	sandboxAvailable := behaviorMode == types.BehaviorHeuristic && sandbox.IsAvailable(ctx)
+	runnerSelection := sandbox.SelectRunner(ctx, behaviorMode)
 	res.Sandbox = types.SandboxSummary{
 		Enabled:        behaviorEnabled,
-		Available:      sandboxAvailable,
+		Available:      runnerSelection.Meta.Available,
 		BehaviorMode:   behaviorMode,
-		Isolated:       false,
+		Isolated:       runnerSelection.Meta.Isolated,
+		Runner:         runnerSelection.Meta.Name,
 		NetworkMode:    s.NetworkMode,
 		TimeoutSeconds: int(s.SandboxTimeout.Seconds()),
-	}
-	if behaviorMode == types.BehaviorHeuristic {
-		res.Sandbox.Runner = "fake-home-process"
-		res.Sandbox.Warning = "Heuristic behavior analysis runs lifecycle scripts on the host without OS isolation; it is not a security sandbox. Use only in disposable environments."
+		Warning:        runnerSelection.Meta.Warning,
 	}
 
 	var sandboxFindings []types.Reason
 	if behaviorEnabled {
-		if behaviorMode == types.BehaviorIsolated {
-			res.Sandbox.NotPerformed = true
-			res.Sandbox.NotPerfReason = "isolated behavior analysis backend is not implemented or unavailable"
-		} else if res.Decision == types.DecisionBlock {
+		if res.Decision == types.DecisionBlock {
 			res.Sandbox.NotPerformed = true
 			res.Sandbox.NotPerfReason = "behavior analysis skipped because static analysis already blocked the package"
-		} else if !sandboxAvailable {
+		} else if !runnerSelection.Meta.Available {
 			res.Sandbox.NotPerformed = true
-			res.Sandbox.NotPerfReason = "No supported heuristic behavior-analysis runner available on this platform"
+			res.Sandbox.NotPerfReason = runnerSelection.Meta.Unavailable
 		} else {
-			runner := &sandbox.ProcessRunner{}
+			runner := runnerSelection.Runner
 			var scriptsExecuted []types.SandboxScriptResult
 			for _, scriptName := range []string{"preinstall", "install", "postinstall", "prepare"} {
 				scriptCmd, ok := pj.Scripts[scriptName]
@@ -278,6 +273,9 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 					ExitCode:   sres.ExitCode,
 					TimedOut:   sres.TimedOut,
 					DurationMs: sres.DurationMs,
+					Runner:     sres.Runner,
+					Isolated:   sres.Isolated,
+					Trace:      sres.Trace,
 					Findings:   typesFindings,
 				})
 			}
@@ -429,34 +427,29 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 
 	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
 	behaviorEnabled := behaviorMode != types.BehaviorDisabled
-	sandboxAvailable := behaviorMode == types.BehaviorHeuristic && sandbox.IsAvailable(ctx)
+	runnerSelection := sandbox.SelectRunner(ctx, behaviorMode)
 	res.Sandbox = types.SandboxSummary{
 		Enabled:        behaviorEnabled,
-		Available:      sandboxAvailable,
+		Available:      runnerSelection.Meta.Available,
 		BehaviorMode:   behaviorMode,
-		Isolated:       false,
+		Isolated:       runnerSelection.Meta.Isolated,
+		Runner:         runnerSelection.Meta.Name,
 		NetworkMode:    s.NetworkMode,
 		TimeoutSeconds: int(s.SandboxTimeout.Seconds()),
-	}
-	if behaviorMode == types.BehaviorHeuristic {
-		res.Sandbox.Runner = "fake-home-process"
-		res.Sandbox.Warning = "Heuristic behavior analysis runs lifecycle scripts on the host without OS isolation; it is not a security sandbox. Use only in disposable environments."
+		Warning:        runnerSelection.Meta.Warning,
 	}
 
 	var sandboxFindings []types.Reason
 	var scriptsExecuted []types.SandboxScriptResult
 	if behaviorEnabled {
-		if behaviorMode == types.BehaviorIsolated {
-			res.Sandbox.NotPerformed = true
-			res.Sandbox.NotPerfReason = "isolated behavior analysis backend is not implemented or unavailable"
-		} else if res.Decision == types.DecisionBlock {
+		if res.Decision == types.DecisionBlock {
 			res.Sandbox.NotPerformed = true
 			res.Sandbox.NotPerfReason = "behavior analysis skipped because static analysis already blocked the package"
-		} else if !sandboxAvailable {
+		} else if !runnerSelection.Meta.Available {
 			res.Sandbox.NotPerformed = true
-			res.Sandbox.NotPerfReason = "No supported heuristic behavior-analysis runner available on this platform"
+			res.Sandbox.NotPerfReason = runnerSelection.Meta.Unavailable
 		} else {
-			runner := &sandbox.ProcessRunner{}
+			runner := runnerSelection.Runner
 			for _, scriptName := range []string{"preinstall", "install", "postinstall", "prepare"} {
 				scriptCmd, ok := pj.Scripts[scriptName]
 				if !ok {
@@ -500,6 +493,9 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 					ExitCode:   sres.ExitCode,
 					TimedOut:   sres.TimedOut,
 					DurationMs: sres.DurationMs,
+					Runner:     sres.Runner,
+					Isolated:   sres.Isolated,
+					Trace:      sres.Trace,
 					Findings:   typesFindings,
 				})
 			}

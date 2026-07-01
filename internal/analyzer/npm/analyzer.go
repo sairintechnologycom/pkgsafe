@@ -8,10 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/risk"
-	"github.com/niyam-ai/pkgsafe/internal/types"
-	"github.com/niyam-ai/pkgsafe/internal/typosquat"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/typosquat"
 )
 
 var (

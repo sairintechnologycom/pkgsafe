@@ -3,7 +3,7 @@ package mcp
 import (
 	"encoding/json"
 
-	"github.com/niyam-ai/pkgsafe/internal/agent"
+	"github.com/sairintechnologycom/pkgsafe/internal/agent"
 )
 
 // SuggestSafeAlternativeParams defines input for suggest_safe_alternative.

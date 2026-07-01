@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/niyam-ai/pkgsafe/internal/enterprise"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
-	"github.com/niyam-ai/pkgsafe/internal/registry"
-	"github.com/niyam-ai/pkgsafe/internal/risk"
-	"github.com/niyam-ai/pkgsafe/internal/types"
-	"github.com/niyam-ai/pkgsafe/internal/version"
+	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	"github.com/sairintechnologycom/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/version"
 	"gopkg.in/yaml.v3"
 )
 
@@ -740,6 +740,36 @@ func TestUnapprovedRegistryURLBlocked(t *testing.T) {
 	res = risk.ApplyEnterpriseControls(res, pol, "", policy.RegistryConfig{Type: "unknown", URL: "https://npm.unapproved.com/"}, "human", "developer")
 	if res.Decision != types.DecisionBlock {
 		t.Errorf("expected package from unapproved registry to be blocked, got %s", res.Decision)
+	}
+}
+
+func TestPyPIPrivatePrefixUsesNormalizedName(t *testing.T) {
+	pol := policy.Default()
+	pol.Registries.Registries = map[string]map[string]policy.RegistryConfig{
+		"pypi": {
+			"company": {
+				Type:            "private",
+				URL:             "https://pypi.company.test/simple/",
+				Enabled:         true,
+				PackagePrefixes: []string{"company-internal"},
+			},
+		},
+	}
+	res := types.ScanResult{
+		Package:  types.PackageIdentity{Ecosystem: "pypi", Name: "company_internal_pkg", Version: "1.0.0"},
+		Score:    0,
+		Decision: types.DecisionAllow,
+	}
+	res = risk.ApplyEnterpriseControls(res, pol, "default", policy.RegistryConfig{Type: "public", URL: "https://pypi.org/simple/"}, "human", "developer")
+	found := false
+	for _, r := range res.Reasons {
+		if r.ID == "dependency_confusion_candidate" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected normalized PyPI private prefix to produce dependency confusion finding: %+v", res.Reasons)
 	}
 }
 

@@ -1,7 +1,7 @@
 name: False negative
 description: PkgSafe allowed a package that you believe is risky or malicious.
 title: "[false-negative] "
-labels: ["false_block"]
+labels: ["false_negative"]
 body:
   - type: markdown
     attributes:

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/niyam-ai/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 	"gopkg.in/yaml.v3"
 )
 

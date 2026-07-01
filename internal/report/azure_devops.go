@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/niyam-ai/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 )
 
 // ExportAzureDevOps formats the supply chain evidence in Azure DevOps Markdown style.

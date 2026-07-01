@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/niyam-ai/pkgsafe/internal/cache"
-	"github.com/niyam-ai/pkgsafe/internal/db"
+	"github.com/sairintechnologycom/pkgsafe/internal/cache"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
 )
 
 func DBStatus(dbPath string) error {

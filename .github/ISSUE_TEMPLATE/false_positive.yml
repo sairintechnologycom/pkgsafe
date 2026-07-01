@@ -49,6 +49,14 @@ body:
     validations:
       required: true
   - type: input
+    id: fingerprint
+    attributes:
+      label: Finding fingerprint
+      description: Output from `pkgsafe feedback create`, if available.
+      placeholder: "sha256 fingerprint"
+    validations:
+      required: false
+  - type: input
     id: risk_score
     attributes:
       label: Risk score
