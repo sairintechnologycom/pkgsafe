@@ -22,6 +22,44 @@ func TestReorderFlagsAllowsTrailingCommandFlags(t *testing.T) {
 	}
 }
 
+func TestCIScanEnterpriseModeGatedByRunConfig(t *testing.T) {
+	lockfile := filepath.Join("..", "..", "testdata", "npm", "self-scan", "package-lock.json")
+
+	runScan := func(cfg RunConfig) map[string]any {
+		t.Helper()
+		out := filepath.Join(t.TempDir(), "results.json")
+		if err := RunWith(cfg, []string{"ci", "scan", "--lockfile", lockfile, "--offline", "--changed-only=false", "--fail-on", "none", "--json-output", out}); err != nil {
+			t.Fatalf("ci scan failed: %v", err)
+		}
+		raw, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var res map[string]any
+		if err := json.Unmarshal(raw, &res); err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+
+	findingPolicy := func(res map[string]any) any {
+		t.Helper()
+		findings, _ := res["findings"].([]any)
+		if len(findings) == 0 {
+			t.Fatal("scan produced no findings")
+		}
+		first, _ := findings[0].(map[string]any)
+		return first["policy"]
+	}
+
+	if p := findingPolicy(runScan(RunConfig{})); p != nil {
+		t.Fatalf("public mode must not emit per-finding policy evidence, got %v", p)
+	}
+	if p := findingPolicy(runScan(RunConfig{CIEnterpriseMode: true})); p == nil {
+		t.Fatal("enterprise mode must emit per-finding policy evidence")
+	}
+}
+
 func TestCIScanCommandRouting(t *testing.T) {
 	err := Run([]string{"ci", "scan", "--lockfile", "nonexistent-lockfile-for-main-test.json"})
 	if err == nil {

@@ -60,11 +60,27 @@ func (e exitError) Error() string {
 	return fmt.Sprintf("exit status %d", e.code)
 }
 
+// RunConfig customizes CLI dispatch for downstream distributions. The
+// zero value is the public OSS behavior; the public pkgsafe binary always
+// uses the zero value.
+type RunConfig struct {
+	// CIEnterpriseMode enables enterprise evidence enrichment in `ci scan`
+	// output: per-finding policy/registry/trust/exception evidence plus
+	// policy pack metadata and exceptions-used tracking. Reserved for the
+	// private enterprise distribution.
+	CIEnterpriseMode bool
+}
+
 // Execute runs the pkgsafe CLI with the given arguments (excluding the
 // program name), prints any error to stderr, and returns the process exit
 // code the caller should exit with.
 func Execute(args []string) int {
-	if err := Run(args); err != nil {
+	return ExecuteWith(RunConfig{}, args)
+}
+
+// ExecuteWith is Execute with a downstream RunConfig.
+func ExecuteWith(cfg RunConfig, args []string) int {
+	if err := RunWith(cfg, args); err != nil {
 		if eErr, ok := err.(exitError); ok {
 			if eErr.err != nil {
 				fmt.Fprintln(os.Stderr, "error:", eErr.err)
@@ -80,6 +96,11 @@ func Execute(args []string) int {
 // Run dispatches a single pkgsafe CLI invocation. It returns nil on success;
 // errors carrying a specific exit code are translated by Execute.
 func Run(args []string) error {
+	return RunWith(RunConfig{}, args)
+}
+
+// RunWith is Run with a downstream RunConfig.
+func RunWith(cfg RunConfig, args []string) error {
 	if len(args) == 0 {
 		usage()
 		return nil
@@ -147,7 +168,7 @@ func Run(args []string) error {
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe test [corpus|benchmark|rollout-readiness|production-readiness]")
 	case "ci":
 		if len(args) > 1 && args[1] == "scan" {
-			return cmdCIScan(args[2:])
+			return cmdCIScan(cfg, args[2:])
 		}
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe ci scan")
 	case "npm":
@@ -1116,7 +1137,7 @@ func flagNeedsValue(arg string) bool {
 	}
 }
 
-func cmdCIScan(args []string) error {
+func cmdCIScan(cfg RunConfig, args []string) error {
 	fs := flag.NewFlagSet("ci-scan", flag.ContinueOnError)
 	lockfile := fs.String("lockfile", "package-lock.json", "path to package-lock.json")
 	dependencyFile := fs.String("dependency-file", "", "path to dependency file")
@@ -1169,7 +1190,7 @@ func cmdCIScan(args []string) error {
 		Timeout:              *timeout,
 		PolicyPack:           "",
 		RegistryConfigPath:   *registryConfig,
-		EnterpriseMode:       false,
+		EnterpriseMode:       cfg.CIEnterpriseMode,
 	}
 
 	res, err := ci.RunScan(opts)
