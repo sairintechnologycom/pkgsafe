@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"archive/zip"
@@ -23,7 +23,7 @@ func TestReorderFlagsAllowsTrailingCommandFlags(t *testing.T) {
 }
 
 func TestCIScanCommandRouting(t *testing.T) {
-	err := run([]string{"ci", "scan", "--lockfile", "nonexistent-lockfile-for-main-test.json"})
+	err := Run([]string{"ci", "scan", "--lockfile", "nonexistent-lockfile-for-main-test.json"})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -138,7 +138,7 @@ func TestWriteBetaEvidenceZip(t *testing.T) {
 }
 
 func TestCIScanUsageError(t *testing.T) {
-	err := run([]string{"ci", "scan", "--lockfile", "nonexistent-lockfile-for-main-test.json", "--fail-on", "invalid-value"})
+	err := Run([]string{"ci", "scan", "--lockfile", "nonexistent-lockfile-for-main-test.json", "--fail-on", "invalid-value"})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -152,7 +152,7 @@ func TestCIScanUsageError(t *testing.T) {
 }
 
 func TestPolicyTestFixtures(t *testing.T) {
-	err := run([]string{"policy", "test", filepath.Join("..", "..", "testdata", "policy-fixtures")})
+	err := Run([]string{"policy", "test", filepath.Join("..", "..", "testdata", "policy-fixtures")})
 	if err != nil {
 		t.Fatalf("policy test fixtures failed: %v", err)
 	}
@@ -176,7 +176,7 @@ registries:
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := run([]string{"registry", "test", "--policy", policyPath, "--ecosystem", "npm", "--package", "@company/api"}); err != nil {
+	if err := Run([]string{"registry", "test", "--policy", policyPath, "--ecosystem", "npm", "--package", "@company/api"}); err != nil {
 		t.Fatalf("registry package routing test failed: %v", err)
 	}
 }
@@ -186,7 +186,7 @@ func TestReportCommandCLI(t *testing.T) {
 
 	// 1. Generate Report
 	outPath := filepath.Join(tmp, "report")
-	err := run([]string{"report", "generate", "--repo", ".", "--output", outPath, "--format", "all"})
+	err := Run([]string{"report", "generate", "--repo", ".", "--output", outPath, "--format", "all"})
 	if err != nil {
 		t.Fatalf("pkgsafe report generate failed: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestReportCommandCLI(t *testing.T) {
 	}
 
 	// 2. Policy Report is private-enterprise only in the public repo.
-	if err := run([]string{"report", "policy", "--output", filepath.Join(tmp, "policy.md")}); err == nil {
+	if err := Run([]string{"report", "policy", "--output", filepath.Join(tmp, "policy.md")}); err == nil {
 		t.Fatalf("expected pkgsafe report policy to be rejected in public build")
 	}
 
@@ -210,7 +210,7 @@ func TestReportCommandCLI(t *testing.T) {
 	if err := os.WriteFile(ciJSON, []byte(fakeCIResult), 0644); err != nil {
 		t.Fatalf("write fake CI results: %v", err)
 	}
-	err = run([]string{"report", "ci", "--input", ciJSON, "--output", ciEvidence})
+	err = Run([]string{"report", "ci", "--input", ciJSON, "--output", ciEvidence})
 	if err != nil {
 		t.Fatalf("pkgsafe report ci failed: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestMCPCommandCleanStdout(t *testing.T) {
 	os.Stdout = w
 
 	// Run command
-	err = run([]string{"mcp", "serve"})
+	err = Run([]string{"mcp", "serve"})
 	w.Close()
 	if err != nil {
 		t.Fatalf("pkgsafe mcp serve failed: %v", err)
@@ -316,7 +316,7 @@ func TestServeAPICommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			called = false
 			calledCfg = api.Config{}
-			err := run(tt.args)
+			err := Run(tt.args)
 			if err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
@@ -380,37 +380,37 @@ version = "0.2.0"
 	}
 
 	// 1. Run scan-go-deps with --offline flag
-	err = run([]string{"scan-go-deps", goModPath, "--offline"})
+	err = Run([]string{"scan-go-deps", goModPath, "--offline"})
 	if err != nil {
 		t.Errorf("scan-go-deps failed: %v", err)
 	}
 
 	// 2. Run scan-go-deps with --json and --offline
-	err = run([]string{"scan-go-deps", goModPath, "--offline", "--json"})
+	err = Run([]string{"scan-go-deps", goModPath, "--offline", "--json"})
 	if err != nil {
 		t.Errorf("scan-go-deps --json failed: %v", err)
 	}
 
 	// 3. Test missing positional argument for scan-go-deps
-	err = run([]string{"scan-go-deps", "--offline"})
+	err = Run([]string{"scan-go-deps", "--offline"})
 	if err == nil {
 		t.Errorf("expected error for missing positional argument in scan-go-deps, got nil")
 	}
 
 	// 4. Run scan-cargo-deps with --offline
-	err = run([]string{"scan-cargo-deps", cargoLockPath, "--offline"})
+	err = Run([]string{"scan-cargo-deps", cargoLockPath, "--offline"})
 	if err != nil {
 		t.Errorf("scan-cargo-deps failed: %v", err)
 	}
 
 	// 5. Run scan-cargo-deps with --json and --offline
-	err = run([]string{"scan-cargo-deps", cargoLockPath, "--offline", "--json"})
+	err = Run([]string{"scan-cargo-deps", cargoLockPath, "--offline", "--json"})
 	if err != nil {
 		t.Errorf("scan-cargo-deps --json failed: %v", err)
 	}
 
 	// 6. Test missing positional argument for scan-cargo-deps
-	err = run([]string{"scan-cargo-deps", "--offline"})
+	err = Run([]string{"scan-cargo-deps", "--offline"})
 	if err == nil {
 		t.Errorf("expected error for missing positional argument in scan-cargo-deps, got nil")
 	}
