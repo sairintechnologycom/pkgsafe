@@ -67,7 +67,7 @@ func ApplyEnterpriseControls(
 		res.Reasons = append(res.Reasons, types.Reason{
 			ID:          "blocked_package",
 			Severity:    blockRule.Severity,
-			Description: fmt.Sprintf("Blocked by policy pack blocked list: %s", blockRule.Reason),
+			Description: fmt.Sprintf("Blocked by policy blocked list: %s", blockRule.Reason),
 			ScoreImpact: 100,
 		})
 		res.Score = 100

@@ -1,8 +1,8 @@
 # PkgSafe — Production-Readiness Remediation Plan
 
 **Status as of 2026-06-26:** credible alpha/MVP (`v0.1.0`). Solid hardening primitives,
-but **not production-ready as a security control** — two marquee enterprise features
-(signed policy packs, sandboxed lifecycle execution) do not deliver the security
+but **not production-ready as a security control** — two alpha security surfaces
+(signed policy archives, sandboxed lifecycle execution) do not deliver the security
 property they claim, and the vulnerability-data path fails open.
 
 This document tracks the work required to make PkgSafe trustworthy as an enforcement
@@ -40,7 +40,7 @@ sections below are kept for the record, annotated with their PR.
 
 ## P0 — Blockers ✅ ALL DONE (merged)
 
-### B1. Policy-pack signatures are not cryptographically verified — ✅ DONE (PR #3)
+### B1. Policy archive signatures are not cryptographically verified — ✅ DONE (PR #3)
 - [ ] Implement real signature verification (e.g. ed25519/minisign or cosign), with a
       configured/trusted public key, over a canonical digest of pack contents.
 - [ ] Make `checksums.txt` cover **all** files and be itself covered by the signature;
@@ -48,26 +48,20 @@ sections below are kept for the record, annotated with their PR.
 - [ ] Fail closed when `Signing.Required` is set and verification fails or no key is configured.
 - [ ] Use the parsed `Signing.Algorithm` field instead of ignoring it.
 
-**Evidence:** `internal/enterprise/pack_verify.go:103-108` only checks that
-`signature.sig` exists (`_, hasSig := files["signature.sig"]`) — no key, no algorithm,
-no byte verification. `internal/enterprise/checksums.go:51` excludes `signature.sig`
-from checksum coverage. `internal/enterprise/metadata.go:13-16` parses
-`Signing.Algorithm` but never uses it. No `ed25519`/`rsa`/`Verify(` primitives exist in
-the repo. **Impact:** authenticity is theater — anyone who can hand you a pack can
-recompute checksums and forge "signed" status.
+**Evidence:** the alpha verifier only checked that `signature.sig` existed, did not
+verify bytes with a trusted key, and excluded the signature file from checksum
+coverage. **Impact:** authenticity was not proven by the "signed" status.
 
-### B2. Installing a policy pack silently overwrites the active vulnerability DB — ✅ DONE (PR #4)
+### B2. Installing a policy archive silently overwrites the active vulnerability DB — ✅ DONE (PR #4)
 - [ ] Never write a pack-supplied `pkgsafe.db` to `db.DefaultDBPath()`.
 - [ ] If packs may legitimately carry advisory data, import it into a namespaced/merged
       store with provenance — never replace the live DB unconditionally.
 - [ ] Back up + version the DB and require explicit confirmation for any DB-altering action.
 - [ ] Reconsider `ExportBundle` shipping the local DB inside packs (normalizes the risk).
 
-**Evidence:** `internal/enterprise/pack_install.go:42-53` writes any pack file named
-`pkgsafe.db` directly to `~/.pkgsafe/pkgsafe.db` via `os.WriteFile(dbPath, content, 0o644)`,
-bypassing the per-pack `installDir` sandboxing used for all other files (`:54-61`).
-`ExportBundle` (`:157-164`) bundles the local DB into packs. **Impact:** combined with
-B1, a malicious pack can replace the entire vuln DB (e.g. empty it) to blind the scanner.
+**Evidence:** the alpha installer wrote archive-supplied vulnerability DB files to
+the active DB path instead of an isolated import namespace. **Impact:** combined with
+B1, a malicious archive could replace the vuln DB to blind the scanner.
 
 ### B3. The "sandbox" provides no real isolation — ✅ DONE via honest relabel (PR #5)
 - [ ] Either implement genuine isolation (container/namespaces+seccomp+network namespace,
@@ -158,12 +152,12 @@ single error returns immediately. Registry clients have timeouts but no retries
 **Evidence:** ad-hoc `fmt.Fprintln(os.Stderr,...)` throughout; swallowed errors at
 `internal/cli/update_db.go:75-77`, `internal/scanner/npm/scanner.go:148-150`.
 
-### S7. Hardcoded version gating for pack min-version
+### S7. Hardcoded version gating for archive min-version
 - [ ] Derive `currentVersion` from the real binary version (ldflags), not a literal.
 - [ ] Make `compareVersions` handle pre-release/build metadata and malformed input safely.
 
-**Evidence:** `internal/enterprise/metadata.go:50-52` hardcodes `"0.1.0"`;
-`compareVersions` (`:61-74`) ignores pre-release and treats malformed as `0.0.0`.
+**Evidence:** the alpha min-version gate hardcoded `"0.1.0"` and ignored
+pre-release/build metadata.
 
 ---
 

@@ -327,13 +327,8 @@ func GetToolsList() ToolListResult {
 				Name:        "get_policy_evidence",
 				Description: "Get evidence of active security policies, rules, and control settings.",
 				InputSchema: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"policy_pack": map[string]any{
-							"type":        "string",
-							"description": "Optional policy pack name to check",
-						},
-					},
+					"type":       "object",
+					"properties": map[string]any{},
 				},
 			},
 		},

@@ -134,7 +134,7 @@ PkgSafe should flag whether the package appears legitimate, suspicious, or hallu
 * Reduce noisy SCA findings.
 * Enforce policy selectively.
 * Produce evidence for blocked or approved dependencies.
-* Integrate with GitHub Actions, Azure DevOps, and enterprise reporting.
+* Integrate with GitHub Actions and developer workflows.
 
 ### 5.5 Enterprise Security Team
 
@@ -145,7 +145,7 @@ PkgSafe should flag whether the package appears legitimate, suspicious, or hallu
 * Private registry support.
 * Air-gapped package intelligence.
 * Audit trails and governance evidence.
-* Integration with ServiceNow, SIEM, and enterprise security tooling.
+* Integration points for downstream security tooling.
 
 ## 6. Core Use Cases
 
@@ -583,8 +583,7 @@ The following should not be built in the first MVP:
 * Private registry firewall
 * Full isolated behavior execution
 * Organization-wide policy sync
-* ServiceNow integration
-* SIEM integration
+* Security tooling integration interfaces
 
 ## 11. MVP User Experience
 

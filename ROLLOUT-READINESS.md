@@ -30,7 +30,7 @@ as a general installable security tool.
 - **npm** is the full firewall path: `scan-npm-package`, `scan-lockfile`, `scan-local-npm`, `npm-install` gate, tarball fetch + integrity check + safe extraction.
 - **PyPI** nearly complete (no real sandbox; lifecycle analysis is heuristic).
 - **OSV** advisory data for 4 ecosystems with real bulk `all.zip` sync; **fails closed** on lookup error.
-- CLI, REST API, MCP stdio server, GitHub Action, policy engine, **ed25519-signed policy packs**, evidence packs.
+- CLI, REST API, MCP stdio server, GitHub Action, policy engine, local policy files, evidence packs.
 - Self-readiness gate exists (`internal/validation/alpha_readiness.go`): corpus, extraction hardening, secret redaction, registry routing, MCP stdio, install enforcement.
 
 ---
@@ -43,7 +43,7 @@ Ordered by what unblocks the next tier. Security items (S#/M#) cross-reference
 ### M0 — Make it installable (blocks **all** external rollout) ✅ landed (tag push pending)
 
 - [x] **R1 — Release pipeline.** Added `.goreleaser.yaml` (was missing entirely — `release.yml` referenced GoReleaser with no config) building linux/macos/windows × amd64/arm64, and upgraded the workflow to goreleaser-action@v6 / GoReleaser v2 with cosign + syft installers and `id-token` permission. **Owner action remaining:** push a `v0.1.0` tag to trigger the first real release.
-- [x] **R2 — Wire version from build.** New `internal/version` package is the single source of truth; injected via `-ldflags` in the Makefile and GoReleaser. Removed the hardcoded `0.1.0` from `cmd/pkgsafe/main.go` and `internal/enterprise/metadata.go`; the min-version gate now reads the real version and skips for dev builds. (= S7)
+- [x] **R2 — Wire version from build.** New `internal/version` package is the single source of truth; injected via `-ldflags` in the Makefile and GoReleaser. Removed the hardcoded `0.1.0` from runtime version checks; the min-version gate now reads the real version and skips for dev builds. (= S7)
 - [x] **R3 — Install instructions in README.** Added an Install section (release archive, `go install`, `make build`) with checksum + cosign verification steps and the Unix-only-runner platform note.
 - [x] **R4 — Sign release artifacts + SBOM + checksums.** GoReleaser now emits `checksums.txt`, keyless cosign signatures, and per-archive SBOMs (syft). SLSA provenance still optional follow-up.
 
@@ -66,7 +66,7 @@ Ordered by what unblocks the next tier. Security items (S#/M#) cross-reference
 - [ ] **S8 — Go & Cargo content analysis** (currently metadata-only) → first-class policy ecosystems.
 - [ ] **S9 — PyPI lockfile parsers** (poetry.lock, uv.lock, Pipfile.lock, conda) — currently stubs.
 - [ ] **M1(sec) — CI maturity:** add `golangci-lint`, `-race`, coverage gate, and a Windows/macOS matrix (sandbox paths never tested off Ubuntu).
-- [ ] **M2(sec) — Test coverage:** OSV client, report exporters (siem/servicenow/sarif/html/csv/…), sandbox heuristics are light (~40 test files / 172 source).
+- [ ] **M2(sec) — Test coverage:** OSV client, public report exporters, sandbox heuristics are light (~40 test files / 172 source).
 - [ ] **R9 — Real OS isolation for lifecycle analysis** (container/namespaces/microVM), or keep the honest "heuristic, runs on host" label permanently. (= B3 follow-up)
 
 ### Engineering cleanups (non-gating)

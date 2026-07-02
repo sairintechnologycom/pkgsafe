@@ -49,7 +49,11 @@ build-backend = "strange_backend.build"
 
 func TestAnalyzeDirDetectsPythonStaticRiskPatterns(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "module.py"), []byte(`
+	scriptsDir := filepath.Join(dir, "scripts")
+	if err := os.MkdirAll(scriptsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(scriptsDir, "install-helper.py"), []byte(`
 import base64
 import os
 import requests
@@ -86,6 +90,28 @@ os.environ.get("AWS_SECRET_ACCESS_KEY")
 	}
 	if analysis.Result.Decision != types.DecisionBlock {
 		t.Fatalf("expected critical static findings to block, got %s", analysis.Result.Decision)
+	}
+}
+
+func TestAnalyzeDirDoesNotScoreOrdinaryLibrarySourceAsInstallBehavior(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "client.py"), []byte(`
+import os
+import requests
+
+def fetch(url):
+    return requests.get(url, headers={"authorization": os.environ.get("TOKEN", "")})
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	analysis, err := AnalyzeDir(dir, Metadata{Name: "network-lib", Version: "1.0.0", Wheel: true}, policy.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"pypi_network_call", "pypi_env_secret_access"} {
+		if hasReason(analysis.Findings, id) {
+			t.Fatalf("ordinary library source should not score %s: %+v", id, analysis.Findings)
+		}
 	}
 }
 

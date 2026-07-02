@@ -30,7 +30,6 @@ type ValidatePackageInstallParams struct {
 	Sandbox               bool   `json:"sandbox,omitempty"`
 	SandboxTimeoutSeconds int    `json:"sandbox_timeout_seconds,omitempty"`
 	NetworkMode           string `json:"network_mode,omitempty"`
-	PolicyPack            string `json:"policy_pack"`
 	Registry              string `json:"registry"`
 }
 
@@ -115,7 +114,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 	if p.ProjectPath != "" {
 		repoPath = filepath.Join(p.ProjectPath, ".pkgsafe/policy.yaml")
 	}
-	pol, err := policy.ResolvePolicy(p.PolicyPack, repoPath, e.PolicyPath, p.Mode, "")
+	pol, err := policy.ResolvePolicy("", repoPath, e.PolicyPath, p.Mode, "")
 	if err != nil {
 		return CallToolResult{
 			Content: []ToolContent{{

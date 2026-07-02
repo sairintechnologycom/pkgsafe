@@ -91,12 +91,8 @@ func TestReportGenerationAndExporters(t *testing.T) {
 		t.Fatalf("failed to cache suspicious: %v", err)
 	}
 
-	// Setup Policy with Exceptions
+	// Setup local policy with exceptions.
 	pol := policy.Default()
-	pol.PolicyPackName = "enterprise-standard"
-	pol.PolicyPackVersion = "2026.06.01"
-	pol.PolicyPackOwner = "Platform Engineering"
-	pol.PolicyPackSource = "policy-pack"
 
 	// Mock registries config with credentials in URL
 	pol.Registries.Registries = map[string]map[string]policy.RegistryConfig{
@@ -142,8 +138,8 @@ func TestReportGenerationAndExporters(t *testing.T) {
 		if report.Summary.PackagesScanned != 2 {
 			t.Errorf("expected 2 packages scanned, got %d", report.Summary.PackagesScanned)
 		}
-		if report.Policy.PackName != "enterprise-standard" {
-			t.Errorf("expected packName enterprise-standard, got %q", report.Policy.PackName)
+		if report.Policy.PackName != "default-policy" {
+			t.Errorf("expected packName default-policy, got %q", report.Policy.PackName)
 		}
 	})
 
@@ -233,40 +229,7 @@ func TestReportGenerationAndExporters(t *testing.T) {
 		}
 	})
 
-	// Subtest 8: SIEM Export JSONL
-	t.Run("SIEM Export", func(t *testing.T) {
-		siemData, err := ExportSIEM(report)
-		if err != nil {
-			t.Fatalf("ExportSIEM failed: %v", err)
-		}
-		if !strings.Contains(siemData, `"event_type":"package_blocked"`) {
-			t.Errorf("SIEM logs do not contain package_blocked event type")
-		}
-	})
-
-	// Subtest 9: ServiceNow Export
-	t.Run("ServiceNow Export", func(t *testing.T) {
-		snowData, err := ExportServiceNow(report)
-		if err != nil {
-			t.Fatalf("ExportServiceNow failed: %v", err)
-		}
-		if !strings.Contains(snowData, `"tool": "PkgSafe"`) {
-			t.Errorf("ServiceNow payload doesn't identify PkgSafe")
-		}
-	})
-
-	// Subtest 10: Azure DevOps Export
-	t.Run("Azure DevOps Export", func(t *testing.T) {
-		azData, err := ExportAzureDevOps(report)
-		if err != nil {
-			t.Fatalf("ExportAzureDevOps failed: %v", err)
-		}
-		if !strings.Contains(azData, "# PkgSafe Supply Chain Evidence") {
-			t.Errorf("Azure DevOps markdown headers are missing")
-		}
-	})
-
-	// Subtest 11: Evidence Pack ZIP & Manifest
+	// Subtest 8: Evidence Pack ZIP & Manifest
 	t.Run("Evidence Pack ZIP", func(t *testing.T) {
 		zipPath := filepath.Join(tmpDir, "evidence.zip")
 		if err := CreateEvidencePack(zipPath, report, pol); err != nil {
@@ -386,9 +349,6 @@ func TestTokenRedactionInReports(t *testing.T) {
 		{"Markdown", ExportMarkdown},
 		{"HTML", ExportHTML},
 		{"Sarif", ExportSarif},
-		{"SIEM", ExportSIEM},
-		{"ServiceNow", ExportServiceNow},
-		{"AzureDevOps", ExportAzureDevOps},
 		{"CSV", func(r *RepositoryRiskReport) (string, error) { return ExportCSV(r, "findings") }},
 	}
 

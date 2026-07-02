@@ -71,8 +71,6 @@ func AnalyzeDir(dir string, md Metadata, pol policy.Policy) (Analysis, error) {
 			strings.HasPrefix(slashRel, "bin/")
 		if nativeExtensionName(slashRel) {
 			artifact.NativeExtension = true
-			findings = risk.AddReason(findings, "pypi_native_extension", "Package artifact contains native extension or native source files", slashRel)
-			suspicious = append(suspicious, "native extension: "+slashRel)
 		}
 		if !inspect {
 			return nil
@@ -99,7 +97,7 @@ func AnalyzeDir(dir string, md Metadata, pol policy.Policy) (Analysis, error) {
 				}
 			}
 		}
-		if strings.HasSuffix(base, ".py") {
+		if shouldAnalyzePythonExecutionSurface(slashRel, base) {
 			staticFindings, staticSuspicious := AnalyzePythonStaticPatterns(slashRel, lower)
 			findings = append(findings, staticFindings...)
 			suspicious = append(suspicious, staticSuspicious...)
@@ -120,10 +118,23 @@ func AnalyzeDir(dir string, md Metadata, pol policy.Policy) (Analysis, error) {
 	if err != nil {
 		return Analysis{}, fmt.Errorf("analyze pypi artifact: %w", err)
 	}
+	if artifact.NativeExtension {
+		findings = risk.AddReason(findings, "pypi_native_extension", "Package artifact contains native extension or native source files", "")
+		suspicious = append(suspicious, "native extension")
+	}
 
 	res := risk.Evaluate(pkg, dedupeReasons(findings), nil, unique(suspicious), nil, pol)
 	res.Artifact = artifact
 	return Analysis{Result: res, Findings: dedupeReasons(findings), Artifact: artifact}, nil
+}
+
+func shouldAnalyzePythonExecutionSurface(slashRel, base string) bool {
+	if base == "setup.py" {
+		return false
+	}
+	return strings.HasPrefix(slashRel, "scripts/") ||
+		strings.HasPrefix(slashRel, "bin/") ||
+		base == "__main__.py"
 }
 
 func dedupeReasons(in []types.Reason) []types.Reason {

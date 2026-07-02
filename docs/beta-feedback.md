@@ -20,7 +20,7 @@ disabled on purpose.
 ## Sensitive vulnerabilities go to SECURITY.md
 
 A vulnerability in PkgSafe itself (firewall bypass, exploitable extractor,
-loopback API data leak, forgeable policy-pack signature) is **not** a public
+loopback API data leak, policy bypass) is **not** a public
 issue. Follow the private disclosure in [SECURITY.md](../SECURITY.md) so it can
 be triaged before public disclosure. The Security-relevant template is only for
 non-sensitive observations.
@@ -36,7 +36,7 @@ Every report should carry enough to reproduce the decision:
 - **Ecosystem** — `npm`, `pypi`, `go`, or `cargo`. Coverage is uneven; see
   [known-limitations.md](known-limitations.md).
 - **Decision** — the `allow` / `warn` / `block` PkgSafe returned.
-- **Policy** — `--policy` file or signed policy pack, or "embedded default".
+- **Policy** — `--policy` file or "embedded default".
 
 ## Capture scan output with `--json`
 

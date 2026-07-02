@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -164,8 +163,8 @@ func usage() {
 
 Usage:
   pkgsafe scan-local-npm <dir> [--json]
-  pkgsafe scan-npm-package <name> [--version <version>] [--policy <path>] [--policy-pack <name>] [--mode warn|block|audit] [--json]
-  pkgsafe scan-pypi-package <name> [--version <version>] [--policy <path>] [--policy-pack <name>] [--mode warn|block|audit] [--json]
+  pkgsafe scan-npm-package <name> [--version <version>] [--policy <path>] [--mode warn|block|audit] [--json]
+  pkgsafe scan-pypi-package <name> [--version <version>] [--policy <path>] [--mode warn|block|audit] [--json]
   pkgsafe scan-python-deps <requirements.txt|pyproject.toml> [--json]
   pkgsafe scan-go-deps <go.mod> [--json]
   pkgsafe scan-cargo-deps <Cargo.lock> [--json]
@@ -177,22 +176,16 @@ Usage:
   pkgsafe test rollout-readiness [--json]
   pkgsafe test production-readiness [--json] [--fixtures <dir>] [--repo <path>]
   pkgsafe db status
-  pkgsafe db export-bundle --output <path> [--db <path>] [--signing-key <key.pem>]
-  pkgsafe db verify-bundle [--key <pubkey.pem>] <path>
-  pkgsafe db import-bundle [--key <pubkey.pem>] [--db <path>] <path>
+  pkgsafe db export-bundle --output <path> [--db <path>]
+  pkgsafe db verify-bundle <path>
+  pkgsafe db import-bundle [--db <path>] <path>
   pkgsafe doctor [--json] [--policy <path>] [--registry-config <path>] [--skip-network]
-  pkgsafe explain <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
-  pkgsafe explain-pypi <name> [--version <version>] [--policy <path>] [--policy-pack <name>]
-  pkgsafe npm-install <name> [--version <version>] [--policy-pack <name>] [--mode warn|block|audit]
-  pkgsafe ci scan [--lockfile <path>] [--policy <path>] [--policy-pack <name>] [--mode audit|warn|block] [--fail-on none|warn|block]
+  pkgsafe explain <name> [--version <version>] [--policy <path>]
+  pkgsafe explain-pypi <name> [--version <version>] [--policy <path>]
+  pkgsafe npm-install <name> [--version <version>] [--mode warn|block|audit]
+  pkgsafe ci scan [--lockfile <path>] [--policy <path>] [--mode audit|warn|block] [--fail-on none|warn|block]
   pkgsafe policy validate <path>
   pkgsafe policy explain <path>
-  pkgsafe policy pack keygen [--out <prefix>]
-  pkgsafe policy pack create --name <name> --output <path> [--signing-key <key.pem>]
-  pkgsafe policy pack verify [--key <pubkey.pem>] <path>
-  pkgsafe policy pack install [--key <pubkey.pem>] <path>
-  pkgsafe policy pack list
-  pkgsafe policy pack export --output <path>
   pkgsafe registry list [--policy <path>] [--registry-config <path>]
   pkgsafe registry test [--policy <path>] [--registry-config <path>] <name>
   pkgsafe registry test [--policy <path>] [--registry-config <path>] --ecosystem <npm|pypi> --package <name>
@@ -202,14 +195,7 @@ Usage:
   pkgsafe report evidence-pack [--repo <path>] [--output <path>]
   pkgsafe report beta-evidence [--repo <path>] [--repo-list <path>] [--output <path>] [--json-output <path>]
   pkgsafe report ga-evidence [--repo <path>] [--repo-list <path>] [--output <path>] [--json-output <path>]
-  pkgsafe report team-evidence --repo-list <path> [--output <path>]
-  pkgsafe report exceptions [--output <path>]
-  pkgsafe report overrides [--output <path>]
-  pkgsafe report policy [--policy-pack <name>] [--output <path>]
   pkgsafe report ci [--input <path>] [--output <path>]
-  pkgsafe report siem-export [--output <path>]
-  pkgsafe report servicenow-export [--output <path>]
-  pkgsafe report azure-devops-export [--output <path>]
   pkgsafe mcp serve
   pkgsafe serve-api [--port <port>] [--token <token>] [--policy <path>] [--mode <mode>] [--offline]
   pkgsafe npm <npm-args...>
@@ -254,13 +240,11 @@ func cmdScanPyPIPackage(args []string) error {
 	ver := fs.String("version", "", "package version")
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
 	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic; PyPI execution remains disabled without isolated backend")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -270,7 +254,7 @@ func cmdScanPyPIPackage(args []string) error {
 	if fs.NArg() != 1 {
 		return errors.New("package name is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -289,7 +273,7 @@ func cmdScanPyPIPackage(args []string) error {
 	if err != nil {
 		return err
 	}
-	res = stripEnterprise(res, *enterpriseMode)
+	res = stripEnterprise(res, false)
 	_ = saveResult(res)
 	return output.Write(os.Stdout, res, *asJSON)
 }
@@ -298,18 +282,16 @@ func cmdScanPythonDeps(args []string) error {
 	fs := flag.NewFlagSet("scan-python-deps", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		return errors.New("dependency file path is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -329,7 +311,7 @@ func cmdScanPythonDeps(args []string) error {
 		if err != nil {
 			return fmt.Errorf("scan dependency %s: %w", dep.Name, err)
 		}
-		res = stripEnterprise(res, *enterpriseMode)
+		res = stripEnterprise(res, false)
 		_ = saveResult(res)
 		results = append(results, res)
 	}
@@ -353,11 +335,9 @@ func cmdScanGoDeps(args []string) error {
 	fs := flag.NewFlagSet("scan-go-deps", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -369,7 +349,7 @@ func cmdScanGoDeps(args []string) error {
 		cli.UpdateDBAsync("", "Go", "osv", 24*time.Hour)
 	}
 
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -396,7 +376,7 @@ func cmdScanGoDeps(args []string) error {
 		if err != nil {
 			return fmt.Errorf("scan dependency %s: %w", dep.Name, err)
 		}
-		res = stripEnterprise(res, *enterpriseMode)
+		res = stripEnterprise(res, false)
 		_ = saveResult(res)
 		results = append(results, res)
 	}
@@ -421,11 +401,9 @@ func cmdScanCargoDeps(args []string) error {
 	fs := flag.NewFlagSet("scan-cargo-deps", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -437,7 +415,7 @@ func cmdScanCargoDeps(args []string) error {
 		cli.UpdateDBAsync("", "crates.io", "osv", 24*time.Hour)
 	}
 
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -464,7 +442,7 @@ func cmdScanCargoDeps(args []string) error {
 		if err != nil {
 			return fmt.Errorf("scan dependency %s: %w", dep.Name, err)
 		}
-		res = stripEnterprise(res, *enterpriseMode)
+		res = stripEnterprise(res, false)
 		_ = saveResult(res)
 		results = append(results, res)
 	}
@@ -489,7 +467,6 @@ func cmdScanLocalNPM(args []string) error {
 	fs := flag.NewFlagSet("scan-local-npm", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
 	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic")
@@ -497,7 +474,6 @@ func cmdScanLocalNPM(args []string) error {
 	network := fs.String("network", "disabled", "network mode (disabled, limited, host)")
 	keepSandbox := fs.Bool("keep-sandbox", false, "keep the analysis working directory after execution")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
@@ -506,7 +482,7 @@ func cmdScanLocalNPM(args []string) error {
 	if fs.NArg() != 1 {
 		return errors.New("directory is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -552,7 +528,7 @@ func cmdScanLocalNPM(args []string) error {
 	if err != nil {
 		return err
 	}
-	res = stripEnterprise(res, *enterpriseMode)
+	res = stripEnterprise(res, false)
 	_ = saveResult(res)
 	return output.Write(os.Stdout, res, *asJSON)
 }
@@ -562,7 +538,6 @@ func cmdScanNPMPackage(args []string) error {
 	ver := fs.String("version", "", "package version")
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
@@ -571,7 +546,6 @@ func cmdScanNPMPackage(args []string) error {
 	network := fs.String("network", "disabled", "network mode (disabled, limited, host)")
 	keepSandbox := fs.Bool("keep-sandbox", false, "keep the analysis working directory after execution")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
@@ -582,7 +556,7 @@ func cmdScanNPMPackage(args []string) error {
 	if fs.NArg() != 1 {
 		return errors.New("package name is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -631,7 +605,7 @@ func cmdScanNPMPackage(args []string) error {
 	if err != nil {
 		return err
 	}
-	res = stripEnterprise(res, *enterpriseMode)
+	res = stripEnterprise(res, false)
 	_ = saveResult(res)
 	return output.Write(os.Stdout, res, *asJSON)
 }
@@ -640,18 +614,16 @@ func cmdScanLockfile(args []string) error {
 	fs := flag.NewFlagSet("scan-lockfile", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	_ = fs.Bool("offline", false, "run scan offline using cached database")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		return errors.New("lockfile path is required")
 	}
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -659,7 +631,7 @@ func cmdScanLockfile(args []string) error {
 	if err != nil {
 		return err
 	}
-	res = stripEnterprise(res, *enterpriseMode)
+	res = stripEnterprise(res, false)
 	return output.Write(os.Stdout, res, *asJSON)
 }
 
@@ -668,11 +640,9 @@ func cmdExplain(args []string) error {
 	ver := fs.String("version", "", "package version")
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run explain offline using cached database")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -680,7 +650,7 @@ func cmdExplain(args []string) error {
 		return errors.New("package name is required")
 	}
 	pkgName := fs.Arg(0)
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -695,12 +665,12 @@ func cmdExplain(args []string) error {
 	res, err := scanner.ScanPackage(pkgName, *ver)
 	if err != nil {
 		if hasCached {
-			cached = stripEnterprise(cached, *enterpriseMode)
+			cached = stripEnterprise(cached, false)
 			return output.Write(os.Stdout, cached, *asJSON)
 		}
 		return err
 	}
-	res = stripEnterprise(res, *enterpriseMode)
+	res = stripEnterprise(res, false)
 	_ = saveResult(res)
 	if *asJSON {
 		return output.Write(os.Stdout, res, true)
@@ -714,11 +684,9 @@ func cmdExplainPyPI(args []string) error {
 	ver := fs.String("version", "", "package version")
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "audit, warn, or block")
 	offline := fs.Bool("offline", false, "run explain offline using cached database")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -726,7 +694,7 @@ func cmdExplainPyPI(args []string) error {
 		return errors.New("package name is required")
 	}
 	pkgName := fs.Arg(0)
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -741,12 +709,12 @@ func cmdExplainPyPI(args []string) error {
 	res, err := scanner.ScanPackage(pkgName, *ver)
 	if err != nil {
 		if hasCached {
-			cached = stripEnterprise(cached, *enterpriseMode)
+			cached = stripEnterprise(cached, false)
 			return output.Write(os.Stdout, cached, *asJSON)
 		}
 		return err
 	}
-	res = stripEnterprise(res, *enterpriseMode)
+	res = stripEnterprise(res, false)
 	_ = saveResult(res)
 	if *asJSON {
 		return output.Write(os.Stdout, res, true)
@@ -761,9 +729,7 @@ func cmdNPMInstall(args []string) error {
 	mode := fs.String("mode", "warn", "warn, block, or audit")
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -771,7 +737,7 @@ func cmdNPMInstall(args []string) error {
 		return errors.New("package name is required")
 	}
 	pkgName := fs.Arg(0)
-	pol, err := loadPolicy(*policyPath, *mode, *policyPack, *registryConfig)
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
 	if err != nil {
 		return err
 	}
@@ -779,7 +745,7 @@ func cmdNPMInstall(args []string) error {
 	if err != nil {
 		return err
 	}
-	res = stripEnterprise(res, *enterpriseMode)
+	res = stripEnterprise(res, false)
 	_ = saveResult(res)
 	if err := output.Write(os.Stdout, res, *asJSON); err != nil {
 		return err
@@ -839,6 +805,9 @@ func scanRemoteNPM(name, version string, pol policy.Policy) (types.ScanResult, e
 }
 
 func loadPolicy(path, mode, policyPack, registryConfig string) (policy.Policy, error) {
+	if strings.TrimSpace(policyPack) != "" {
+		return policy.Policy{}, fmt.Errorf("signed policy archives are private-enterprise functionality; use pkgsafe-enterprise")
+	}
 	pol, err := policy.ResolvePolicy(policyPack, "", path, mode, registryConfig)
 	if err != nil {
 		return policy.Policy{}, err
@@ -966,14 +935,13 @@ func cmdDBExportBundle(args []string) error {
 	fs := flag.NewFlagSet("db-export-bundle", flag.ContinueOnError)
 	dbPath := fs.String("db", "", "path to PkgSafe SQLite database")
 	outputPath := fs.String("output", "", "path to write offline intelligence bundle")
-	signingKey := fs.String("signing-key", "", "ed25519 private key PEM for signing the bundle")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if *outputPath == "" {
-		return fmt.Errorf("usage: pkgsafe db export-bundle --output <path> [--db <path>] [--signing-key <key.pem>]")
+		return fmt.Errorf("usage: pkgsafe db export-bundle --output <path> [--db <path>]")
 	}
-	manifest, err := dbbundle.Export(*dbPath, *outputPath, *signingKey)
+	manifest, err := dbbundle.Export(*dbPath, *outputPath)
 	if err != nil {
 		return err
 	}
@@ -987,22 +955,13 @@ func cmdDBExportBundle(args []string) error {
 
 func cmdDBVerifyBundle(args []string) error {
 	fs := flag.NewFlagSet("db-verify-bundle", flag.ContinueOnError)
-	keyPath := fs.String("key", "", "trusted ed25519 public key PEM")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: pkgsafe db verify-bundle [--key <pubkey.pem>] <path>")
+		return fmt.Errorf("usage: pkgsafe db verify-bundle <path>")
 	}
-	var keys []ed25519.PublicKey
-	if *keyPath != "" {
-		resolved, err := resolveTrustedKeys(*keyPath)
-		if err != nil {
-			return err
-		}
-		keys = resolved
-	}
-	res, err := dbbundle.Verify(fs.Arg(0), keys)
+	res, err := dbbundle.Verify(fs.Arg(0))
 	if err != nil {
 		return err
 	}
@@ -1018,23 +977,14 @@ func cmdDBVerifyBundle(args []string) error {
 
 func cmdDBImportBundle(args []string) error {
 	fs := flag.NewFlagSet("db-import-bundle", flag.ContinueOnError)
-	keyPath := fs.String("key", "", "trusted ed25519 public key PEM")
 	dbPath := fs.String("db", "", "path to write PkgSafe SQLite database")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: pkgsafe db import-bundle [--key <pubkey.pem>] [--db <path>] <path>")
+		return fmt.Errorf("usage: pkgsafe db import-bundle [--db <path>] <path>")
 	}
-	var keys []ed25519.PublicKey
-	if *keyPath != "" {
-		resolved, err := resolveTrustedKeys(*keyPath)
-		if err != nil {
-			return err
-		}
-		keys = resolved
-	}
-	res, err := dbbundle.Import(fs.Arg(0), *dbPath, keys)
+	res, err := dbbundle.Import(fs.Arg(0), *dbPath)
 	if err != nil {
 		return err
 	}
@@ -1147,7 +1097,7 @@ func flagNeedsValue(arg string) bool {
 	name, _, _ = strings.Cut(name, "=")
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network", "behavior",
-		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "policy-pack", "registry-config", "port", "token",
+		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "registry-config", "port", "token",
 		"base", "repo", "repo-list", "fixtures", "definitions", "db", "output", "signing-key", "key":
 		return true
 	default:
@@ -1161,7 +1111,6 @@ func cmdCIScan(args []string) error {
 	dependencyFile := fs.String("dependency-file", "", "path to dependency file")
 	ecosystem := fs.String("ecosystem", "", "package ecosystem: npm or pypi")
 	policyPath := fs.String("policy", "", "path to PkgSafe policy file")
-	policyPack := fs.String("policy-pack", "", "policy pack name")
 	mode := fs.String("mode", "", "PkgSafe mode: audit, warn, or block")
 	failOn := fs.String("fail-on", "", "minimum decision that fails the workflow: none, warn, block")
 	jsonOutput := fs.String("json-output", "", "path to write JSON report")
@@ -1174,7 +1123,6 @@ func cmdCIScan(args []string) error {
 	offline := fs.Bool("offline", false, "use offline database only")
 	timeout := fs.Duration("timeout", 0, "behavior-analysis timeout")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
-	enterpriseMode := fs.Bool("enterprise-mode", true, "Enable enterprise evidence output")
 
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return exitError{code: ci.ExitUsageError, err: err}
@@ -1208,9 +1156,9 @@ func cmdCIScan(args []string) error {
 		BehaviorMode:         *behavior,
 		Offline:              *offline,
 		Timeout:              *timeout,
-		PolicyPack:           *policyPack,
+		PolicyPack:           "",
 		RegistryConfigPath:   *registryConfig,
-		EnterpriseMode:       *enterpriseMode,
+		EnterpriseMode:       false,
 	}
 
 	res, err := ci.RunScan(opts)

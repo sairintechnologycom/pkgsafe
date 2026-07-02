@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "feedback_type": "false_positive",
-  "generated_at": "2026-07-01T07:37:49Z",
+  "generated_at": "2026-07-02T03:15:04Z",
   "fingerprint": "10059d15ee2bdda09fc21dcd657950d59908763922c0369cce0dff7bae1a3904",
   "package": "postinstall-curl-example",
   "ecosystem": "npm",
@@ -14,7 +14,7 @@
   ],
   "decision": "warn",
   "risk_score": 65,
-  "command_used": "pkgsafe scan-local-npm ./testdata/npm/postinstall-curl --json",
+  "command_used": "scan-local-npm",
   "sanitized_finding_output": {
     "artifact_analysis": {
       "native_extension": false,
@@ -104,7 +104,7 @@
     },
     "version": "1.0.0"
   },
-  "user_reason": "E2E validation sample feedback; not a real false positive",
+  "user_reason": "e2e-validation",
   "private_registry_involved": false,
   "lifecycle_scripts_involved": true,
   "behavior_analysis": {
@@ -117,6 +117,6 @@
     "not_performed": true,
     "reason": "behavior analysis disabled by policy"
   },
-  "pkgsafe_version": "v0.2.0-beta.1-3-gb09b204",
-  "pkgsafe_commit": "b09b204"
+  "pkgsafe_version": "v1.0.1",
+  "pkgsafe_commit": "c7cde79"
 }

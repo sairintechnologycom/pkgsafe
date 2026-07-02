@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
 	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
 	"github.com/sairintechnologycom/pkgsafe/internal/mcp"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
@@ -265,15 +264,6 @@ func runExtractionHardeningTests() int {
 		return err != nil
 	}
 
-	runPolicyPackTest := func(tarBytes []byte) bool {
-		filePath := filepath.Join(tmpDir, "policy-temp.tar.gz")
-		_ = os.WriteFile(filePath, tarBytes, 0600)
-		defer os.Remove(filePath)
-
-		_, err := enterprise.VerifyPolicyPack(filePath)
-		return err != nil
-	}
-
 	// npm tarball path traversal
 	travTar, _ := createTarGzBytes(map[string][]byte{"../../escaped.txt": []byte("content")}, nil, nil, false)
 	if !runNPMTest(travTar) {
@@ -295,13 +285,6 @@ func runExtractionHardeningTests() int {
 		failures++
 	}
 
-	// policy pack path traversal
-	travPack, _ := createTarGzBytes(map[string][]byte{"../../escaped.txt": []byte("content")}, nil, nil, false)
-	if !runPolicyPackTest(travPack) {
-		fmt.Fprintln(os.Stderr, "DEBUG: policy pack path traversal accepted!")
-		failures++
-	}
-
 	// absolute paths
 	absTar, _ := createTarGzBytes(map[string][]byte{"/tmp/escaped.txt": []byte("content")}, nil, nil, false)
 	if !runNPMTest(absTar) {
@@ -312,11 +295,6 @@ func runExtractionHardeningTests() int {
 		fmt.Fprintln(os.Stderr, "DEBUG: PyPI absolute path accepted!")
 		failures++
 	}
-	if !runPolicyPackTest(absTar) {
-		fmt.Fprintln(os.Stderr, "DEBUG: policy pack absolute path accepted!")
-		failures++
-	}
-
 	// Windows drive paths
 	winTar, _ := createTarGzBytes(map[string][]byte{"C:\\escaped.txt": []byte("content")}, nil, nil, false)
 	if !runNPMTest(winTar) {
@@ -327,11 +305,6 @@ func runExtractionHardeningTests() int {
 		fmt.Fprintln(os.Stderr, "DEBUG: PyPI Windows drive path accepted!")
 		failures++
 	}
-	if !runPolicyPackTest(winTar) {
-		fmt.Fprintln(os.Stderr, "DEBUG: policy pack Windows drive path accepted!")
-		failures++
-	}
-
 	// symlink escape
 	symTar, _ := createTarGzBytes(nil, map[string]string{"escaped-symlink": "../../etc/passwd"}, nil, false)
 	if !runNPMTest(symTar) {
@@ -340,10 +313,6 @@ func runExtractionHardeningTests() int {
 	}
 	if !runPyPITest(symTar, false) {
 		fmt.Fprintln(os.Stderr, "DEBUG: PyPI symlink (tar) accepted!")
-		failures++
-	}
-	if !runPolicyPackTest(symTar) {
-		fmt.Fprintln(os.Stderr, "DEBUG: policy pack symlink accepted!")
 		failures++
 	}
 	symZip, _ := createZipBytes(nil, map[string]string{"escaped-symlink": "../../etc/passwd"}, false)
@@ -362,11 +331,6 @@ func runExtractionHardeningTests() int {
 		fmt.Fprintln(os.Stderr, "DEBUG: PyPI hardlink accepted!")
 		failures++
 	}
-	if !runPolicyPackTest(hdrTar) {
-		fmt.Fprintln(os.Stderr, "DEBUG: policy pack hardlink accepted!")
-		failures++
-	}
-
 	// tar bomb file count limit
 	// Create more than 5000 file entries
 	countFiles := make(map[string][]byte)
@@ -419,11 +383,6 @@ func runExtractionHardeningTests() int {
 		fmt.Fprintln(os.Stderr, "DEBUG: PyPI malformed zip accepted!")
 		failures++
 	}
-	if !runPolicyPackTest(malBytes) {
-		fmt.Fprintln(os.Stderr, "DEBUG: policy pack malformed accepted!")
-		failures++
-	}
-
 	return failures
 }
 
@@ -528,24 +487,6 @@ func runSecretRedactionTests() int {
 
 	if html, err := report.ExportHTML(r); err == nil {
 		checkLeakage(html, "HTML")
-	} else {
-		failures++
-	}
-
-	if siem, err := report.ExportSIEM(r); err == nil {
-		checkLeakage(siem, "SIEM")
-	} else {
-		failures++
-	}
-
-	if snow, err := report.ExportServiceNow(r); err == nil {
-		checkLeakage(snow, "ServiceNow")
-	} else {
-		failures++
-	}
-
-	if az, err := report.ExportAzureDevOps(r); err == nil {
-		checkLeakage(az, "AzureDevOps")
 	} else {
 		failures++
 	}

@@ -38,7 +38,7 @@
       "score": 5
     }
   ],
-  "recommended_action": "Review package before installing. Requested behavior analysis was not performed.",
+  "recommended_action": "Review package before installing.",
   "enforcement": "User review recommended",
   "package_identity": {
     "ecosystem": "npm",
@@ -52,14 +52,14 @@
     "curl"
   ],
   "behavior_analysis": {
-    "mode": "isolated",
-    "enabled": true,
+    "mode": "disabled",
+    "enabled": false,
     "executed": false,
-    "isolated": true,
-    "runner": "isolated-unavailable",
+    "isolated": false,
+    "runner": "none",
     "network_policy": "disabled",
     "not_performed": true,
-    "reason": "isolated behavior analysis is currently supported only on Linux hosts with bubblewrap"
+    "reason": "behavior analysis disabled by policy"
   },
   "artifact_analysis": {
     "wheel_available": false,

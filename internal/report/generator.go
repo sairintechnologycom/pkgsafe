@@ -94,12 +94,12 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 		}
 	}
 
-	// 2. Policy Pack Details
+	// 2. Policy details
 	report.Policy = PolicyMetadata{
 		Source:      nonEmpty(pol.PolicyPackSource, "local"),
-		PackName:    nonEmpty(pol.PolicyPackName, "enterprise-standard"),
-		PackVersion: nonEmpty(pol.PolicyPackVersion, "2026.06.01"),
-		Owner:       nonEmpty(pol.PolicyPackOwner, "Platform Engineering"),
+		PackName:    nonEmpty(pol.PolicyPackName, "default-policy"),
+		PackVersion: nonEmpty(pol.PolicyPackVersion, "1"),
+		Owner:       nonEmpty(pol.PolicyPackOwner, "local"),
 	}
 
 	// 3. Scan Dependency Files

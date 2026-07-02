@@ -49,9 +49,9 @@ user/tool command
 
 - Package scans: `scan-npm-package`, `scan-pypi-package`, `scan-python-deps`, `scan-go-deps`, `scan-cargo-deps`, `scan-local-npm`, `scan-lockfile`
 - Package explanation/install safety: `explain`, `explain-pypi`, `npm-install`
-- Policy and enterprise packs: `policy validate`, `policy explain`, `policy pack ...`
+- Policy: `policy validate`, `policy explain`, `policy test`
 - Registry operations: `registry list`, `registry test`, `registry auth status`
-- Reporting: `report generate`, `report evidence-pack`, `report ci`, SIEM/ServiceNow/Azure DevOps exports
+- Reporting: `report generate`, `report evidence-pack`, `report ci`
 - Agent/API surfaces: `mcp serve`, `serve-api`
 - CI and validation: `ci scan`, `test corpus`, `test benchmark`, readiness checks
 - Interception/shims: `npm`, `pip`, `python`, `run`, `init shell`
@@ -62,8 +62,8 @@ user/tool command
 | Package | Role |
 | --- | --- |
 | `internal/types` | Shared contracts such as `ScanResult`, `Reason`, `Decision`, vulnerability, behavior analysis, artifact, policy, registry, trust, and exception evidence. |
-| `internal/policy` | Default/custom policy loading, thresholds, rule scores, trust rules, exceptions, scoped rules, registry config, enterprise controls. |
-| `internal/risk` | Converts reasons/signals into `allow`, `warn`, `block`, or `unknown`; applies enterprise controls. |
+| `internal/policy` | Default/custom policy loading, thresholds, rule scores, trust rules, exceptions, scoped rules, and registry config. |
+| `internal/risk` | Converts reasons/signals into `allow`, `warn`, `block`, or `unknown`; applies policy controls. |
 | `internal/scanner/npm` | Full npm package scanner: registry metadata, tarball download/integrity, static analysis, OSV/cached vulnerability checks, behavior-analysis summary. |
 | `internal/scanner/pypi` | PyPI package scanner: registry/artifact metadata, static Python packaging analysis, vulnerability checks, typosquat signals. |
 | `internal/scanner/golang` | Go dependency/package scanner using OSV/intel and policy/risk evaluation. |
@@ -82,8 +82,7 @@ user/tool command
 | `internal/ci` | CI lockfile scan workflow, concurrency, summaries, exit-code behavior. |
 | `internal/mcp` | MCP JSON-RPC server and tools for package validation, risk explanation, lockfile scoring, governance reports, recent decisions, policy evidence. |
 | `internal/api` | Local HTTP API for package validation through npm/PyPI scanners. |
-| `internal/report` | Governance/report generation in JSON, Markdown, HTML, CSV, SARIF, evidence pack, SIEM, ServiceNow, Azure DevOps formats. |
-| `internal/enterprise` | Signed policy packs, keys, checksums, metadata, install/create/verify/export flows. |
+| `internal/report` | Governance/report generation in JSON, Markdown, HTML, CSV, SARIF, and local evidence pack formats. |
 | `internal/sandbox` | Fake-home process runner and behavior-analysis request/result plumbing. |
 | `internal/agent` | AI-agent install command parsing, safe alternatives, AI squatting heuristics. |
 | `internal/audit` | Audit reader for recent decisions and report inputs. |
@@ -106,7 +105,6 @@ cmd/pkgsafe
   -> ci
   -> cli
   -> deps/{cargo,golang,npm,python}
-  -> enterprise
   -> intercept
   -> mcp
   -> output

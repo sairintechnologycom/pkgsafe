@@ -3,7 +3,7 @@
 ## GA candidate scope
 
 PkgSafe GA v1 is scoped as **npm-first**. Core npm scanning, CI gating, MCP
-tooling, policy packs, OSV intelligence, and evidence reporting are gated by
+tooling, local policy, OSV intelligence, and evidence reporting are gated by
 `pkgsafe test production-readiness`. The following are explicitly *not* claimed
 until their GA gates are verified:
 
