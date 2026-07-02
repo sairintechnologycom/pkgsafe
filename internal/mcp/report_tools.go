@@ -192,21 +192,14 @@ func (e *Executor) GetRecentPackageDecisions(args json.RawMessage) CallToolResul
 }
 
 // GetPolicyEvidenceParams defines input for get_policy_evidence.
-type GetPolicyEvidenceParams struct {
-	PolicyPack string `json:"policy_pack"`
-}
+type GetPolicyEvidenceParams struct{}
 
 // GetPolicyEvidence returns details of the active policy configuration.
 func (e *Executor) GetPolicyEvidence(args json.RawMessage) CallToolResult {
 	var p GetPolicyEvidenceParams
 	_ = json.Unmarshal(args, &p)
 
-	pack := p.PolicyPack
-	if pack == "" {
-		pack = e.PolicyPath
-	}
-
-	pol, err := policy.ResolvePolicy(p.PolicyPack, "", e.PolicyPath, e.Mode, "")
+	pol, err := policy.ResolvePolicy("", "", e.PolicyPath, e.Mode, "")
 	if err != nil {
 		return CallToolResult{
 			Content: []ToolContent{{
@@ -218,11 +211,12 @@ func (e *Executor) GetPolicyEvidence(args json.RawMessage) CallToolResult {
 	}
 
 	evidence := map[string]any{
-		"policy_pack_name":    nonEmpty(pol.PolicyPackName, "enterprise-standard"),
-		"policy_pack_version": nonEmpty(pol.PolicyPackVersion, "2026.06.01"),
-		"policy_pack_owner":   nonEmpty(pol.PolicyPackOwner, "Platform Engineering"),
-		"overall_mode":        pol.Mode,
-		"thresholds":          pol.Thresholds,
+		"policy_source":  nonEmpty(pol.PolicyPackSource, "local"),
+		"policy_name":    nonEmpty(pol.PolicyPackName, "default-policy"),
+		"policy_version": nonEmpty(pol.PolicyPackVersion, "1"),
+		"policy_owner":   nonEmpty(pol.PolicyPackOwner, "local"),
+		"overall_mode":   pol.Mode,
+		"thresholds":     pol.Thresholds,
 		"controls": map[string]bool{
 			"block_known_malware_always":     pol.InstallInterception.BlockKnownMalwareAlways,
 			"block_credential_access_always": pol.InstallInterception.BlockCredentialAccessAlways,

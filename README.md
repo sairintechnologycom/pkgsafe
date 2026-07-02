@@ -188,7 +188,7 @@ PkgSafe GA v1 is npm-first. Maturity varies by ecosystem and surface:
 | **Cargo** | Preview | ✅ `Cargo.lock` | ❌ metadata-only |
 
 Surfaces: CLI, REST API, MCP stdio server, GitHub Action, policy engine,
-ed25519-signed policy packs, evidence packs.
+offline intelligence bundles, and local evidence packs.
 
 ## Operational notes
 

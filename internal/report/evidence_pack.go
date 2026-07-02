@@ -54,15 +54,6 @@ func CreateEvidencePack(outputPath string, r *RepositoryRiskReport, pol policy.P
 	filesMap["dependency-confusion.md"] = []byte(ExportDependencyConfusionReport(r))
 	filesMap["ai-agent-activity.md"] = []byte(ExportAIAgentActivityReport(r))
 
-	siem, _ := ExportSIEM(r)
-	filesMap["siem-events.jsonl"] = []byte(siem)
-
-	sNow, _ := ExportServiceNow(r)
-	filesMap["servicenow-evidence.json"] = []byte(sNow)
-
-	azDev, _ := ExportAzureDevOps(r)
-	filesMap["azure-devops-evidence.md"] = []byte(azDev)
-
 	sarif, _ := ExportSarif(r)
 	filesMap["sarif/pkgsafe-results.sarif"] = []byte(sarif)
 

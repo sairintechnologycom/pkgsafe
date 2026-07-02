@@ -15,18 +15,14 @@ type SafetyFlags struct {
 	JSON            bool
 	ForceRiskAccept bool
 	Reason          string
-	PolicyPack      string
 	RequestedBy     string
 	Environment     string
 	RegistryConfig  string
-	EnterpriseMode  bool
 }
 
 func ExtractSafetyFlags(args []string) ([]string, SafetyFlags) {
 	var cleanArgs []string
-	sf := SafetyFlags{
-		EnterpriseMode: true,
-	}
+	sf := SafetyFlags{}
 	i := 0
 	for i < len(args) {
 		arg := args[i]
@@ -60,12 +56,6 @@ func ExtractSafetyFlags(args []string) ([]string, SafetyFlags) {
 		} else if strings.HasPrefix(arg, "--policy=") {
 			sf.PolicyPath = strings.TrimPrefix(arg, "--policy=")
 			i++
-		} else if arg == "--policy-pack" && i+1 < len(args) {
-			sf.PolicyPack = args[i+1]
-			i += 2
-		} else if strings.HasPrefix(arg, "--policy-pack=") {
-			sf.PolicyPack = strings.TrimPrefix(arg, "--policy-pack=")
-			i++
 		} else if arg == "--requested-by" && i+1 < len(args) {
 			sf.RequestedBy = args[i+1]
 			i += 2
@@ -89,12 +79,6 @@ func ExtractSafetyFlags(args []string) ([]string, SafetyFlags) {
 			i += 2
 		} else if strings.HasPrefix(arg, "--registry-config=") {
 			sf.RegistryConfig = strings.TrimPrefix(arg, "--registry-config=")
-			i++
-		} else if arg == "--enterprise-mode" {
-			sf.EnterpriseMode = true
-			i++
-		} else if arg == "--no-enterprise-mode" || arg == "--enterprise-mode=false" {
-			sf.EnterpriseMode = false
 			i++
 		} else {
 			cleanArgs = append(cleanArgs, arg)

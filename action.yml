@@ -66,20 +66,10 @@ inputs:
     required: false
     default: "true"
 
-  policy-pack:
-    description: "Installed or bundled PkgSafe policy pack name/path"
-    required: false
-    default: ""
-
   registry-config:
     description: "Path to registries.yaml"
     required: false
     default: ""
-
-  enterprise-mode:
-    description: "Enable enterprise evidence output"
-    required: false
-    default: "true"
 
   generate-evidence-pack:
     description: "Generate PkgSafe governance evidence pack"
@@ -164,9 +154,7 @@ runs:
         INPUT_SANDBOX: ${{ inputs.sandbox }}
         INPUT_OFFLINE: ${{ inputs.offline }}
         INPUT_COMMENT_PR: ${{ inputs.comment-pr }}
-        INPUT_POLICY_PACK: ${{ inputs.policy-pack }}
         INPUT_REGISTRY_CONFIG: ${{ inputs.registry-config }}
-        INPUT_ENTERPRISE_MODE: ${{ inputs.enterprise-mode }}
         INPUT_GENERATE_EVIDENCE_PACK: ${{ inputs.generate-evidence-pack }}
         INPUT_EVIDENCE_PACK_OUTPUT: ${{ inputs.evidence-pack-output }}
         INPUT_UPLOAD_EVIDENCE_ARTIFACT: ${{ inputs.upload-evidence-artifact }}

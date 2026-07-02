@@ -242,14 +242,15 @@ Acceptance criteria:
 * Requirements files can be scanned.
 * JSON output is consistent with npm scanner.
 
-## Phase 8: Enterprise Policy and Governance
+## Phase 8: Organizational Policy and Governance
 
 **Timeline:** Post-MVP
-**Priority:** Enterprise
+**Priority:** Public interfaces first
 
 Objective:
 
-Make PkgSafe useful for organizations.
+Make PkgSafe useful for organizations without putting private implementation in
+the public repository.
 
 Features:
 
@@ -257,12 +258,9 @@ Features:
 * Team allowlist
 * Team denylist
 * Private registry support
-* Enterprise offline DB mirror
 * Audit logs
-* ServiceNow evidence export
-* SIEM export
-* Niyam governance integration
-* Azure DevOps integration
+* Exportable local audit evidence
+* Integration interfaces for downstream governance tooling
 * GitHub organization policy
 
 Acceptance criteria:

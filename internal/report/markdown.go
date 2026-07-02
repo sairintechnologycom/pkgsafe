@@ -80,16 +80,16 @@ func ExportMarkdown(r *RepositoryRiskReport) (string, error) {
 	return registry.RedactSecrets(buf.String()), nil
 }
 
-// ExportPolicyEvidence formats the policy pack rules and settings as Markdown.
+// ExportPolicyEvidence formats policy rules and settings as Markdown.
 func ExportPolicyEvidence(pol policy.Policy) string {
 	var buf bytes.Buffer
 
-	packName := nonEmpty(pol.PolicyPackName, "enterprise-standard")
-	packVersion := nonEmpty(pol.PolicyPackVersion, "2026.06.01")
-	owner := nonEmpty(pol.PolicyPackOwner, "Platform Engineering")
+	packName := nonEmpty(pol.PolicyPackName, "default-policy")
+	packVersion := nonEmpty(pol.PolicyPackVersion, "1")
+	owner := nonEmpty(pol.PolicyPackOwner, "local")
 
 	buf.WriteString("# PkgSafe Policy Evidence Report\n\n")
-	fmt.Fprintf(&buf, "**Policy Pack:** %s@%s  \n", packName, packVersion)
+	fmt.Fprintf(&buf, "**Policy:** %s@%s  \n", packName, packVersion)
 	fmt.Fprintf(&buf, "**Owner:** %s  \n", owner)
 	buf.WriteString("**Status:** Valid  \n")
 	buf.WriteString("**Expires:** 2026-12-31  \n\n")

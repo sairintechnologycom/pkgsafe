@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -17,7 +16,6 @@ import (
 	"time"
 
 	"github.com/sairintechnologycom/pkgsafe/internal/db"
-	"github.com/sairintechnologycom/pkgsafe/internal/enterprise"
 	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
 )
 
@@ -60,7 +58,7 @@ type VerifyResult struct {
 	SignatureChecked  bool     `json:"signature_checked"`
 }
 
-func Export(dbPath, outputPath, signingKeyPath string) (Manifest, error) {
+func Export(dbPath, outputPath string) (Manifest, error) {
 	if outputPath == "" {
 		return Manifest{}, fmt.Errorf("output path is required")
 	}
@@ -86,10 +84,7 @@ func Export(dbPath, outputPath, signingKeyPath string) (Manifest, error) {
 	sum := sha256.Sum256(dbBytes)
 	manifest.DBPath = DBPathInZip
 	manifest.DBSHA256 = hex.EncodeToString(sum[:])
-	manifest.Signature = SignatureInfo{Present: signingKeyPath != ""}
-	if signingKeyPath != "" {
-		manifest.Signature.Algorithm = enterprise.SignatureAlgorithm
-	}
+	manifest.Signature = SignatureInfo{Present: false}
 	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return Manifest{}, err
@@ -100,20 +95,13 @@ func Export(dbPath, outputPath, signingKeyPath string) (Manifest, error) {
 	}
 	checksums := checksumsFor(files)
 	files[ChecksumsPath] = checksums
-	if signingKeyPath != "" {
-		priv, err := enterprise.LoadPrivateKey(signingKeyPath)
-		if err != nil {
-			return Manifest{}, err
-		}
-		files[SignaturePath] = enterprise.SignPack(priv, checksums)
-	}
 	if err := writeZip(outputPath, files); err != nil {
 		return Manifest{}, err
 	}
 	return manifest, nil
 }
 
-func Verify(bundlePath string, trustedKeys []ed25519.PublicKey) (VerifyResult, error) {
+func Verify(bundlePath string) (VerifyResult, error) {
 	files, err := readZip(bundlePath)
 	if err != nil {
 		return VerifyResult{}, err
@@ -154,18 +142,14 @@ func Verify(bundlePath string, trustedKeys []ed25519.PublicKey) (VerifyResult, e
 		ChecksumOK:       true,
 		SignaturePresent: len(files[SignaturePath]) > 0,
 	}
-	if res.SignaturePresent && len(trustedKeys) > 0 {
-		res.SignatureChecked = true
-		if err := enterprise.VerifyPackSignature(trustedKeys, expectedChecksums, files[SignaturePath]); err != nil {
-			return res, err
-		}
-		res.SignatureVerified = true
+	if res.SignaturePresent {
+		return res, fmt.Errorf("signed offline intelligence bundles are private-enterprise functionality")
 	}
 	return res, nil
 }
 
-func Import(bundlePath, dbPath string, trustedKeys []ed25519.PublicKey) (VerifyResult, error) {
-	res, err := Verify(bundlePath, trustedKeys)
+func Import(bundlePath, dbPath string) (VerifyResult, error) {
+	res, err := Verify(bundlePath)
 	if err != nil {
 		return res, err
 	}

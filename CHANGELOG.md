@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0-beta.1] - 2026-06-27
 
 First private beta release candidate. Local-first scanning, CI gating, MCP
-tooling, and policy packs are functional; lifecycle behavior analysis remains
+tooling, and local policy workflows are functional; lifecycle behavior analysis remains
 best-effort and is labelled as such.
 
 ### Added

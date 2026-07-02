@@ -1,6 +1,6 @@
 # PkgSafe Policy Guide
 
-PkgSafe uses `default-policy.yaml` unless `--policy` or `--policy-pack` is supplied.
+PkgSafe uses `default-policy.yaml` unless `--policy` is supplied.
 
 Core controls:
 

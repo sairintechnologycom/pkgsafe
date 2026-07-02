@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -22,7 +21,7 @@ import (
 
 func cmdReport(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: pkgsafe report [generate|evidence-pack|beta-evidence|ga-evidence|team-evidence|exceptions|overrides|policy|ci|siem-export|servicenow-export|azure-devops-export]")
+		return fmt.Errorf("usage: pkgsafe report [generate|evidence-pack|beta-evidence|ga-evidence|ci]")
 	}
 
 	switch args[0] {
@@ -35,24 +34,28 @@ func cmdReport(args []string) error {
 	case "ga-evidence":
 		return cmdReportEvidence(args[1:], "ga")
 	case "team-evidence":
-		return cmdReportTeamEvidence(args[1:])
+		return privateEnterpriseCommand("report team-evidence")
 	case "exceptions":
-		return cmdReportExceptions(args[1:])
+		return privateEnterpriseCommand("report exceptions")
 	case "overrides":
-		return cmdReportOverrides(args[1:])
+		return privateEnterpriseCommand("report overrides")
 	case "policy":
-		return cmdReportPolicy(args[1:])
+		return privateEnterpriseCommand("report policy")
 	case "ci":
 		return cmdReportCI(args[1:])
 	case "siem-export":
-		return cmdReportSIEM(args[1:])
+		return privateEnterpriseCommand("report siem-export")
 	case "servicenow-export":
-		return cmdReportServiceNow(args[1:])
+		return privateEnterpriseCommand("report servicenow-export")
 	case "azure-devops-export":
-		return cmdReportAzureDevOps(args[1:])
+		return privateEnterpriseCommand("report azure-devops-export")
 	default:
 		return fmt.Errorf("unknown report subcommand %q", args[0])
 	}
+}
+
+func privateEnterpriseCommand(name string) error {
+	return fmt.Errorf("%s is private-enterprise functionality; use pkgsafe-enterprise", name)
 }
 
 type betaEvidenceReport struct {
@@ -71,352 +74,8 @@ type betaEvidenceReport struct {
 	Recommendation        string                               `json:"recommendation"`
 }
 
-type teamEvidenceReport struct {
-	SchemaVersion             string                               `json:"schema_version"`
-	EvidenceKind              string                               `json:"evidence_kind"`
-	GeneratedAt               string                               `json:"generated_at"`
-	Tool                      string                               `json:"tool"`
-	PkgSafeVersion            string                               `json:"pkgsafe_version"`
-	PkgSafeCommit             string                               `json:"pkgsafe_commit"`
-	RepoListPath              string                               `json:"repo_list_path"`
-	RepositoryCount           int                                  `json:"repository_count"`
-	RepositoriesPassed        int                                  `json:"repositories_passed"`
-	RepositoriesFailed        int                                  `json:"repositories_failed"`
-	Summary                   teamEvidenceTotals                   `json:"summary"`
-	Repositories              []teamEvidenceRepoSummary            `json:"repositories"`
-	Policy                    teamEvidencePolicySummary            `json:"policy"`
-	OSVDBStatus               string                               `json:"osv_db_status"`
-	ReleaseVerificationStatus map[string]string                    `json:"release_verification_status"`
-	ProductionReadiness       validation.ProductionReadinessReport `json:"production_readiness"`
-	KnownLimitations          []string                             `json:"known_limitations"`
-	Recommendation            string                               `json:"recommendation"`
-}
-
-type teamEvidenceTotals struct {
-	DirectDependencies       int `json:"direct_dependencies"`
-	TransitiveDependencies   int `json:"transitive_dependencies"`
-	TotalDependencies        int `json:"total_dependencies"`
-	AllowCount               int `json:"allow_count"`
-	WarnCount                int `json:"warn_count"`
-	BlockCount               int `json:"block_count"`
-	FalseBlockCount          int `json:"false_block_count"`
-	ScannerCrashCount        int `json:"scanner_crash_count"`
-	JSONArtifacts            int `json:"json_artifacts"`
-	SARIFArtifacts           int `json:"sarif_artifacts"`
-	MarkdownSummaryArtifacts int `json:"markdown_summary_artifacts"`
-	EvidencePackArtifacts    int `json:"evidence_pack_artifacts"`
-}
-
-type teamEvidenceRepoSummary struct {
-	Name                   string           `json:"name"`
-	Path                   string           `json:"path"`
-	Ecosystems             []string         `json:"ecosystems"`
-	DependencyCounts       dependencyCounts `json:"dependency_counts"`
-	AllowCount             int              `json:"allow_count"`
-	WarnCount              int              `json:"warn_count"`
-	BlockCount             int              `json:"block_count"`
-	FalseBlock             bool             `json:"false_block"`
-	ScannerCrash           bool             `json:"scanner_crash"`
-	EvidenceArtifactStatus artifactStatus   `json:"evidence_artifact_status"`
-	PolicyVersion          string           `json:"policy_version"`
-	ScanTimestamp          string           `json:"scan_timestamp"`
-	PkgSafeVersion         string           `json:"pkgsafe_version"`
-	Decision               string           `json:"decision,omitempty"`
-	RiskScore              int              `json:"risk_score,omitempty"`
-	Status                 string           `json:"status"`
-	Passed                 bool             `json:"passed"`
-	FailureClassifications []string         `json:"failure_classifications,omitempty"`
-	Details                []string         `json:"details,omitempty"`
-	FindingsBySeverity     map[string]int   `json:"findings_by_severity,omitempty"`
-}
-
-type dependencyCounts struct {
-	Direct     int `json:"direct"`
-	Transitive int `json:"transitive"`
-	Total      int `json:"total"`
-	Source     int `json:"source_imports"`
-}
-
-type artifactStatus struct {
-	JSON            bool `json:"json"`
-	SARIF           bool `json:"sarif"`
-	MarkdownSummary bool `json:"markdown_summary"`
-	EvidencePack    bool `json:"evidence_pack"`
-}
-
-type teamEvidencePolicySummary struct {
-	Source      string `json:"source"`
-	PackName    string `json:"pack_name"`
-	PackVersion string `json:"pack_version"`
-	Owner       string `json:"owner"`
-}
-
 func cmdReportBetaEvidence(args []string) error {
 	return cmdReportEvidence(args, "private-beta")
-}
-
-func cmdReportTeamEvidence(args []string) error {
-	fs := flag.NewFlagSet("team-evidence", flag.ContinueOnError)
-	repoList := fs.String("repo-list", "", "JSON file listing repositories to aggregate")
-	output := fs.String("output", "pkgsafe-team-evidence.zip", "output zip file path")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if strings.TrimSpace(*repoList) == "" {
-		return fmt.Errorf("--repo-list is required")
-	}
-	if err := validateTeamRepoList(*repoList); err != nil {
-		return err
-	}
-
-	prod, err := validation.RunProductionReadinessWithOptions(validation.ProductionReadinessOptions{
-		CorpusDir:    "testdata/corpus",
-		GoldenFile:   "testdata/corpus-golden.json",
-		BenchmarkDir: "testdata/benchmarks",
-		RepoListPath: *repoList,
-	})
-	if err != nil {
-		return err
-	}
-	bench, err := validation.RunBenchmarkPackWithOptions(validation.BenchmarkOptions{
-		FixturesDir:    "testdata/benchmarks",
-		DefinitionsDir: "benchmarks",
-		RepoListPath:   *repoList,
-		Offline:        true,
-	})
-	if err != nil {
-		return err
-	}
-	pol, err := policy.ResolvePolicy("", "", "", "", "")
-	if err != nil {
-		return err
-	}
-
-	evidence := buildTeamEvidenceReport(*repoList, prod, bench, pol)
-	if err := writeTeamEvidenceZip(*output, evidence, bench, pol); err != nil {
-		return err
-	}
-	fmt.Printf("PkgSafe team evidence generated: %s\n", *output)
-	fmt.Printf("Repositories: %d passed / %d failed\n", evidence.RepositoriesPassed, evidence.RepositoriesFailed)
-	fmt.Printf("Summary: allow=%d warn=%d block=%d false_blocks=%d scanner_crashes=%d\n",
-		evidence.Summary.AllowCount,
-		evidence.Summary.WarnCount,
-		evidence.Summary.BlockCount,
-		evidence.Summary.FalseBlockCount,
-		evidence.Summary.ScannerCrashCount,
-	)
-	return nil
-}
-
-func validateTeamRepoList(path string) error {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read repo list: %w", err)
-	}
-	var specs []validation.RealRepoSpec
-	if err := json.Unmarshal(b, &specs); err != nil {
-		return fmt.Errorf("parse repo list: %w", err)
-	}
-	if len(specs) == 0 {
-		return fmt.Errorf("repo list %q is empty; add at least one repository", path)
-	}
-	return nil
-}
-
-func buildTeamEvidenceReport(repoList string, prod validation.ProductionReadinessReport, bench validation.BenchmarkReport, pol policy.Policy) teamEvidenceReport {
-	generatedAt := bench.GeneratedAt
-	if generatedAt == "" {
-		generatedAt = prod.GeneratedAt
-	}
-	policySummary := teamEvidencePolicySummary{
-		Source:      firstNonEmpty(pol.PolicyPackSource, "embedded default"),
-		PackName:    firstNonEmpty(pol.PolicyPackName, "default-policy"),
-		PackVersion: firstNonEmpty(pol.PolicyPackVersion, "1"),
-		Owner:       firstNonEmpty(pol.PolicyPackOwner, "local"),
-	}
-	evidence := teamEvidenceReport{
-		SchemaVersion:  "1.0",
-		EvidenceKind:   "team-evidence",
-		GeneratedAt:    generatedAt,
-		Tool:           "pkgsafe",
-		PkgSafeVersion: versionpkg.Version,
-		PkgSafeCommit:  versionpkg.Commit,
-		RepoListPath:   repoList,
-		Policy:         policySummary,
-		OSVDBStatus:    gateSummary(prod, "OSV cache"),
-		ReleaseVerificationStatus: map[string]string{
-			"signed_release":      prod.SignedReleaseStatus,
-			"signing_verified":    fmt.Sprintf("%t", prod.SigningVerified),
-			"checksums":           prod.ChecksumsStatus,
-			"checksums_verified":  fmt.Sprintf("%t", prod.ChecksumsVerified),
-			"sbom":                prod.SBOMStatus,
-			"sbom_verified":       fmt.Sprintf("%t", prod.SBOMVerified),
-			"provenance":          prod.ProvenanceStatus,
-			"provenance_verified": fmt.Sprintf("%t", prod.ProvenanceVerified),
-		},
-		ProductionReadiness: prod,
-		KnownLimitations: []string{
-			"Team evidence is local-first and does not upload results to a hosted service.",
-			"PkgSafe v1.0.0 remains npm-first GA; PyPI, Go, and Cargo are preview coverage and are not npm-equivalent.",
-			"Heuristic behavior analysis is disabled by default and is non-isolated host execution when explicitly enabled.",
-			"Missing repository paths are recorded as failed repo validations.",
-		},
-		Recommendation: prod.Recommendation,
-	}
-	for _, repo := range bench.RepoValidations {
-		summary := teamEvidenceRepoSummary{
-			Name:       repo.Name,
-			Path:       repo.Path,
-			Ecosystems: repo.Ecosystems,
-			DependencyCounts: dependencyCounts{
-				Direct:     repo.DirectDependencies,
-				Transitive: repo.TransitiveDependencies,
-				Total:      repo.TotalDependencies,
-				Source:     repo.SourceImportCount,
-			},
-			AllowCount:   repo.AllowCount,
-			WarnCount:    repo.WarnCount,
-			BlockCount:   repo.BlockCount,
-			FalseBlock:   repo.FalseBlock,
-			ScannerCrash: repo.ScannerCrash,
-			EvidenceArtifactStatus: artifactStatus{
-				JSON:            repo.JSONOutputGenerated,
-				SARIF:           repo.SARIFOutputGenerated,
-				MarkdownSummary: repo.MarkdownSummaryGenerated,
-				EvidencePack:    repo.EvidencePackGenerated,
-			},
-			PolicyVersion:          firstNonEmpty(policySummary.PackVersion, policySummary.PackName),
-			ScanTimestamp:          generatedAt,
-			PkgSafeVersion:         versionpkg.Version,
-			Decision:               repo.Decision,
-			RiskScore:              repo.Score,
-			Status:                 repo.Status,
-			Passed:                 repo.Passed,
-			FailureClassifications: repo.FailureClassifications,
-			Details:                repo.Details,
-			FindingsBySeverity:     repo.FindingCountBySeverity,
-		}
-		evidence.Repositories = append(evidence.Repositories, summary)
-		evidence.RepositoryCount++
-		if repo.Passed {
-			evidence.RepositoriesPassed++
-		} else {
-			evidence.RepositoriesFailed++
-		}
-		evidence.Summary.DirectDependencies += repo.DirectDependencies
-		evidence.Summary.TransitiveDependencies += repo.TransitiveDependencies
-		evidence.Summary.TotalDependencies += repo.TotalDependencies
-		evidence.Summary.AllowCount += repo.AllowCount
-		evidence.Summary.WarnCount += repo.WarnCount
-		evidence.Summary.BlockCount += repo.BlockCount
-		if repo.FalseBlock {
-			evidence.Summary.FalseBlockCount++
-		}
-		if repo.ScannerCrash {
-			evidence.Summary.ScannerCrashCount++
-		}
-		if repo.JSONOutputGenerated {
-			evidence.Summary.JSONArtifacts++
-		}
-		if repo.SARIFOutputGenerated {
-			evidence.Summary.SARIFArtifacts++
-		}
-		if repo.MarkdownSummaryGenerated {
-			evidence.Summary.MarkdownSummaryArtifacts++
-		}
-		if repo.EvidencePackGenerated {
-			evidence.Summary.EvidencePackArtifacts++
-		}
-	}
-	return evidence
-}
-
-func writeTeamEvidenceZip(outputPath string, evidence teamEvidenceReport, bench validation.BenchmarkReport, pol policy.Policy) error {
-	files := map[string][]byte{}
-	summaryJSON, err := json.MarshalIndent(evidence, "", "  ")
-	if err != nil {
-		return err
-	}
-	files["summary/team-evidence-summary.json"] = summaryJSON
-	files["summary/team-evidence-summary.md"] = []byte(renderTeamEvidenceMarkdown(evidence))
-
-	benchJSON, err := json.MarshalIndent(bench, "", "  ")
-	if err != nil {
-		return err
-	}
-	files["raw/benchmark-output.json"] = benchJSON
-	prodJSON, err := json.MarshalIndent(evidence.ProductionReadiness, "", "  ")
-	if err != nil {
-		return err
-	}
-	files["raw/production-readiness-output.json"] = prodJSON
-	policyJSON, err := json.MarshalIndent(pol, "", "  ")
-	if err != nil {
-		return err
-	}
-	files["policy/policy-summary.json"] = []byte(renderTeamPolicyJSON(evidence.Policy))
-	files["policy/policy-used.json"] = policyJSON
-	files["status/osv-db-status.md"] = []byte(renderTeamOSVStatus(evidence))
-	files["status/release-verification-status.md"] = []byte(renderTeamReleaseStatus(evidence))
-	files["known-limitations.md"] = []byte(renderTeamKnownLimitations(evidence))
-	for _, repo := range evidence.Repositories {
-		repoJSON, err := json.MarshalIndent(repo, "", "  ")
-		if err != nil {
-			return err
-		}
-		name := safeEvidenceName(firstNonEmpty(repo.Name, filepath.Base(repo.Path), "repo"))
-		files[filepath.Join("per-repo", name, "summary.json")] = repoJSON
-		files[filepath.Join("per-repo", name, "summary.md")] = []byte(renderTeamRepoMarkdown(repo))
-	}
-	for path, content := range files {
-		files[path] = []byte(registry.RedactSecrets(string(content)))
-	}
-	return writeDeterministicEvidenceZip(outputPath, "pkgsafe-team-evidence", files)
-}
-
-func writeDeterministicEvidenceZip(outputPath, prefix string, files map[string][]byte) error {
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		return err
-	}
-	f, err := os.Create(outputPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	zw := zip.NewWriter(f)
-	defer zw.Close()
-
-	var paths []string
-	for path := range files {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	manifest := report.Manifest{
-		SchemaVersion: "1.0",
-		Tool:          "pkgsafe",
-		GeneratedAt:   "1970-01-01T00:00:00Z",
-		Repository:    "team-evidence",
-	}
-	for _, path := range paths {
-		content := files[path]
-		manifest.Files = append(manifest.Files, report.ManifestFile{
-			Path:   prefix + "/" + filepath.ToSlash(path),
-			SHA256: sha256Hex(content),
-		})
-	}
-	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := writeDeterministicZipFile(zw, prefix+"/manifest.json", manifestJSON); err != nil {
-		return err
-	}
-	for _, path := range paths {
-		if err := writeDeterministicZipFile(zw, prefix+"/"+filepath.ToSlash(path), files[path]); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func cmdReportEvidence(args []string, kind string) error {
@@ -632,21 +291,6 @@ func writeZipFile(zw *zip.Writer, path string, content []byte) error {
 	return err
 }
 
-func writeDeterministicZipFile(zw *zip.Writer, path string, content []byte) error {
-	header := &zip.FileHeader{
-		Name:   filepath.ToSlash(path),
-		Method: zip.Deflate,
-	}
-	header.SetMode(0o644)
-	header.SetModTime(time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC))
-	w, err := zw.CreateHeader(header)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(content)
-	return err
-}
-
 func sha256Hex(content []byte) string {
 	sum := sha256.Sum256(content)
 	return hex.EncodeToString(sum[:])
@@ -713,134 +357,6 @@ func renderBetaEvidenceMarkdown(e betaEvidenceReport) string {
 	}
 	fmt.Fprintf(&b, "\n## Recommendation\n\n%s\n", e.Recommendation)
 	return b.String()
-}
-
-func renderTeamEvidenceMarkdown(e teamEvidenceReport) string {
-	var b strings.Builder
-	fmt.Fprintln(&b, "# PkgSafe Team Evidence")
-	fmt.Fprintln(&b)
-	fmt.Fprintf(&b, "Generated: %s\n\n", e.GeneratedAt)
-	fmt.Fprintf(&b, "- Repositories: %d\n", e.RepositoryCount)
-	fmt.Fprintf(&b, "- Passed / failed: %d / %d\n", e.RepositoriesPassed, e.RepositoriesFailed)
-	fmt.Fprintf(&b, "- Direct / transitive dependencies: %d / %d\n", e.Summary.DirectDependencies, e.Summary.TransitiveDependencies)
-	fmt.Fprintf(&b, "- Allow / warn / block: %d / %d / %d\n", e.Summary.AllowCount, e.Summary.WarnCount, e.Summary.BlockCount)
-	fmt.Fprintf(&b, "- False blocks: %d\n", e.Summary.FalseBlockCount)
-	fmt.Fprintf(&b, "- Scanner crashes: %d\n", e.Summary.ScannerCrashCount)
-	fmt.Fprintf(&b, "- PkgSafe version: %s (%s)\n", e.PkgSafeVersion, e.PkgSafeCommit)
-	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "## Policy")
-	fmt.Fprintln(&b)
-	fmt.Fprintf(&b, "- Source: %s\n", e.Policy.Source)
-	fmt.Fprintf(&b, "- Pack: %s@%s\n", e.Policy.PackName, e.Policy.PackVersion)
-	fmt.Fprintf(&b, "- Owner: %s\n", e.Policy.Owner)
-	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "## Repository Summary")
-	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "| Repository | Ecosystems | Dependencies | Allow | Warn | Block | False block | Scanner crash | Status |")
-	fmt.Fprintln(&b, "|---|---:|---:|---:|---:|---:|---:|---:|---|")
-	for _, repo := range e.Repositories {
-		fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %d | %t | %t | %s |\n",
-			repo.Name,
-			strings.Join(repo.Ecosystems, ", "),
-			repo.DependencyCounts.Total,
-			repo.AllowCount,
-			repo.WarnCount,
-			repo.BlockCount,
-			repo.FalseBlock,
-			repo.ScannerCrash,
-			repo.Status,
-		)
-	}
-	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "## OSV DB Status")
-	fmt.Fprintln(&b)
-	fmt.Fprintf(&b, "%s\n\n", e.OSVDBStatus)
-	fmt.Fprintln(&b, "## Release Verification")
-	fmt.Fprintln(&b)
-	for _, key := range sortedMapKeys(e.ReleaseVerificationStatus) {
-		fmt.Fprintf(&b, "- %s: %s\n", key, e.ReleaseVerificationStatus[key])
-	}
-	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "## Known Limitations")
-	fmt.Fprintln(&b)
-	for _, limitation := range e.KnownLimitations {
-		fmt.Fprintf(&b, "- %s\n", limitation)
-	}
-	return b.String()
-}
-
-func renderTeamRepoMarkdown(repo teamEvidenceRepoSummary) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "# %s\n\n", repo.Name)
-	fmt.Fprintf(&b, "- Path: %s\n", repo.Path)
-	fmt.Fprintf(&b, "- Ecosystems: %s\n", strings.Join(repo.Ecosystems, ", "))
-	fmt.Fprintf(&b, "- Dependencies: %d direct, %d transitive, %d total\n", repo.DependencyCounts.Direct, repo.DependencyCounts.Transitive, repo.DependencyCounts.Total)
-	fmt.Fprintf(&b, "- Allow / warn / block: %d / %d / %d\n", repo.AllowCount, repo.WarnCount, repo.BlockCount)
-	fmt.Fprintf(&b, "- False block: %t\n", repo.FalseBlock)
-	fmt.Fprintf(&b, "- Scanner crash: %t\n", repo.ScannerCrash)
-	fmt.Fprintf(&b, "- JSON / SARIF / Markdown / Evidence pack: %t / %t / %t / %t\n", repo.EvidenceArtifactStatus.JSON, repo.EvidenceArtifactStatus.SARIF, repo.EvidenceArtifactStatus.MarkdownSummary, repo.EvidenceArtifactStatus.EvidencePack)
-	fmt.Fprintf(&b, "- Policy version: %s\n", repo.PolicyVersion)
-	fmt.Fprintf(&b, "- Scan timestamp: %s\n", repo.ScanTimestamp)
-	fmt.Fprintf(&b, "- PkgSafe version: %s\n", repo.PkgSafeVersion)
-	fmt.Fprintf(&b, "- Status: %s\n", repo.Status)
-	if len(repo.Details) > 0 {
-		fmt.Fprintln(&b)
-		fmt.Fprintln(&b, "## Details")
-		for _, detail := range repo.Details {
-			fmt.Fprintf(&b, "- %s\n", detail)
-		}
-	}
-	return b.String()
-}
-
-func renderTeamPolicyJSON(summary teamEvidencePolicySummary) string {
-	b, err := json.MarshalIndent(summary, "", "  ")
-	if err != nil {
-		return "{}\n"
-	}
-	return string(append(b, '\n'))
-}
-
-func renderTeamOSVStatus(e teamEvidenceReport) string {
-	return fmt.Sprintf("# OSV DB Status\n\n%s\n", e.OSVDBStatus)
-}
-
-func renderTeamReleaseStatus(e teamEvidenceReport) string {
-	var b strings.Builder
-	fmt.Fprintln(&b, "# Release Verification Status")
-	fmt.Fprintln(&b)
-	for _, key := range sortedMapKeys(e.ReleaseVerificationStatus) {
-		fmt.Fprintf(&b, "- %s: %s\n", key, e.ReleaseVerificationStatus[key])
-	}
-	return b.String()
-}
-
-func renderTeamKnownLimitations(e teamEvidenceReport) string {
-	var b strings.Builder
-	fmt.Fprintln(&b, "# Known Limitations")
-	fmt.Fprintln(&b)
-	for _, limitation := range e.KnownLimitations {
-		fmt.Fprintf(&b, "- %s\n", limitation)
-	}
-	return b.String()
-}
-
-func sortedMapKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func safeEvidenceName(name string) string {
-	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "-", ":", "-", "@", "-")
-	name = strings.Trim(replacer.Replace(name), ".-")
-	if name == "" {
-		return "repo"
-	}
-	return name
 }
 
 func cmdReportGenerate(args []string) error {
@@ -992,68 +508,6 @@ func cmdReportEvidencePack(args []string) error {
 	return report.CreateEvidencePack(*output, r, pol)
 }
 
-func cmdReportExceptions(args []string) error {
-	fs := flag.NewFlagSet("exceptions", flag.ContinueOnError)
-	output := fs.String("output", "exceptions.md", "output file path")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	pol, err := policy.ResolvePolicy("", "", "", "", "")
-	if err != nil {
-		return err
-	}
-
-	r, err := report.GenerateReport(".", pol, true)
-	if err != nil {
-		return err
-	}
-
-	content := report.ExportExceptionsReport(r)
-	return os.WriteFile(*output, []byte(content), 0644)
-}
-
-func cmdReportOverrides(args []string) error {
-	fs := flag.NewFlagSet("overrides", flag.ContinueOnError)
-	output := fs.String("output", "overrides.csv", "output file path")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	pol, err := policy.ResolvePolicy("", "", "", "", "")
-	if err != nil {
-		return err
-	}
-
-	r, err := report.GenerateReport(".", pol, true)
-	if err != nil {
-		return err
-	}
-
-	content, err := report.ExportCSV(r, "overrides")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(*output, []byte(content), 0644)
-}
-
-func cmdReportPolicy(args []string) error {
-	fs := flag.NewFlagSet("policy", flag.ContinueOnError)
-	policyPack := fs.String("policy-pack", "enterprise-standard", "policy pack name")
-	output := fs.String("output", "policy-evidence.md", "output file path")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	pol, err := policy.ResolvePolicy(*policyPack, "", "", "", "")
-	if err != nil {
-		return err
-	}
-
-	content := report.ExportPolicyEvidence(pol)
-	return os.WriteFile(*output, []byte(content), 0644)
-}
-
 func cmdReportCI(args []string) error {
 	fs := flag.NewFlagSet("ci", flag.ContinueOnError)
 	input := fs.String("input", "pkgsafe-results.json", "CI results JSON input path")
@@ -1063,78 +517,6 @@ func cmdReportCI(args []string) error {
 	}
 
 	content, err := report.ExportCIGateReport(*input)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(*output, []byte(content), 0644)
-}
-
-func cmdReportSIEM(args []string) error {
-	fs := flag.NewFlagSet("siem-export", flag.ContinueOnError)
-	output := fs.String("output", "pkgsafe-events.jsonl", "output file path")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	pol, err := policy.ResolvePolicy("", "", "", "", "")
-	if err != nil {
-		return err
-	}
-
-	r, err := report.GenerateReport(".", pol, true)
-	if err != nil {
-		return err
-	}
-
-	content, err := report.ExportSIEM(r)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(*output, []byte(content), 0644)
-}
-
-func cmdReportServiceNow(args []string) error {
-	fs := flag.NewFlagSet("servicenow-export", flag.ContinueOnError)
-	output := fs.String("output", "servicenow-evidence.json", "output file path")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	pol, err := policy.ResolvePolicy("", "", "", "", "")
-	if err != nil {
-		return err
-	}
-
-	r, err := report.GenerateReport(".", pol, true)
-	if err != nil {
-		return err
-	}
-
-	content, err := report.ExportServiceNow(r)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(*output, []byte(content), 0644)
-}
-
-func cmdReportAzureDevOps(args []string) error {
-	fs := flag.NewFlagSet("azure-devops-export", flag.ContinueOnError)
-	output := fs.String("output", "azure-devops-evidence.md", "output file path")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	pol, err := policy.ResolvePolicy("", "", "", "", "")
-	if err != nil {
-		return err
-	}
-
-	r, err := report.GenerateReport(".", pol, true)
-	if err != nil {
-		return err
-	}
-
-	content, err := report.ExportAzureDevOps(r)
 	if err != nil {
 		return err
 	}

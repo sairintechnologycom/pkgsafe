@@ -299,12 +299,6 @@ func countSecretRedactionLeaks() (int, []string) {
 	add("Markdown", content, err)
 	content, err = report.ExportHTML(r)
 	add("HTML", content, err)
-	content, err = report.ExportSIEM(r)
-	add("SIEM JSONL", content, err)
-	content, err = report.ExportServiceNow(r)
-	add("ServiceNow JSON", content, err)
-	content, err = report.ExportAzureDevOps(r)
-	add("Azure DevOps Markdown", content, err)
 
 	tmpZip := filepath.Join(os.TempDir(), fmt.Sprintf("pkgsafe-rollout-evidence-%d.zip", time.Now().UnixNano()))
 	defer os.Remove(tmpZip)
@@ -357,7 +351,7 @@ func countSecretRedactionLeaks() (int, []string) {
 		}
 	}
 	if len(details) == 0 {
-		details = append(details, "checked JSON, SARIF, Markdown, HTML, SIEM JSONL, ServiceNow JSON, Azure DevOps Markdown, and evidence pack")
+		details = append(details, "checked JSON, SARIF, Markdown, HTML, CSV, and evidence pack")
 	}
 	return leaks, details
 }

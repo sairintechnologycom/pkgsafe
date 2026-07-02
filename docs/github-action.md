@@ -24,9 +24,7 @@ Scanning when enabled, and can post or update a pull request Markdown summary.
 | `offline` | Use offline local vulnerability database only | No | `false` |
 | `upload-sarif` | Upload SARIF results to GitHub Code Scanning | No | `true` |
 | `comment-pr` | Post or update pull request summary comment | No | `true` |
-| `policy-pack` | Installed or bundled PkgSafe policy pack name/path | No | `""` |
 | `registry-config` | Path to `registries.yaml` for private registry routing | No | `""` |
-| `enterprise-mode` | Enable enterprise evidence fields in reports | No | `true` |
 | `generate-evidence-pack` | Generate a governance evidence pack | No | `true` |
 | `evidence-pack-output` | Path for generated evidence pack | No | `pkgsafe-evidence-pack.zip` |
 | `upload-evidence-artifact` | Upload the evidence pack as a workflow artifact | No | `true` |
