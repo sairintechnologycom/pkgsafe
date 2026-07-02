@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- PyPI production depth (Loop 8). Lockfile parsing is now table-aware for
+  `poetry.lock` and `uv.lock` (sub-tables no longer clobber entries; artifact
+  hashes, explicit registries, and git/url sources are recorded; the
+  project's own virtual/editable lock entry is never scanned against PyPI).
+  `requirements.txt` handles backslash continuations, `--hash` digests, and
+  PEP 508 `name @ url` direct references. `Pipfile.lock` records hashes and
+  resolves index names to URLs. Names are PEP 503-canonicalized and
+  validated. `ci scan --ecosystem pypi` discovers `Pipfile`/`Pipfile.lock`,
+  dedups the inventory to one scan target per `name@version`, marks
+  lockfile-only dependencies as transitive, and surfaces direct URL/VCS
+  dependencies as UNKNOWN (fail closed) instead of scanning a same-named
+  index package.
+- New PyPI artifact findings: orphaned compiled bytecode
+  (`pypi_compiled_bytecode_payload`), wheel RECORD anomalies
+  (`pypi_wheel_record_missing`, `pypi_wheel_record_unlisted_files`), in-tree
+  build backends (`pypi_in_tree_build_backend`), and direct URL/VCS build
+  requirements (`pypi_build_requires_direct_reference`). Wheel
+  `{name}.data/scripts/` files are analyzed as install execution surfaces.
+
+### Fixed
+- PyPI false block: nested example/test `setup.py` and `pyproject.toml`
+  files inside a source distribution no longer score as install surfaces
+  (click 8.1.7 previously blocked at score 100 from 11 inert example
+  `setup.py` files; it now allows at 20).
+
 ## [1.2.0] - 2026-07-02
 
 ### Added

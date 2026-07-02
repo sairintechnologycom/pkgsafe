@@ -183,7 +183,7 @@ PkgSafe GA v1 is npm-first. Maturity varies by ecosystem and surface:
 | Ecosystem | Metadata + OSV | Lockfile parsing | Artifact/content analysis |
 |-----------|:--:|:--:|:--:|
 | **npm** | Production-ready GA v1 scope | ✅ `package-lock.json` | ✅ tarball + lifecycle heuristics |
-| **PyPI** | Preview | ⚠️ `requirements.txt` only (poetry/uv/Pipfile/conda are stubs) | ⚠️ no behavior analysis |
+| **PyPI** | Preview (GA-candidate) | ✅ `requirements.txt` (incl. `--hash`), `pyproject.toml`, `poetry.lock`, `uv.lock`, `Pipfile`, `Pipfile.lock` with inventory dedup (conda is a stub) | ⚠️ wheel + sdist static analysis (RECORD, bytecode, build-backend); no behavior analysis |
 | **Go** | Preview | ✅ `go.mod`/`go.sum` | ❌ metadata-only |
 | **Cargo** | Preview | ✅ `Cargo.lock` | ❌ metadata-only |
 
