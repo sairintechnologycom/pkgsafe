@@ -165,8 +165,10 @@ type ArtifactSummary struct {
 	SourceDistributionAvailable bool   `json:"source_distribution_available"`
 	Yanked                      bool   `json:"yanked"`
 	BuildBackend                string `json:"build_backend,omitempty"`
+	BuildBackendPath            string `json:"build_backend_path,omitempty"`
 	SetupPyPresent              bool   `json:"setup_py_present"`
 	NativeExtension             bool   `json:"native_extension"`
+	OrphanedBytecode            bool   `json:"orphaned_bytecode,omitempty"`
 	SandboxNote                 string `json:"behavior_analysis_note,omitempty"`
 }
 

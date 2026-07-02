@@ -369,6 +369,19 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 		}
 		deps = append(deps, parsed...)
 	}
+	// One scan target per name@version even when several manifests/lockfiles
+	// list the same dependency; the project's own lock entry and local path
+	// sources are not registry packages.
+	deps = pydeps.Dedupe(deps)
+	filtered := deps[:0]
+	for _, dep := range deps {
+		if dep.LocalSource {
+			fmt.Fprintf(os.Stderr, "Note: skipping %s (local project or path source in %s)\n", dep.Name, dep.SourceFile)
+			continue
+		}
+		filtered = append(filtered, dep)
+	}
+	deps = filtered
 	scanner := spypi.New()
 	scanner.Policy = pol
 	scanner.Offline = opts.Offline
@@ -385,13 +398,28 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 	}
 
 	// Scan concurrently (bounded); a per-dependency failure becomes
-	// DecisionUnknown instead of aborting the whole scan.
-	scanned := parallelScan(deps,
+	// DecisionUnknown instead of aborting the whole scan. Direct URL/VCS
+	// dependencies never touch the index — scanning the same name on PyPI
+	// would inspect a different artifact — so they surface as UNKNOWN.
+	scanned := make([]types.ScanResult, len(deps))
+	var registryIdx []int
+	var registryDeps []pydeps.Dependency
+	for i, dep := range deps {
+		if dep.DirectURL != "" {
+			scanned[i] = directURLScanResult(dep)
+			continue
+		}
+		registryIdx = append(registryIdx, i)
+		registryDeps = append(registryDeps, dep)
+	}
+	for j, res := range parallelScan(registryDeps,
 		func(d pydeps.Dependency) (string, string) { return d.Name, d.Version },
 		func(name, version string) (types.ScanResult, error) {
 			sc := scanner // copy per call to avoid shared mutable state
 			return sc.ScanPackage(name, version)
-		})
+		}) {
+		scanned[registryIdx[j]] = res
+	}
 
 	for i := range deps {
 		res := scanned[i]
@@ -423,7 +451,7 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 			Version:           res.Package.Version,
 			Decision:          string(res.Decision),
 			RiskScore:         res.Score,
-			Direct:            true,
+			Direct:            !deps[i].FromLockfile,
 			DependencyType:    "python",
 			Reasons:           res.Reasons,
 			Vulnerabilities:   res.Vulnerabilities,
@@ -479,12 +507,12 @@ func detectEcosystem(opts ScanOptions) string {
 	file := firstNonEmpty(opts.DependencyFile, opts.LockfilePath)
 	base := strings.ToLower(filepath.Base(file))
 	switch base {
-	case "requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock":
+	case "requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock", "pipfile", "pipfile.lock":
 		return "pypi"
 	case "package-lock.json":
 		return "npm"
 	}
-	for _, name := range []string{"package-lock.json", "requirements.txt", "pyproject.toml"} {
+	for _, name := range []string{"package-lock.json", "requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock", "Pipfile", "Pipfile.lock"} {
 		if _, err := os.Stat(name); err == nil {
 			if name == "package-lock.json" {
 				return "npm"
@@ -503,12 +531,27 @@ func pythonDependencyFiles(opts ScanOptions) []string {
 		return []string{opts.LockfilePath}
 	}
 	var files []string
-	for _, name := range []string{"requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock"} {
+	for _, name := range []string{"requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock", "Pipfile", "Pipfile.lock"} {
 		if _, err := os.Stat(name); err == nil {
 			files = append(files, name)
 		}
 	}
 	return files
+}
+
+// directURLScanResult marks a direct URL/VCS dependency as not scanned. It is
+// explicitly DecisionUnknown — never a clean ALLOW.
+func directURLScanResult(dep pydeps.Dependency) types.ScanResult {
+	return types.ScanResult{
+		Package:  types.PackageIdentity{Ecosystem: "pypi", Name: dep.Name, Version: dep.Version},
+		Decision: types.DecisionUnknown,
+		Reasons: []types.Reason{{
+			ID:          "direct_url_dependency_not_scanned",
+			Severity:    "medium",
+			Description: "Dependency resolves from a direct URL/VCS source, not the package index; the artifact was not scanned.",
+			Evidence:    dep.DirectURL,
+		}},
+	}
 }
 
 func firstFile(files []string) string {

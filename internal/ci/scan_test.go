@@ -603,6 +603,9 @@ func TestCI_FailOnBehavior(t *testing.T) {
 
 func TestCI_RunScan_PyPI(t *testing.T) {
 	tmp := t.TempDir()
+	// Isolate the home-keyed artifact cache from same-named fixture
+	// tarballs downloaded by tests in other packages.
+	t.Setenv("HOME", tmp)
 	reqFile := filepath.Join(tmp, "requirements.txt")
 	if err := os.WriteFile(reqFile, []byte("requests==2.31.0\npydantic\n"), 0o644); err != nil {
 		t.Fatal(err)
