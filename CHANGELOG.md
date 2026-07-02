@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-02
+
+### Added
+- Importable CLI entry point: command dispatch moved from `cmd/pkgsafe`
+  (package main) to the exported `pkg/cli` package (`cli.Run`,
+  `cli.Execute`). The `pkgsafe` binary is now a thin shim over `pkg/cli`,
+  and downstream distributions (such as the private enterprise superset
+  binary) can embed the identical command surface via the Go module. No
+  command behavior changes.
+
 ## [1.0.2] - 2026-07-02
 
 Post-GA calibration release: fixes PyPI false blocks on known-good packages
