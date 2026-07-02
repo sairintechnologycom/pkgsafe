@@ -10,7 +10,7 @@ body:
         can be bypassed, the extractor can be exploited, the loopback REST API
         leaks data, a policy pack signature can be forged), **do NOT file it
         here.** Follow the private disclosure instructions in
-        [SECURITY.md](https://github.com/niyam-ai/pkgsafe/blob/main/SECURITY.md)
+        [SECURITY.md](https://github.com/sairintechnologycom/pkgsafe/blob/main/SECURITY.md)
         so maintainers can triage it before public disclosure.
 
 

@@ -1,10 +1,10 @@
 blank_issues_enabled: false
 contact_links:
   - name: Feedback guide
-    url: https://github.com/niyam-ai/pkgsafe/blob/main/docs/feedback.md
+    url: https://github.com/sairintechnologycom/pkgsafe/blob/main/docs/feedback.md
     about: What to include for false positives, false blocks, scanner crashes, private registry issues, OSV/update-db issues, and GitHub Action issues.
   - name: Security vulnerability in PkgSafe (private disclosure)
-    url: https://github.com/niyam-ai/pkgsafe/blob/main/SECURITY.md
+    url: https://github.com/sairintechnologycom/pkgsafe/blob/main/SECURITY.md
     about: >-
       Found a vulnerability IN PkgSafe itself? Do NOT open a public issue.
       Follow the private disclosure instructions in SECURITY.md so the

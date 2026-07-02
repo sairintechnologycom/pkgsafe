@@ -18,8 +18,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/niyam-ai/pkgsafe/internal/version.Version={{ .Version }}
-      - -X github.com/niyam-ai/pkgsafe/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/sairintechnologycom/pkgsafe/internal/version.Version={{ .Version }}
+      - -X github.com/sairintechnologycom/pkgsafe/internal/version.Commit={{ .ShortCommit }}
     goos:
       - linux
       - darwin
