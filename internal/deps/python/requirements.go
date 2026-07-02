@@ -28,8 +28,17 @@ func parseRequirementsFile(path string, seen map[string]bool) ([]Dependency, err
 	defer f.Close()
 	var deps []Dependency
 	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(stripInlineComment(sc.Text()))
+	var pending string
+	for sc.Scan() || pending != "" {
+		raw := sc.Text()
+		// Join backslash continuations: pip-compile --generate-hashes places
+		// each --hash on its own continued line.
+		if trimmed := strings.TrimRight(raw, " \t"); strings.HasSuffix(trimmed, "\\") {
+			pending += strings.TrimSuffix(trimmed, "\\") + " "
+			continue
+		}
+		line := strings.TrimSpace(stripInlineComment(pending + raw))
+		pending = ""
 		if line == "" {
 			continue
 		}

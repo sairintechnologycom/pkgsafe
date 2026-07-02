@@ -242,6 +242,31 @@ rules:
     severity: medium
     score: 20
 
+  pypi_in_tree_build_backend:
+    enabled: true
+    severity: high
+    score: 45
+
+  pypi_build_requires_direct_reference:
+    enabled: true
+    severity: high
+    score: 60
+
+  pypi_compiled_bytecode_payload:
+    enabled: true
+    severity: high
+    score: 40
+
+  pypi_wheel_record_missing:
+    enabled: true
+    severity: medium
+    score: 25
+
+  pypi_wheel_record_unlisted_files:
+    enabled: true
+    severity: high
+    score: 35
+
   pypi_eval_exec_usage:
     enabled: true
     severity: high

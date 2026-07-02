@@ -218,6 +218,16 @@ func defaultMessage(id string) string {
 		return "setup.py reads credentials or sensitive paths"
 	case "pypi_unknown_build_backend":
 		return "pyproject.toml uses an unusual or unknown build backend"
+	case "pypi_in_tree_build_backend":
+		return "pyproject.toml loads the build backend from code inside the package (backend-path)"
+	case "pypi_build_requires_direct_reference":
+		return "pyproject.toml build requirements pull code from a direct URL or VCS reference"
+	case "pypi_compiled_bytecode_payload":
+		return "Package artifact ships compiled Python bytecode without matching source files"
+	case "pypi_wheel_record_missing":
+		return "Wheel artifact is missing its .dist-info RECORD manifest"
+	case "pypi_wheel_record_unlisted_files":
+		return "Wheel artifact contains files not declared in its RECORD manifest"
 	case "pypi_ai_package_squatting_candidate":
 		return "Package name resembles AI-generated package naming pattern"
 	default:
