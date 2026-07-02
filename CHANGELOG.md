@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-07-02
+
+Post-GA calibration release: fixes PyPI false blocks on known-good packages
+and completes the open-core public/private boundary cleanup. All-loop E2E
+qualification for this line is recorded in
+`evidence/e2e/E2E_VALIDATION_SUMMARY.md` (`E2E_PASS: true`, `blockers: 0`).
+
+### Fixed
+- PyPI analyzer no longer false-blocks known-good packages (`requests`,
+  `fastapi`, `flask`, `click`, `pydantic`, `pytest`, `urllib3`, `pandas`,
+  `idna`). Static Python behavior patterns now score only install-like
+  execution surfaces (`scripts/`, `bin/`, `__main__.py`) instead of every
+  `.py` file; `setup.py` keeps its dedicated risk analysis path.
+- Native-extension presence is recorded once per artifact instead of once per
+  native file, reducing finding noise on wheels with compiled extensions.
+
+### Removed
+- Enterprise-only implementation moved to the private downstream repository
+  per the open-core model: signed policy pack create/install/verify, SIEM /
+  ServiceNow / Azure DevOps exporters, and enterprise MCP report surfaces.
+  Public commands return explicit handoff errors pointing to
+  `pkgsafe-enterprise`. The public repo remains OSS core, interfaces/stubs,
+  and public docs.
+
 ## [0.2.0-beta.1] - 2026-06-27
 
 First private beta release candidate. Local-first scanning, CI gating, MCP

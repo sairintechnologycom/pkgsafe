@@ -10,7 +10,7 @@ import "strings"
 // clean tag (e.g. "v0.2.0-beta.1") via -ldflags. Unbuilt `go run`/`go build`
 // binaries fall back to the development line of the current release series so
 // they report something honest rather than a bare "dev".
-var Version = "v0.2.0-beta.1-dev"
+var Version = "v1.0.2-dev"
 
 // Commit is the short git SHA of this build, or "none" when unset.
 var Commit = "none"
