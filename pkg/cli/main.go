@@ -48,6 +48,10 @@ var commit = versionpkg.Commit
 
 var apiServeFunc = api.Serve
 
+// ciRunScanFunc is swappable in tests so dispatch-level behavior (like the
+// RunConfig enterprise-mode gate) can be asserted without a live scan.
+var ciRunScanFunc = ci.RunScan
+
 type exitError struct {
 	code int
 	err  error
@@ -1193,7 +1197,7 @@ func cmdCIScan(cfg RunConfig, args []string) error {
 		EnterpriseMode:       cfg.CIEnterpriseMode,
 	}
 
-	res, err := ci.RunScan(opts)
+	res, err := ciRunScanFunc(opts)
 	if err != nil {
 		if se, ok := err.(ci.ScanError); ok {
 			return exitError{code: se.ExitCode, err: se.Err}
