@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-02
+
+### Added
+- `pkg/cli` gains `RunConfig`, `RunWith`, and `ExecuteWith` so downstream
+  distributions can customize dispatch. The only current knob,
+  `CIEnterpriseMode`, enables the enterprise evidence enrichment already
+  implemented in the CI scan engine (per-finding policy/registry/trust/
+  exception evidence, policy pack metadata, exceptions-used tracking). The
+  public `pkgsafe` binary keeps the zero-value config; public `ci scan`
+  output is unchanged.
+
 ## [1.1.0] - 2026-07-02
 
 ### Added
