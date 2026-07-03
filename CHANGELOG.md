@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-03
+
 ### Added
 - Offline intelligence bundle freshness reporting (Loop 9): `db status` and
   `db verify-bundle` gain `--json` output; verification re-evaluates the
