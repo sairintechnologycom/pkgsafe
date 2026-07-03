@@ -249,6 +249,11 @@ type SandboxScriptResult struct {
 	Isolated   bool             `json:"isolated"`
 	Trace      []string         `json:"trace,omitempty"`
 	Findings   []SandboxFinding `json:"findings,omitempty"`
+	// Error records an infrastructure failure that prevented the script from
+	// being analyzed (for example the isolation backend failing to start).
+	// A non-empty Error means no behavioral observation happened for this
+	// script; it must never be read as "no findings".
+	Error string `json:"error,omitempty"`
 }
 
 type SandboxFinding struct {

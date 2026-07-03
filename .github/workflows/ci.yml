@@ -22,6 +22,35 @@ jobs:
       - name: Run Tests
         run: go test -v ./...
 
+  isolated-behavior-e2e:
+    name: Isolated Behavior Backend E2E (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Install bubblewrap
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+
+      - name: Allow unprivileged user namespaces
+        # Ubuntu 23.10+ restricts unprivileged user namespaces via AppArmor;
+        # relax it for this job so bwrap can create namespaces as the runner user.
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
+
+      - name: Run isolated backend E2E tests
+        env:
+          # Fail (not skip) if the isolated runner reports unavailable, so this
+          # job is proof the backend actually executed inside bubblewrap.
+          PKGSAFE_REQUIRE_ISOLATED_E2E: "1"
+        run: go test -v -run 'Isolated' ./internal/sandbox/
+
   pkgsafe-gate:
     name: PkgSafe Package Gate Self-Scan
     runs-on: ubuntu-latest

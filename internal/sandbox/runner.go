@@ -64,6 +64,7 @@ func SelectRunner(ctx context.Context, mode types.BehaviorMode) RunnerSelection 
 			Name:      runner.Name(),
 			Isolated:  true,
 			Available: available,
+			Warning:   "Isolated mode executes lifecycle scripts inside Linux user/mount/pid/ipc/uts/network namespaces (bubblewrap) with networking disabled by default. It reduces host exposure but shares the host kernel; it is not a hypervisor boundary.",
 		}
 		if !available {
 			meta.Unavailable = runner.UnavailableReason(ctx)
@@ -93,7 +94,9 @@ func prepareWorkspace(req SandboxRequest) (sandboxRoot, workspaceDir string, cle
 	}
 	cleanup = func() {
 		if !req.KeepSandbox {
-			_ = os.RemoveAll(sandboxRoot)
+			if err := removeAllForce(sandboxRoot); err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: sandbox teardown left files behind at %s: %v\n", sandboxRoot, err)
+			}
 		} else {
 			fmt.Fprintf(os.Stderr, "Keeping sandbox directory at: %s\n", sandboxRoot)
 		}
@@ -112,6 +115,29 @@ func prepareWorkspace(req SandboxRequest) (sandboxRoot, workspaceDir string, cle
 		}
 	}
 	return sandboxRoot, workspaceDir, cleanup, nil
+}
+
+// removeAllForce removes root even when a lifecycle script stripped
+// permissions from files or directories it created (for example
+// `chmod 000` on a workspace subdirectory), so teardown never leaks
+// sandbox contents onto the host.
+func removeAllForce(root string) error {
+	err := os.RemoveAll(root)
+	if err == nil {
+		return nil
+	}
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if info.IsDir() {
+			_ = os.Chmod(path, 0700)
+		} else {
+			_ = os.Chmod(path, 0600)
+		}
+		return nil
+	})
+	return os.RemoveAll(root)
 }
 
 func (pr *ProcessRunner) RunLifecycleScript(ctx context.Context, req SandboxRequest) (*SandboxResult, error) {

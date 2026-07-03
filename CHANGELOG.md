@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Isolated behavior backend (Loop 10): `--behavior isolated` is now a
+  supported, CI-validated Linux backend. Lifecycle scripts execute as uid
+  65534 inside bubblewrap user/mount/pid/ipc/uts/cgroup/network namespaces
+  with a cleared environment, fixed `PATH`, synthetic `/etc/passwd` and
+  `/etc/group`, read-only system mounts, and in-sandbox `ulimit` resource
+  caps. Network is disabled by default and enforced via an unshared network
+  namespace; `network_mode=host` explicitly opts in and mounts DNS/CA files
+  read-only. A dedicated CI job proves isolation end-to-end on Linux
+  (loopback connect blocked, host HOME invisible, environment cleared,
+  hostile-teardown cleanup).
+
+### Fixed
+- The experimental isolated runner passed an invalid `--rlimit-nofile` flag
+  to bwrap, so every real isolated run failed; the availability probe now
+  mirrors the real namespace set so `available` cannot be reported for a
+  configuration that would fail at run time.
+- Behavior-analysis runs that fail to execute are no longer silently
+  dropped: infrastructure failures are recorded per script (`error` field in
+  `scripts_executed` and in text output), and a non-zero script exit or
+  timeout is treated as an observed behavior instead of an error.
+- Sandbox teardown now force-removes the disposable workspace even when a
+  lifecycle script strips permissions from files it created, and warns if
+  anything is left behind.
+
 ## [1.4.0] - 2026-07-03
 
 ### Added

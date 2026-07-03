@@ -20,9 +20,11 @@ until their GA gates are verified:
 - Behavior analysis is disabled by default. `heuristic` mode is best-effort: it
   redirects home, temp, and XDG paths and drops secret-like environment variables,
   but still runs scripts on the host and is not a container, namespace, or VM
-  sandbox. `isolated` mode is experimental, Linux-only, and requires bubblewrap;
-  unsupported hosts report unavailable and do not fall back to heuristic host
-  execution.
+  sandbox. `isolated` mode is Linux-only and requires bubblewrap with
+  unprivileged user namespaces; it enforces namespace isolation with network
+  disabled by default, but shares the host kernel and is not a hypervisor
+  boundary. Unsupported hosts report unavailable and do not fall back to
+  heuristic host execution.
 - npm has the deepest artifact and lifecycle analysis coverage and is the GA v1
   production scope. PyPI, Go, and Cargo are preview coverage and are not
   npm-equivalent across every package format.

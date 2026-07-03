@@ -126,9 +126,17 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 		} else {
 			for _, run := range result.Sandbox.ScriptsExecuted {
 				fmt.Fprintf(w, "- Script: %s\n", run.Name)
+				if run.Error != "" {
+					fmt.Fprintf(w, "- Error: %s (script was NOT analyzed)\n", run.Error)
+					continue
+				}
 				fmt.Fprintf(w, "- Duration: %d ms\n", run.DurationMs)
 				fmt.Fprintf(w, "- Exit Code: %d\n", run.ExitCode)
-				fmt.Fprintf(w, "- Network Mode (declared, not enforced): %s\n", result.Sandbox.NetworkMode)
+				if run.Isolated {
+					fmt.Fprintf(w, "- Network Mode (enforced): %s\n", result.Sandbox.NetworkMode)
+				} else {
+					fmt.Fprintf(w, "- Network Mode (declared, not enforced): %s\n", result.Sandbox.NetworkMode)
+				}
 			}
 			if len(result.Sandbox.ScriptsExecuted) == 0 {
 				fmt.Fprintln(w, "- No lifecycle scripts defined to run")

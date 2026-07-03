@@ -249,6 +249,13 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 				}
 				sres, err := runner.RunLifecycleScript(ctx, req)
 				if err != nil {
+					scriptsExecuted = append(scriptsExecuted, types.SandboxScriptResult{
+						Name:     scriptName,
+						ExitCode: -1,
+						Runner:   runnerSelection.Meta.Name,
+						Isolated: runnerSelection.Meta.Isolated,
+						Error:    err.Error(),
+					})
 					continue
 				}
 
@@ -469,6 +476,13 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 				}
 				sres, err := runner.RunLifecycleScript(ctx, req)
 				if err != nil {
+					scriptsExecuted = append(scriptsExecuted, types.SandboxScriptResult{
+						Name:     scriptName,
+						ExitCode: -1,
+						Runner:   runnerSelection.Meta.Name,
+						Isolated: runnerSelection.Meta.Isolated,
+						Error:    err.Error(),
+					})
 					continue
 				}
 
