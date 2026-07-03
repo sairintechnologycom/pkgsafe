@@ -211,9 +211,9 @@ Usage:
   pkgsafe test benchmark [--json] [--fixtures <dir>] [--offline] [--repo <path>] [--repo-list <path>]
   pkgsafe test rollout-readiness [--json]
   pkgsafe test production-readiness [--json] [--fixtures <dir>] [--repo <path>]
-  pkgsafe db status
+  pkgsafe db status [--json]
   pkgsafe db export-bundle --output <path> [--db <path>]
-  pkgsafe db verify-bundle <path>
+  pkgsafe db verify-bundle [--json] <path>
   pkgsafe db import-bundle [--db <path>] <path>
   pkgsafe doctor [--json] [--policy <path>] [--registry-config <path>] [--skip-network]
   pkgsafe explain <name> [--version <version>] [--policy <path>]
@@ -964,7 +964,12 @@ func cmdDB(args []string) error {
 }
 
 func cmdDBStatus(args []string) error {
-	return cli.DBStatus("")
+	fs := flag.NewFlagSet("db-status", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+	return cli.DBStatusWithOptions("", *asJSON)
 }
 
 func cmdDBExportBundle(args []string) error {
@@ -991,15 +996,21 @@ func cmdDBExportBundle(args []string) error {
 
 func cmdDBVerifyBundle(args []string) error {
 	fs := flag.NewFlagSet("db-verify-bundle", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: pkgsafe db verify-bundle <path>")
+		return fmt.Errorf("usage: pkgsafe db verify-bundle [--json] <path>")
 	}
 	res, err := dbbundle.Verify(fs.Arg(0))
 	if err != nil {
 		return err
+	}
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(res)
 	}
 	fmt.Println("Offline intelligence bundle verified.")
 	fmt.Printf("Bundle: %s\n", fs.Arg(0))
@@ -1008,7 +1019,20 @@ func cmdDBVerifyBundle(args []string) error {
 	fmt.Printf("Signature verified: %s\n", boolEnabled(res.SignatureVerified))
 	fmt.Printf("Vulnerability records: %d\n", res.Manifest.VulnerabilityCount)
 	fmt.Printf("Indexed packages: %d\n", res.Manifest.IndexedPackageCount)
+	fmt.Printf("Generated at: %s\n", res.Manifest.GeneratedAt)
+	printBundleFreshness(res)
 	return nil
+}
+
+func printBundleFreshness(res dbbundle.VerifyResult) {
+	for _, key := range dbbundle.LastUpdateKeys {
+		if status, ok := res.FreshnessAtVerify[key]; ok {
+			fmt.Printf("Freshness (%s): %s\n", key, status)
+		}
+	}
+	if res.Stale {
+		fmt.Println("Bundle advisory data is stale: export a fresher bundle from a recently synced database.")
+	}
 }
 
 func cmdDBImportBundle(args []string) error {
@@ -1029,6 +1053,7 @@ func cmdDBImportBundle(args []string) error {
 	fmt.Printf("Checksum: %s\n", boolEnabled(res.ChecksumOK))
 	fmt.Printf("Signature verified: %s\n", boolEnabled(res.SignatureVerified))
 	fmt.Printf("Vulnerability records: %d\n", res.Manifest.VulnerabilityCount)
+	printBundleFreshness(res)
 	return nil
 }
 
