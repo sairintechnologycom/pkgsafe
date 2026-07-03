@@ -24,7 +24,29 @@ const (
 	DBPathInZip   = "db/pkgsafe.db"
 	ChecksumsPath = "checksums.txt"
 	SignaturePath = "signature.sig"
+
+	// SchemaVersion is the manifest schema this build reads and writes.
+	SchemaVersion = "1.0"
+	// BundleKind identifies offline intelligence bundles.
+	BundleKind = "offline-intelligence"
+
+	// MaxBundleFiles and MaxBundleBytes bound what readZip will load into
+	// memory. A bundle legitimately holds a handful of files; the database
+	// dominates its size.
+	MaxBundleFiles = 16
+	MaxBundleBytes = 1 << 30 // 1 GiB
+
+	// StaleAfter is how old an advisory sync may be before the bundle (or
+	// local database) is reported stale.
+	StaleAfter = 72 * time.Hour
 )
+
+// sqliteHeader is the magic prefix of every SQLite 3 database file.
+var sqliteHeader = []byte("SQLite format 3\x00")
+
+// LastUpdateKeys are the metadata keys that record advisory sync times,
+// overall and per ecosystem.
+var LastUpdateKeys = []string{"last_update", "last_update_npm", "last_update_pypi", "last_update_go", "last_update_cargo"}
 
 var zipTime = time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -56,6 +78,13 @@ type VerifyResult struct {
 	SignaturePresent  bool     `json:"signature_present"`
 	SignatureVerified bool     `json:"signature_verified"`
 	SignatureChecked  bool     `json:"signature_checked"`
+	// FreshnessAtVerify re-evaluates the manifest's last-update timestamps
+	// at verification time. The manifest's own freshness map is export-time
+	// truth: a bundle exported fresh two weeks ago is stale today.
+	FreshnessAtVerify map[string]string `json:"freshness_at_verify,omitempty"`
+	// Stale is true when every recorded last-update timestamp is stale or
+	// unparseable at verification time.
+	Stale bool `json:"stale"`
 }
 
 func Export(dbPath, outputPath string) (Manifest, error) {
@@ -114,6 +143,12 @@ func Verify(bundlePath string) (VerifyResult, error) {
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		return VerifyResult{}, fmt.Errorf("parse manifest: %w", err)
 	}
+	if manifest.BundleKind != BundleKind {
+		return VerifyResult{Manifest: manifest}, fmt.Errorf("unexpected bundle kind %q (want %q)", manifest.BundleKind, BundleKind)
+	}
+	if manifest.SchemaVersion != SchemaVersion {
+		return VerifyResult{Manifest: manifest}, fmt.Errorf("unsupported bundle schema version %q (this build reads %q)", manifest.SchemaVersion, SchemaVersion)
+	}
 	expectedChecksums, ok := files[ChecksumsPath]
 	if !ok {
 		return VerifyResult{}, fmt.Errorf("bundle missing %s", ChecksumsPath)
@@ -142,10 +177,29 @@ func Verify(bundlePath string) (VerifyResult, error) {
 		ChecksumOK:       true,
 		SignaturePresent: len(files[SignaturePath]) > 0,
 	}
+	res.FreshnessAtVerify, res.Stale = EvaluateFreshness(manifest.LastUpdates, StaleAfter)
 	if res.SignaturePresent {
 		return res, fmt.Errorf("signed offline intelligence bundles are private-enterprise functionality")
 	}
 	return res, nil
+}
+
+// EvaluateFreshness re-derives fresh/stale/unknown per recorded timestamp
+// and reports whether nothing fresh remains.
+func EvaluateFreshness(lastUpdates map[string]string, staleAfter time.Duration) (map[string]string, bool) {
+	if len(lastUpdates) == 0 {
+		return nil, true
+	}
+	out := map[string]string{}
+	anyFresh := false
+	for key, raw := range lastUpdates {
+		status := freshnessStatus(raw, staleAfter)
+		out[key] = status
+		if status == "fresh" {
+			anyFresh = true
+		}
+	}
+	return out, !anyFresh
 }
 
 func Import(bundlePath, dbPath string) (VerifyResult, error) {
@@ -159,6 +213,9 @@ func Import(bundlePath, dbPath string) (VerifyResult, error) {
 	files, err := readZip(bundlePath)
 	if err != nil {
 		return res, err
+	}
+	if !bytes.HasPrefix(files[DBPathInZip], sqliteHeader) {
+		return res, fmt.Errorf("bundle database payload is not a SQLite database")
 	}
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return res, err
@@ -184,16 +241,16 @@ func buildManifest(d *db.DB) (Manifest, error) {
 	}
 	lastUpdates := map[string]string{}
 	freshness := map[string]string{}
-	for _, key := range []string{"last_update", "last_update_npm", "last_update_pypi", "last_update_go", "last_update_cargo"} {
+	for _, key := range LastUpdateKeys {
 		val, err := d.GetMetadata(ctx, key)
 		if err == nil {
 			lastUpdates[key] = val
-			freshness[key] = freshnessStatus(val, 72*time.Hour)
+			freshness[key] = freshnessStatus(val, StaleAfter)
 		}
 	}
 	return Manifest{
-		SchemaVersion:       "1.0",
-		BundleKind:          "offline-intelligence",
+		SchemaVersion:       SchemaVersion,
+		BundleKind:          BundleKind,
 		GeneratedAt:         time.Now().UTC().Format(time.RFC3339),
 		Tool:                "pkgsafe",
 		PkgSafeVersion:      versionpkg.Version,
@@ -286,19 +343,33 @@ func readZip(path string) (map[string][]byte, error) {
 		return nil, err
 	}
 	defer zr.Close()
+	if len(zr.File) > MaxBundleFiles {
+		return nil, fmt.Errorf("bundle has too many files (%d > %d)", len(zr.File), MaxBundleFiles)
+	}
 	files := map[string][]byte{}
+	var total int64
 	for _, file := range zr.File {
+		// Fast-fail on honestly-declared oversize entries, then cap the
+		// actual bytes read so extraction never trusts the declared size.
+		if int64(file.UncompressedSize64) > MaxBundleBytes-total {
+			return nil, fmt.Errorf("bundle contents exceed size limit")
+		}
 		rc, err := file.Open()
 		if err != nil {
 			return nil, err
 		}
-		b, readErr := io.ReadAll(rc)
+		remaining := MaxBundleBytes - total
+		b, readErr := io.ReadAll(io.LimitReader(rc, remaining+1))
 		closeErr := rc.Close()
 		if readErr != nil {
 			return nil, readErr
 		}
 		if closeErr != nil {
 			return nil, closeErr
+		}
+		total += int64(len(b))
+		if total > MaxBundleBytes {
+			return nil, fmt.Errorf("bundle contents exceed size limit")
 		}
 		files[file.Name] = b
 	}

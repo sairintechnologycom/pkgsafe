@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Offline intelligence bundle freshness reporting (Loop 9): `db status` and
+  `db verify-bundle` gain `--json` output; verification re-evaluates the
+  bundle's advisory sync timestamps at verify time (`freshness_at_verify`
+  plus an overall `stale` flag) instead of trusting export-time freshness,
+  and `db status` warns when local advisory data is stale.
+
+### Security
+- Offline bundle handling hardened: bundle archives are bounded by file
+  count and total bytes when read, `verify-bundle` requires the expected
+  bundle kind and a supported manifest schema version, and `import-bundle`
+  refuses database payloads that are not SQLite files.
+
 ## [1.3.0] - 2026-07-02
 
 ### Added
