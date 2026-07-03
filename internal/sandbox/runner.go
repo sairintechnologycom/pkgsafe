@@ -118,26 +118,36 @@ func prepareWorkspace(req SandboxRequest) (sandboxRoot, workspaceDir string, cle
 }
 
 // removeAllForce removes root even when a lifecycle script stripped
-// permissions from files or directories it created (for example
-// `chmod 000` on a workspace subdirectory), so teardown never leaks
-// sandbox contents onto the host.
+// permissions from directories it created (for example `chmod 000` on a
+// workspace subdirectory), so teardown never leaks sandbox contents onto
+// the host. filepath.Walk cannot descend into an unreadable directory, so
+// each pass restores permissions on the directories it can reach and the
+// loop repeats until removal succeeds or a pass makes no progress —
+// unlocking one nesting level of chmod-000 directories per pass.
 func removeAllForce(root string) error {
 	err := os.RemoveAll(root)
 	if err == nil {
 		return nil
 	}
-	_ = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
+	for i := 0; i < 256; i++ {
+		changed := false
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+			if info == nil || !info.IsDir() {
+				return nil
+			}
+			if info.Mode().Perm()&0700 != 0700 {
+				if os.Chmod(path, 0700) == nil {
+					changed = true
+				}
+			}
 			return nil
+		})
+		err = os.RemoveAll(root)
+		if err == nil || !changed {
+			return err
 		}
-		if info.IsDir() {
-			_ = os.Chmod(path, 0700)
-		} else {
-			_ = os.Chmod(path, 0600)
-		}
-		return nil
-	})
-	return os.RemoveAll(root)
+	}
+	return err
 }
 
 func (pr *ProcessRunner) RunLifecycleScript(ctx context.Context, req SandboxRequest) (*SandboxResult, error) {
