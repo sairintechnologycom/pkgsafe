@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-04
+
 ### Added
 - Isolated behavior backend (Loop 10): `--behavior isolated` is now a
   supported, CI-validated Linux backend. Lifecycle scripts execute as uid
