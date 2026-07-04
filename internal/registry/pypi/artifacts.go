@@ -13,8 +13,13 @@ import (
 	"strings"
 )
 
-const MaxExtractedFiles = 5000
-const MaxExtractedBytes = 100 * 1024 * 1024
+// Extraction budgets are sized from the top of PyPI by downloads (measured
+// 2026-07: numpy sdist 8.2k files / 64 MiB, tensorflow wheel 12.2k files /
+// 1080 MiB uncompressed, torch wheel 12.5k files) with roughly 2-3x headroom.
+// Exceeding a budget still fails closed: a package that does not fit is
+// reported unscannable, never partially scanned.
+const MaxExtractedFiles = 40000
+const MaxExtractedBytes int64 = 2 * 1024 * 1024 * 1024
 
 func VerifyArtifactHash(path string, digests map[string]string) error {
 	expected := strings.TrimSpace(digests["sha256"])
@@ -49,6 +54,10 @@ func ExtractArtifact(path, dest string) error {
 }
 
 func ExtractTarGz(path, dest string) error {
+	return extractTarGzLimits(path, dest, MaxExtractedFiles, MaxExtractedBytes)
+}
+
+func extractTarGzLimits(path, dest string, maxFiles int, maxBytes int64) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -78,8 +87,8 @@ func ExtractTarGz(path, dest string) error {
 			return fmt.Errorf("unsafe archive path %q", header.Name)
 		}
 		count++
-		if count > MaxExtractedFiles {
-			return fmt.Errorf("artifact has too many files")
+		if count > maxFiles {
+			return fmt.Errorf("artifact has too many files (%d > %d)", count, maxFiles)
 		}
 		target := filepath.Join(dest, name)
 		if !isWithinDir(dest, target) {
@@ -92,8 +101,8 @@ func ExtractTarGz(path, dest string) error {
 			}
 		case tar.TypeReg:
 			total += header.Size
-			if total > MaxExtractedBytes {
-				return fmt.Errorf("artifact extracted size exceeds limit")
+			if total > maxBytes {
+				return fmt.Errorf("artifact extracted size exceeds limit (%d MiB)", maxBytes>>20)
 			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return err
@@ -116,13 +125,17 @@ func ExtractTarGz(path, dest string) error {
 }
 
 func ExtractZip(path, dest string) error {
+	return extractZipLimits(path, dest, MaxExtractedFiles, MaxExtractedBytes)
+}
+
+func extractZipLimits(path, dest string, maxFiles int, maxBytes int64) error {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return err
 	}
 	defer zr.Close()
-	if len(zr.File) > MaxExtractedFiles {
-		return fmt.Errorf("artifact has too many files")
+	if len(zr.File) > maxFiles {
+		return fmt.Errorf("artifact has too many files (%d > %d)", len(zr.File), maxFiles)
 	}
 	var total int64
 	for _, file := range zr.File {
@@ -144,8 +157,8 @@ func ExtractZip(path, dest string) error {
 			continue
 		}
 		// Fast-fail on honestly-declared oversize files before opening them.
-		if int64(file.UncompressedSize64) > MaxExtractedBytes-total {
-			return fmt.Errorf("artifact extracted size exceeds limit")
+		if int64(file.UncompressedSize64) > maxBytes-total {
+			return fmt.Errorf("artifact extracted size exceeds limit (%d MiB)", maxBytes>>20)
 		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
@@ -165,7 +178,7 @@ func ExtractZip(path, dest string) error {
 		// We additionally cap the *actual* bytes written to the remaining budget
 		// so extraction never relies on stdlib-internal enforcement to bound how
 		// much can land on disk.
-		remaining := MaxExtractedBytes - total
+		remaining := maxBytes - total
 		written, copyErr := io.Copy(out, io.LimitReader(in, remaining+1))
 		total += written
 		closeOutErr := out.Close()
@@ -179,8 +192,8 @@ func ExtractZip(path, dest string) error {
 		if closeInErr != nil {
 			return closeInErr
 		}
-		if total > MaxExtractedBytes {
-			return fmt.Errorf("artifact extracted size exceeds limit")
+		if total > maxBytes {
+			return fmt.Errorf("artifact extracted size exceeds limit (%d MiB)", maxBytes>>20)
 		}
 	}
 	return nil

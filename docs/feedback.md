@@ -1,9 +1,9 @@
 # Feedback
 
-PkgSafe v1.0.1 feedback collection is focused on adoption, verification, and
-scanner tuning without expanding GA scope. PkgSafe v1.0.0 is npm-first GA.
-PyPI, Go, and Cargo are preview ecosystems and should be reported as preview
-gaps when they differ from npm depth.
+PkgSafe feedback collection is focused on adoption, verification, and
+scanner tuning. npm and PyPI are GA ecosystems. Go and Cargo are preview
+ecosystems and should be reported as preview gaps when they differ from GA
+depth.
 
 Do not paste secrets, tokens, private registry credentials, `.npmrc` auth
 values, proprietary source code, or unreleased package contents into public
@@ -22,7 +22,7 @@ Use these labels or issue title prefixes when reporting:
 | `scanner_crash` | Panic, non-deterministic failure, malformed output, or unexpected command exit. |
 | `performance_issue` | Slow scan, timeout, excessive network use, or large lockfile regression. |
 | `docs_issue` | Incorrect, stale, or unclear documentation. |
-| `ecosystem_preview_gap` | PyPI, Go, or Cargo behavior that is missing compared with npm GA coverage. |
+| `ecosystem_preview_gap` | Go or Cargo behavior that is missing compared with npm/PyPI GA coverage. |
 | `private_registry_issue` | Private registry routing, redaction, fallback, or authentication problems. |
 | `osv_update_issue` | OSV reachability, cache, `update-db`, or advisory database problems. |
 | `github_action_issue` | GitHub Action configuration, SARIF upload, summary, or fail-on behavior problems. |

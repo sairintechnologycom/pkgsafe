@@ -16,6 +16,16 @@ import (
 
 var DefaultRegistryURL = "https://pypi.org/pypi"
 
+// MaxDownloadBytes caps a single artifact download on disk. Sized above the
+// largest mainstream PyPI artifacts (CUDA torch wheels approach 1 GiB
+// compressed) while still bounding what a hostile registry can write.
+const MaxDownloadBytes int64 = 4 * 1024 * 1024 * 1024
+
+// downloadTimeout bounds one artifact download end to end. Metadata requests
+// keep the short per-client timeout; artifact bodies (tensorflow wheels are
+// 200+ MiB) need time proportional to size, not a 20-second budget.
+const downloadTimeout = 15 * time.Minute
+
 type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
@@ -68,7 +78,7 @@ func (c Client) DownloadArtifact(artifactURL, cacheDir string) (string, error) {
 	if st, err := os.Stat(cachePath); err == nil && st.Size() > 0 {
 		return cachePath, nil
 	}
-	resp, err := c.httpClient().Get(artifactURL)
+	resp, err := c.downloadClient().Get(artifactURL)
 	if err != nil {
 		return "", err
 	}
@@ -76,15 +86,24 @@ func (c Client) DownloadArtifact(artifactURL, cacheDir string) (string, error) {
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("artifact download returned %s", resp.Status)
 	}
+	if resp.ContentLength > MaxDownloadBytes {
+		return "", fmt.Errorf("artifact download exceeds limit (%d MiB)", MaxDownloadBytes>>20)
+	}
 	tmp := cachePath + ".tmp"
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return "", err
 	}
-	if _, err := io.Copy(f, resp.Body); err != nil {
+	written, err := io.Copy(f, io.LimitReader(resp.Body, MaxDownloadBytes+1))
+	if err != nil {
 		f.Close()
 		_ = os.Remove(tmp)
 		return "", err
+	}
+	if written > MaxDownloadBytes {
+		f.Close()
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("artifact download exceeds limit (%d MiB)", MaxDownloadBytes>>20)
 	}
 	if err := f.Close(); err != nil {
 		_ = os.Remove(tmp)
@@ -117,6 +136,15 @@ func (c Client) httpClient() *http.Client {
 		return c.HTTPClient
 	}
 	return &http.Client{Timeout: 20 * time.Second}
+}
+
+// downloadClient mirrors the configured client (transport, auth wrapping)
+// but swaps the short metadata timeout for the artifact download budget.
+func (c Client) downloadClient() *http.Client {
+	base := c.httpClient()
+	dl := *base
+	dl.Timeout = downloadTimeout
+	return &dl
 }
 
 func artifactCacheName(rawURL string) string {

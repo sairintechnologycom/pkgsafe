@@ -1110,28 +1110,37 @@ func scanBenchmarkInventory(repoPath string) ([]types.Dependency, error) {
 	if err != nil {
 		return nil, err
 	}
+	var pyDeps []pydeps.Dependency
 	for _, file := range pyFiles {
 		parsed, err := pydeps.ParseFile(file)
 		if err != nil {
 			return nil, err
 		}
-		rel, err := filepath.Rel(repoPath, file)
-		if err != nil {
-			rel = file
+		pyDeps = append(pyDeps, parsed...)
+	}
+	// Mirror the ci scan inventory: one entry per name@version across all
+	// manifests and lockfiles, manifest provenance decides direct vs
+	// transitive, and local/self lock entries are not registry packages.
+	pyDeps = pydeps.Dedupe(pyDeps)
+	for _, dep := range pyDeps {
+		if dep.Name == "" || dep.LocalSource {
+			continue
 		}
-		for _, dep := range parsed {
-			if dep.Name == "" {
-				continue
-			}
-			deps = append(deps, types.Dependency{
-				Ecosystem:      "pypi",
-				Name:           dep.Name,
-				VersionRange:   firstNonEmptyString(dep.Specifier, dep.Version),
-				SourceFile:     rel,
-				DependencyType: "production",
-				Direct:         true,
-			})
+		// Dedupe may join several source files ("a, b"), so strip the repo
+		// prefix instead of filepath.Rel.
+		src := strings.ReplaceAll(dep.SourceFile, strings.TrimSuffix(repoPath, string(filepath.Separator))+string(filepath.Separator), "")
+		depType := "production"
+		if dep.FromLockfile {
+			depType = "transitive"
 		}
+		deps = append(deps, types.Dependency{
+			Ecosystem:      "pypi",
+			Name:           dep.Name,
+			VersionRange:   firstNonEmptyString(dep.Specifier, dep.Version),
+			SourceFile:     src,
+			DependencyType: depType,
+			Direct:         !dep.FromLockfile,
+		})
 	}
 	goMod := filepath.Join(repoPath, "go.mod")
 	if b, err := os.ReadFile(goMod); err == nil {

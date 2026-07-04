@@ -2,15 +2,15 @@
 
 PkgSafe is a local-first package safety CLI for developer and AI-agent workflows. It validates open-source packages before installation using registry metadata, lifecycle-script analysis, suspicious-pattern detection, typosquat heuristics, policy scoring, and MCP-compatible JSON-RPC tools.
 
-> GA v1 scope: npm-first supply-chain guardrails for package scanning,
+> GA scope: npm and PyPI supply-chain guardrails for package scanning,
 > lockfile/CI gating, policy controls, OSV intelligence, and evidence reports.
-> PyPI, Go, and Cargo are preview coverage and are not npm-equivalent yet.
+> Go and Cargo are preview coverage and are not GA-equivalent yet.
 
 ## Install
 
-PkgSafe is a single static binary (CGo-free). PkgSafe v1.0.0 is npm-first GA:
-npm package and lockfile scanning are the production scope; PyPI, Go, and Cargo
-remain preview coverage and are not npm-equivalent yet.
+PkgSafe is a single static binary (CGo-free). npm and PyPI package and
+lockfile scanning are the GA production scope; Go and Cargo remain preview
+coverage and are not GA-equivalent yet.
 
 Install a published release:
 
@@ -178,12 +178,12 @@ CLI JSON output uses the stable scan contract:
 
 ## Capability matrix
 
-PkgSafe GA v1 is npm-first. Maturity varies by ecosystem and surface:
+PkgSafe GA covers npm and PyPI. Maturity varies by ecosystem and surface:
 
 | Ecosystem | Metadata + OSV | Lockfile parsing | Artifact/content analysis |
 |-----------|:--:|:--:|:--:|
 | **npm** | Production-ready GA v1 scope | ✅ `package-lock.json` | ✅ tarball + lifecycle heuristics |
-| **PyPI** | Preview (GA-candidate) | ✅ `requirements.txt` (incl. `--hash`), `pyproject.toml`, `poetry.lock`, `uv.lock`, `Pipfile`, `Pipfile.lock` with inventory dedup (conda is a stub) | ⚠️ wheel + sdist static analysis (RECORD, bytecode, build-backend); no behavior analysis |
+| **PyPI** | GA (pip-parity resolution, large-artifact caps, real-repo validated) | ✅ `requirements.txt` (incl. `--hash`), `pyproject.toml`, `poetry.lock`, `uv.lock`, `Pipfile`, `Pipfile.lock` with inventory dedup (conda is a stub) | ⚠️ wheel + sdist static analysis (RECORD, bytecode, build-backend); no behavior analysis |
 | **Go** | Preview | ✅ `go.mod`/`go.sum` | ❌ metadata-only |
 | **Cargo** | Preview | ✅ `Cargo.lock` | ❌ metadata-only |
 
