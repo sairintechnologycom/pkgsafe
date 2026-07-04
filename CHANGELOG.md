@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- PyPI is now GA. All three gates from `evidence/pypi/pypi-ga-readiness.md`
+  are closed (evidence: `evidence/pypi/pypi-ga-gates-closed.md`):
+  - **pip-parity version resolution:** PEP 440 parsing/ordering replaces
+    semver-with-string-fallback; default resolution picks the highest
+    stable release and selects pre-releases only when pinned explicitly or
+    when no stable release exists (httpx now resolves 0.28.1, not
+    1.0.dev3).
+  - **Large-artifact handling:** PyPI extraction budgets raised to 40,000
+    files / 2 GiB uncompressed per artifact (sized from the measured top
+    of PyPI with 2-3x headroom); artifact downloads get a 15-minute budget
+    instead of the 20-second metadata timeout plus a new 4 GiB download
+    cap. Over-budget artifacts still fail closed. numpy, scipy, and
+    tensorflow now scan end to end.
+  - **Real-repo benchmark:** six pinned real Python repos (poetry,
+    pydantic, pipenv, flask, requests, httpx) covering every supported
+    manifest/lockfile format pass 6/6 with zero false blocks
+    (`benchmarks/python-real-repos.example.json`).
+
+### Fixed
+- Benchmark real-repo Python inventory now mirrors the `ci scan` inventory
+  (dedup, local-source skip, direct vs transitive from manifest
+  provenance) instead of reporting every lockfile entry as a direct
+  dependency.
+- Artifact downloads were previously unbounded on disk; they are now
+  capped at 4 GiB and verified against Content-Length before writing.
+
 ## [1.5.0] - 2026-07-04
 
 ### Added

@@ -2,10 +2,7 @@ package pypi
 
 import (
 	"fmt"
-	"sort"
 	"strings"
-
-	"github.com/Masterminds/semver/v3"
 )
 
 func ResolveVersion(md Metadata, requested string) (VersionMetadata, error) {
@@ -70,8 +67,16 @@ func latestAny(md Metadata) string {
 	return latestMatching(md, true)
 }
 
+// latestMatching picks the version pip would install by default: the highest
+// PEP 440 stable release, falling back to pre-releases only when no stable
+// release exists, and to raw string order only when nothing parses as PEP 440.
 func latestMatching(md Metadata, allowYanked bool) string {
-	var versions []string
+	type candidate struct {
+		raw    string
+		parsed pep440Version
+		ok     bool
+	}
+	var candidates []candidate
 	for v, files := range md.Releases {
 		if len(files) == 0 {
 			continue
@@ -86,20 +91,43 @@ func latestMatching(md Metadata, allowYanked bool) string {
 		if !allowYanked && yanked {
 			continue
 		}
-		versions = append(versions, v)
+		pv, ok := parsePEP440(v)
+		candidates = append(candidates, candidate{raw: v, parsed: pv, ok: ok})
 	}
-	sort.Slice(versions, func(i, j int) bool {
-		vi, ei := semver.NewVersion(versions[i])
-		vj, ej := semver.NewVersion(versions[j])
-		if ei == nil && ej == nil {
-			return vi.GreaterThan(vj)
+	best := func(include func(candidate) bool) string {
+		var b *candidate
+		for i := range candidates {
+			c := &candidates[i]
+			if !include(*c) {
+				continue
+			}
+			if b == nil {
+				b = c
+				continue
+			}
+			cmp := comparePEP440(c.parsed, b.parsed)
+			if cmp > 0 || (cmp == 0 && c.raw > b.raw) {
+				b = c
+			}
 		}
-		return versions[i] > versions[j]
-	})
-	if len(versions) == 0 {
-		return ""
+		if b == nil {
+			return ""
+		}
+		return b.raw
 	}
-	return versions[0]
+	if v := best(func(c candidate) bool { return c.ok && !c.parsed.isPrerelease() }); v != "" {
+		return v
+	}
+	if v := best(func(c candidate) bool { return c.ok }); v != "" {
+		return v
+	}
+	var fallback string
+	for _, c := range candidates {
+		if c.raw > fallback {
+			fallback = c.raw
+		}
+	}
+	return fallback
 }
 
 func hasSuffixFold(s, suffix string) bool {

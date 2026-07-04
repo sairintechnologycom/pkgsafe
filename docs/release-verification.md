@@ -1,8 +1,8 @@
 # Release Verification
 
 Use these checks before trusting a downloaded PkgSafe release artifact.
-PkgSafe v1.0.0 is npm-first GA. PyPI, Go, and Cargo coverage remains preview
-and is not npm-equivalent yet.
+npm and PyPI are GA coverage. Go and Cargo coverage remains preview and is
+not GA-equivalent yet.
 
 ## Download Release Assets
 

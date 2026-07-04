@@ -1,0 +1,838 @@
+{
+  "generated_at": "2026-07-04T10:09:36Z",
+  "pass": true,
+  "status": "PRIVATE_BETA_ACCURACY_CANDIDATE",
+  "metrics": {
+    "packages_tested": 25,
+    "packages_passed": 25,
+    "packages_failed": 0,
+    "known_good_false_warn_rate": 0.1,
+    "known_good_false_block_rate": 0,
+    "install_script_explainability_rate": 1,
+    "critical_fixture_block_rate": 1,
+    "dependency_inventory_precision": 1,
+    "dependency_inventory_recall": 1,
+    "direct_dependency_recall": 1,
+    "transitive_dependency_recall": 1,
+    "source_import_recall": 1,
+    "average_scan_duration_ms": 722,
+    "p95_scan_duration_ms": 1406,
+    "network_failures": 0,
+    "network_unavailable": 0,
+    "registry_unavailable": 0,
+    "package_not_found": 0,
+    "scanner_failure_count": 0,
+    "expectation_mismatch_count": 0,
+    "offline_cache_hits": 0,
+    "offline_cache_misses": 0,
+    "total_runtime_ms": 18232,
+    "real_repo_validation_count": 6,
+    "repos_passed": 6,
+    "repos_failed": 0,
+    "ecosystem_count": 1,
+    "npm_repo_count": 0,
+    "pypi_repo_count": 6,
+    "go_repo_count": 0,
+    "cargo_repo_count": 0,
+    "real_repo_scan_duration_avg_ms": 29,
+    "real_repo_scan_duration_p95_ms": 35,
+    "real_repo_scan_duration_avg_us": 28687,
+    "real_repo_scan_duration_p95_us": 34566,
+    "real_repo_timing_trustworthy": true,
+    "dependency_count_direct": 152,
+    "dependency_count_transitive": 404,
+    "source_import_count": 0,
+    "false_block_count": 0,
+    "false_warn_count": 0,
+    "scanner_crash_count": 0,
+    "malformed_input_count": 0,
+    "network_failure_count": 0,
+    "json_output_generated_count": 6,
+    "sarif_output_generated_count": 0,
+    "markdown_summary_generated_count": 6,
+    "evidence_pack_generated_count": 0,
+    "output_generation_error_count": 0,
+    "evidence_pack_error_count": 0,
+    "dependency_inventory_error_count": 0,
+    "vulnerability_lookup_error_count": 0,
+    "policy_error_count": 0,
+    "osv_cache_hit_count": 556,
+    "osv_cache_miss_count": 0,
+    "behavior_mode_used": [
+      "disabled"
+    ],
+    "isolated_backend_available": false
+  },
+  "online_benchmark": {
+    "mode": "connected",
+    "status": "pass",
+    "attempted": 25,
+    "passed": 25,
+    "failed": 0,
+    "network_failures": 0,
+    "network_unavailable": 0,
+    "registry_unavailable": 0,
+    "package_not_found": 0,
+    "scanner_failure": 0,
+    "expectation_mismatch": 0
+  },
+  "results": [
+    {
+      "fixture": "small-npm-app",
+      "repo_type": "Small npm app",
+      "passed": true,
+      "runtime_ms": 0,
+      "expected_dependencies": 2,
+      "found_dependencies": 2,
+      "decision": "allow"
+    },
+    {
+      "fixture": "react-vite-app",
+      "repo_type": "React / Vite app",
+      "passed": true,
+      "runtime_ms": 0,
+      "expected_dependencies": 7,
+      "found_dependencies": 7,
+      "decision": "allow"
+    },
+    {
+      "fixture": "nextjs-app",
+      "repo_type": "Next.js app",
+      "passed": true,
+      "runtime_ms": 0,
+      "expected_dependencies": 7,
+      "found_dependencies": 7,
+      "decision": "allow"
+    },
+    {
+      "fixture": "npm-workspace-monorepo",
+      "repo_type": "npm workspace / monorepo",
+      "passed": true,
+      "runtime_ms": 0,
+      "expected_dependencies": 5,
+      "found_dependencies": 5,
+      "decision": "allow"
+    },
+    {
+      "fixture": "node-backend-api",
+      "repo_type": "Node backend API",
+      "passed": true,
+      "runtime_ms": 0,
+      "expected_dependencies": 6,
+      "found_dependencies": 9,
+      "decision": "allow"
+    },
+    {
+      "fixture": "python-app",
+      "repo_type": "Python app",
+      "passed": true,
+      "runtime_ms": 0,
+      "expected_dependencies": 3,
+      "found_dependencies": 3,
+      "decision": "allow"
+    },
+    {
+      "fixture": "mixed-js-python-repo",
+      "repo_type": "Mixed JS + Python repo",
+      "passed": true,
+      "runtime_ms": 0,
+      "expected_dependencies": 4,
+      "found_dependencies": 4,
+      "decision": "allow"
+    },
+    {
+      "fixture": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/poetry",
+      "repo_type": "python-poetry-app",
+      "passed": true,
+      "runtime_ms": 87,
+      "expected_dependencies": 0,
+      "found_dependencies": 104,
+      "details": [
+        "full validation measured: 30 direct, 74 transitive, 0 source imports, inventory=87ms/86730us ci_scan=0ms/0us output=1ms/75us evidence=0ms/0us total=87ms/86812us"
+      ]
+    },
+    {
+      "fixture": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/pydantic",
+      "repo_type": "external repo",
+      "passed": true,
+      "runtime_ms": 29,
+      "expected_dependencies": 0,
+      "found_dependencies": 196,
+      "details": [
+        "full validation measured: 8 direct, 188 transitive, 0 source imports, inventory=29ms/28347us ci_scan=0ms/0us output=1ms/22us evidence=0ms/0us total=29ms/28400us"
+      ]
+    },
+    {
+      "fixture": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/pipenv",
+      "repo_type": "external repo",
+      "passed": true,
+      "runtime_ms": 35,
+      "expected_dependencies": 0,
+      "found_dependencies": 119,
+      "details": [
+        "full validation measured: 50 direct, 69 transitive, 0 source imports, inventory=35ms/34540us ci_scan=0ms/0us output=1ms/18us evidence=0ms/0us total=35ms/34566us"
+      ]
+    },
+    {
+      "fixture": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/flask",
+      "repo_type": "external repo",
+      "passed": true,
+      "runtime_ms": 13,
+      "expected_dependencies": 0,
+      "found_dependencies": 103,
+      "details": [
+        "full validation measured: 30 direct, 73 transitive, 0 source imports, inventory=13ms/12608us ci_scan=0ms/0us output=1ms/15us evidence=0ms/0us total=13ms/12630us"
+      ]
+    },
+    {
+      "fixture": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/requests",
+      "repo_type": "external repo",
+      "passed": true,
+      "runtime_ms": 5,
+      "expected_dependencies": 0,
+      "found_dependencies": 7,
+      "details": [
+        "full validation measured: 7 direct, 0 transitive, 0 source imports, inventory=5ms/4652us ci_scan=0ms/0us output=1ms/9us evidence=0ms/0us total=5ms/4665us"
+      ]
+    },
+    {
+      "fixture": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/httpx",
+      "repo_type": "external repo",
+      "passed": true,
+      "runtime_ms": 6,
+      "expected_dependencies": 0,
+      "found_dependencies": 27,
+      "details": [
+        "full validation measured: 27 direct, 0 transitive, 0 source imports, inventory=6ms/5040us ci_scan=0ms/0us output=1ms/9us evidence=0ms/0us total=6ms/5052us"
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "ecosystem": "npm",
+      "name": "lodash",
+      "version": "4.18.1",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 1406,
+      "reasons": [
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "axios",
+      "version": "1.18.1",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 15,
+      "passed": true,
+      "duration_ms": 469,
+      "reasons": [
+        "lifecycle_script_present",
+        "new_package",
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "react",
+      "version": "19.2.7",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 634,
+      "reasons": [
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "express",
+      "version": "5.2.1",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 438,
+      "reasons": [
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "typescript",
+      "version": "6.0.3",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 954,
+      "reasons": [
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "eslint",
+      "version": "10.6.0",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 15,
+      "passed": true,
+      "duration_ms": 568,
+      "reasons": [
+        "new_package"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "prettier",
+      "version": "3.9.4",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 15,
+      "passed": true,
+      "duration_ms": 520,
+      "reasons": [
+        "new_package"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "vite",
+      "version": "8.1.3",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "warn",
+      "risk_score": 40,
+      "passed": true,
+      "duration_ms": 1794,
+      "reasons": [
+        "typosquat_candidate",
+        "new_package"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "swr",
+      "version": "2.4.2",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "warn",
+      "risk_score": 35,
+      "passed": true,
+      "duration_ms": 466,
+      "reasons": [
+        "lifecycle_script_present",
+        "new_package"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "commander",
+      "version": "15.0.0",
+      "category": "npm-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 446
+    },
+    {
+      "ecosystem": "npm",
+      "name": "esbuild",
+      "version": "0.28.1",
+      "category": "npm-install-script",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 20,
+      "passed": true,
+      "duration_ms": 474,
+      "reasons": [
+        "lifecycle_script_present"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "sharp",
+      "version": "0.35.3",
+      "category": "npm-install-script",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 15,
+      "passed": true,
+      "duration_ms": 495,
+      "reasons": [
+        "new_package"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "playwright",
+      "version": "1.61.1",
+      "category": "npm-install-script",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 15,
+      "passed": true,
+      "duration_ms": 950,
+      "reasons": [
+        "new_package"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "puppeteer",
+      "version": "25.3.0",
+      "category": "npm-install-script",
+      "expected_decision": "warn",
+      "actual_decision": "warn",
+      "risk_score": 35,
+      "passed": true,
+      "duration_ms": 735,
+      "reasons": [
+        "lifecycle_script_present",
+        "new_package"
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "node-sass",
+      "version": "9.0.0",
+      "category": "npm-install-script",
+      "expected_decision": "warn",
+      "actual_decision": "warn",
+      "risk_score": 40,
+      "passed": true,
+      "duration_ms": 757,
+      "reasons": [
+        "lifecycle_script_present",
+        "lifecycle_script_present"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "requests",
+      "version": "2.34.2",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 490,
+      "reasons": [
+        "pypi_setup_py_present",
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "fastapi",
+      "version": "0.139.0",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 754,
+      "reasons": [
+        "missing_license",
+        "new_package",
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "flask",
+      "version": "3.1.3",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 466,
+      "reasons": [
+        "missing_license",
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "click",
+      "version": "8.4.2",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 20,
+      "passed": true,
+      "duration_ms": 520,
+      "reasons": [
+        "missing_license",
+        "new_package"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "pydantic",
+      "version": "2.13.4",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 680,
+      "reasons": [
+        "missing_license",
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "pytest",
+      "version": "9.1.1",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "passed": true,
+      "duration_ms": 707,
+      "reasons": [
+        "missing_license",
+        "new_package",
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "urllib3",
+      "version": "2.7.0",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 5,
+      "passed": true,
+      "duration_ms": 512,
+      "reasons": [
+        "missing_license"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "pandas",
+      "version": "3.0.3",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 10,
+      "passed": true,
+      "duration_ms": 1938,
+      "reasons": [
+        "missing_repository",
+        "pypi_native_extension",
+        "trusted_package_reduction"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "certifi",
+      "version": "2026.6.17",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 15,
+      "passed": true,
+      "duration_ms": 393,
+      "reasons": [
+        "pypi_setup_py_present"
+      ]
+    },
+    {
+      "ecosystem": "pypi",
+      "name": "idna",
+      "version": "3.18",
+      "category": "pypi-known-good",
+      "expected_decision": "allow",
+      "actual_decision": "allow",
+      "risk_score": 5,
+      "passed": true,
+      "duration_ms": 496,
+      "reasons": [
+        "missing_license"
+      ]
+    }
+  ],
+  "repo_validations": [
+    {
+      "name": "poetry (python-poetry/poetry@f467023)",
+      "path": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/poetry",
+      "ecosystems": [
+        "pypi"
+      ],
+      "repo_type": "python-poetry-app",
+      "expected_package_manager": "poetry",
+      "ga_required": true,
+      "scan_completed": true,
+      "direct_dependencies": 30,
+      "transitive_dependencies": 74,
+      "total_dependencies": 104,
+      "source_import_count": 0,
+      "scan_duration_ms": 87,
+      "inventory_duration_ms": 87,
+      "ci_scan_duration_ms": 0,
+      "output_generation_duration_ms": 1,
+      "evidence_pack_duration_ms": 0,
+      "scan_duration_us": 86812,
+      "inventory_duration_us": 86730,
+      "output_generation_duration_us": 75,
+      "findings_count": 0,
+      "allow_count": 0,
+      "warn_count": 0,
+      "block_count": 0,
+      "false_warn": false,
+      "false_block": false,
+      "scanner_crash": false,
+      "malformed_input": false,
+      "network_failure": false,
+      "osv_cache_hits": 104,
+      "osv_cache_misses": 0,
+      "json_output_generated": true,
+      "sarif_output_generated": false,
+      "markdown_summary_generated": true,
+      "evidence_pack_generated": false,
+      "behavior_mode_used": "disabled",
+      "isolated_backend_available": false,
+      "status": "pass",
+      "passed": true,
+      "notes": "real repo: poetry.lock + pyproject",
+      "details": [
+        "full validation measured: 30 direct, 74 transitive, 0 source imports, inventory=87ms/86730us ci_scan=0ms/0us output=1ms/75us evidence=0ms/0us total=87ms/86812us"
+      ]
+    },
+    {
+      "name": "pydantic (pydantic/pydantic@c9688f4)",
+      "path": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/pydantic",
+      "ecosystems": [
+        "pypi"
+      ],
+      "repo_type": "external repo",
+      "ga_required": true,
+      "scan_completed": true,
+      "direct_dependencies": 8,
+      "transitive_dependencies": 188,
+      "total_dependencies": 196,
+      "source_import_count": 0,
+      "scan_duration_ms": 29,
+      "inventory_duration_ms": 29,
+      "ci_scan_duration_ms": 0,
+      "output_generation_duration_ms": 1,
+      "evidence_pack_duration_ms": 0,
+      "scan_duration_us": 28400,
+      "inventory_duration_us": 28347,
+      "output_generation_duration_us": 22,
+      "findings_count": 0,
+      "allow_count": 0,
+      "warn_count": 0,
+      "block_count": 0,
+      "false_warn": false,
+      "false_block": false,
+      "scanner_crash": false,
+      "malformed_input": false,
+      "network_failure": false,
+      "osv_cache_hits": 196,
+      "osv_cache_misses": 0,
+      "json_output_generated": true,
+      "sarif_output_generated": false,
+      "markdown_summary_generated": true,
+      "evidence_pack_generated": false,
+      "behavior_mode_used": "disabled",
+      "isolated_backend_available": false,
+      "status": "pass",
+      "passed": true,
+      "notes": "real repo: uv.lock + pyproject",
+      "details": [
+        "full validation measured: 8 direct, 188 transitive, 0 source imports, inventory=29ms/28347us ci_scan=0ms/0us output=1ms/22us evidence=0ms/0us total=29ms/28400us"
+      ]
+    },
+    {
+      "name": "pipenv (pypa/pipenv@fbce7b4)",
+      "path": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/pipenv",
+      "ecosystems": [
+        "pypi"
+      ],
+      "repo_type": "external repo",
+      "ga_required": true,
+      "scan_completed": true,
+      "direct_dependencies": 50,
+      "transitive_dependencies": 69,
+      "total_dependencies": 119,
+      "source_import_count": 0,
+      "scan_duration_ms": 35,
+      "inventory_duration_ms": 35,
+      "ci_scan_duration_ms": 0,
+      "output_generation_duration_ms": 1,
+      "evidence_pack_duration_ms": 0,
+      "scan_duration_us": 34566,
+      "inventory_duration_us": 34540,
+      "output_generation_duration_us": 18,
+      "findings_count": 0,
+      "allow_count": 0,
+      "warn_count": 0,
+      "block_count": 0,
+      "false_warn": false,
+      "false_block": false,
+      "scanner_crash": false,
+      "malformed_input": false,
+      "network_failure": false,
+      "osv_cache_hits": 119,
+      "osv_cache_misses": 0,
+      "json_output_generated": true,
+      "sarif_output_generated": false,
+      "markdown_summary_generated": true,
+      "evidence_pack_generated": false,
+      "behavior_mode_used": "disabled",
+      "isolated_backend_available": false,
+      "status": "pass",
+      "passed": true,
+      "notes": "real repo: Pipfile + Pipfile.lock",
+      "details": [
+        "full validation measured: 50 direct, 69 transitive, 0 source imports, inventory=35ms/34540us ci_scan=0ms/0us output=1ms/18us evidence=0ms/0us total=35ms/34566us"
+      ]
+    },
+    {
+      "name": "flask (pallets/flask@36e4a82)",
+      "path": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/flask",
+      "ecosystems": [
+        "pypi"
+      ],
+      "repo_type": "external repo",
+      "ga_required": true,
+      "scan_completed": true,
+      "direct_dependencies": 30,
+      "transitive_dependencies": 73,
+      "total_dependencies": 103,
+      "source_import_count": 0,
+      "scan_duration_ms": 13,
+      "inventory_duration_ms": 13,
+      "ci_scan_duration_ms": 0,
+      "output_generation_duration_ms": 1,
+      "evidence_pack_duration_ms": 0,
+      "scan_duration_us": 12630,
+      "inventory_duration_us": 12608,
+      "output_generation_duration_us": 15,
+      "findings_count": 0,
+      "allow_count": 0,
+      "warn_count": 0,
+      "block_count": 0,
+      "false_warn": false,
+      "false_block": false,
+      "scanner_crash": false,
+      "malformed_input": false,
+      "network_failure": false,
+      "osv_cache_hits": 103,
+      "osv_cache_misses": 0,
+      "json_output_generated": true,
+      "sarif_output_generated": false,
+      "markdown_summary_generated": true,
+      "evidence_pack_generated": false,
+      "behavior_mode_used": "disabled",
+      "isolated_backend_available": false,
+      "status": "pass",
+      "passed": true,
+      "notes": "real repo: uv.lock + pyproject",
+      "details": [
+        "full validation measured: 30 direct, 73 transitive, 0 source imports, inventory=13ms/12608us ci_scan=0ms/0us output=1ms/15us evidence=0ms/0us total=13ms/12630us"
+      ]
+    },
+    {
+      "name": "requests (psf/requests@23953c0)",
+      "path": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/requests",
+      "ecosystems": [
+        "pypi"
+      ],
+      "repo_type": "external repo",
+      "ga_required": true,
+      "scan_completed": true,
+      "direct_dependencies": 7,
+      "transitive_dependencies": 0,
+      "total_dependencies": 7,
+      "source_import_count": 0,
+      "scan_duration_ms": 5,
+      "inventory_duration_ms": 5,
+      "ci_scan_duration_ms": 0,
+      "output_generation_duration_ms": 1,
+      "evidence_pack_duration_ms": 0,
+      "scan_duration_us": 4665,
+      "inventory_duration_us": 4652,
+      "output_generation_duration_us": 9,
+      "findings_count": 0,
+      "allow_count": 0,
+      "warn_count": 0,
+      "block_count": 0,
+      "false_warn": false,
+      "false_block": false,
+      "scanner_crash": false,
+      "malformed_input": false,
+      "network_failure": false,
+      "osv_cache_hits": 7,
+      "osv_cache_misses": 0,
+      "json_output_generated": true,
+      "sarif_output_generated": false,
+      "markdown_summary_generated": true,
+      "evidence_pack_generated": false,
+      "behavior_mode_used": "disabled",
+      "isolated_backend_available": false,
+      "status": "pass",
+      "passed": true,
+      "notes": "real repo: setup.py + requirements-dev.txt",
+      "details": [
+        "full validation measured: 7 direct, 0 transitive, 0 source imports, inventory=5ms/4652us ci_scan=0ms/0us output=1ms/9us evidence=0ms/0us total=5ms/4665us"
+      ]
+    },
+    {
+      "name": "httpx (encode/httpx@b5addb6)",
+      "path": "/private/tmp/claude-501/-Users-bhushan-Documents-Projects-pkgsafe/f1ff3c7d-adce-4f0e-83f0-dcf552931c45/scratchpad/pyrepos/httpx",
+      "ecosystems": [
+        "pypi"
+      ],
+      "repo_type": "external repo",
+      "ga_required": true,
+      "scan_completed": true,
+      "direct_dependencies": 27,
+      "transitive_dependencies": 0,
+      "total_dependencies": 27,
+      "source_import_count": 0,
+      "scan_duration_ms": 6,
+      "inventory_duration_ms": 6,
+      "ci_scan_duration_ms": 0,
+      "output_generation_duration_ms": 1,
+      "evidence_pack_duration_ms": 0,
+      "scan_duration_us": 5052,
+      "inventory_duration_us": 5040,
+      "output_generation_duration_us": 9,
+      "findings_count": 0,
+      "allow_count": 0,
+      "warn_count": 0,
+      "block_count": 0,
+      "false_warn": false,
+      "false_block": false,
+      "scanner_crash": false,
+      "malformed_input": false,
+      "network_failure": false,
+      "osv_cache_hits": 27,
+      "osv_cache_misses": 0,
+      "json_output_generated": true,
+      "sarif_output_generated": false,
+      "markdown_summary_generated": true,
+      "evidence_pack_generated": false,
+      "behavior_mode_used": "disabled",
+      "isolated_backend_available": false,
+      "status": "pass",
+      "passed": true,
+      "notes": "real repo: requirements.txt + pyproject",
+      "details": [
+        "full validation measured: 27 direct, 0 transitive, 0 source imports, inventory=6ms/5040us ci_scan=0ms/0us output=1ms/9us evidence=0ms/0us total=6ms/5052us"
+      ]
+    }
+  ]
+}

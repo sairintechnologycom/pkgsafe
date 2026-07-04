@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -159,7 +160,7 @@ func createTarGzBytes(files map[string][]byte, symlinks map[string]string, hardl
 		hdr := &tar.Header{
 			Name:     "bomb.txt",
 			Mode:     0600,
-			Size:     101 * 1024 * 1024, // 101 MB (exceeds limit)
+			Size:     rpypi.MaxExtractedBytes + 1<<20, // exceeds every ecosystem's byte budget
 			Typeflag: tar.TypeReg,
 		}
 		if err := tw.WriteHeader(hdr); err != nil {
@@ -205,27 +206,35 @@ func createZipBytes(files map[string][]byte, symlinks map[string]string, writeLa
 	}
 
 	if writeLargeHeader {
-		// zip.Writer recomputes UncompressedSize64 from the bytes actually written
-		// on Close, so a manually-inflated header is reset to the real size. To
-		// produce a genuine bomb we write real over-limit content; it compresses to
-		// a few KB on disk but reports its true 101 MB uncompressed size, which the
-		// extractor's budget check rejects before writing anything.
 		f, err := zw.Create("bomb.txt")
 		if err != nil {
 			return nil, err
 		}
-		chunk := bytes.Repeat([]byte("A"), 1024*1024) // 1 MB
-		for i := 0; i < 101; i++ {                    // 101 MB total (exceeds limit)
-			if _, err := f.Write(chunk); err != nil {
-				return nil, err
-			}
+		if _, err := f.Write([]byte("tiny")); err != nil {
+			return nil, err
 		}
 	}
 
 	if err := zw.Close(); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	raw := buf.Bytes()
+	if writeLargeHeader {
+		// zip.Writer recomputes UncompressedSize64 from the bytes actually
+		// written on Close, and streaming budget-plus bytes through the
+		// compressor just to overstate a size is wasteful now that the PyPI
+		// budget is 2 GiB. Instead forge the central-directory uncompressed
+		// size upward after the fact — exactly the lying-header shape a real
+		// bomb uses — so the extractor's declared-size fast-fail must reject
+		// it before writing anything.
+		idx := bytes.Index(raw, []byte{0x50, 0x4b, 0x01, 0x02}) // central dir header
+		if idx < 0 {
+			return nil, fmt.Errorf("central directory header not found")
+		}
+		declared := uint32(rpypi.MaxExtractedBytes + 1<<20) // exceeds budget, fits uint32
+		binary.LittleEndian.PutUint32(raw[idx+24:idx+28], declared)
+	}
+	return raw, nil
 }
 
 func runExtractionHardeningTests() int {
@@ -331,10 +340,10 @@ func runExtractionHardeningTests() int {
 		fmt.Fprintln(os.Stderr, "DEBUG: PyPI hardlink accepted!")
 		failures++
 	}
-	// tar bomb file count limit
-	// Create more than 5000 file entries
+	// tar bomb file count limit: exceed the largest ecosystem cap (PyPI's)
+	// so the same fixture trips both the npm and PyPI extractors.
 	countFiles := make(map[string][]byte)
-	for i := 0; i < 5002; i++ {
+	for i := 0; i < rpypi.MaxExtractedFiles+2; i++ {
 		countFiles[fmt.Sprintf("file-%d.txt", i)] = []byte{}
 	}
 	cntTar, _ := createTarGzBytes(countFiles, nil, nil, false)
