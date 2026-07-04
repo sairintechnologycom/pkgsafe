@@ -362,6 +362,31 @@ func TestRunLifecycleScript(t *testing.T) {
 	})
 }
 
+func TestRemoveAllForceHandlesHostilePermissions(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "sandbox-root")
+	inner := filepath.Join(root, "workspace", "locked", "nested")
+	if err := os.MkdirAll(inner, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(inner, "f"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Strip permissions bottom-up so both levels end up unreadable.
+	if err := os.Chmod(inner, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(root, "workspace", "locked"), 0); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := removeAllForce(root); err != nil {
+		t.Fatalf("removeAllForce failed: %v", err)
+	}
+	if _, err := os.Stat(root); !os.IsNotExist(err) {
+		t.Fatalf("expected %s to be removed, stat err=%v", root, err)
+	}
+}
+
 func TestSelectRunnerForIsolatedModeDoesNotFallbackToHeuristic(t *testing.T) {
 	selection := SelectRunner(context.Background(), types.BehaviorIsolated)
 	if selection.Meta.Name == "fake-home-process" {

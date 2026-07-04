@@ -10,7 +10,7 @@ Core controls:
 - `trusted_packages`: reputation reduction for known packages
 - `blocked_packages`: explicit package deny lists
 - `rules`: scoring and severity for static, behavioral, registry, and vulnerability findings
-- `sandbox.behavior_mode`: legacy policy key for behavior analysis mode: `disabled`, `heuristic`, or `isolated`; `heuristic` is non-isolated host execution, and `isolated` is experimental, Linux-only, and requires bubblewrap
+- `sandbox.behavior_mode`: legacy policy key for behavior analysis mode: `disabled`, `heuristic`, or `isolated`; `heuristic` is non-isolated host execution, and `isolated` is Linux-only, requires bubblewrap with unprivileged user namespaces, and enforces namespace isolation with network disabled by default
 - `ci`: default `fail-on`, `changed-only`, SARIF upload, and PR comment behavior
 - `registries`: private npm/PyPI registry routing and public fallback controls
 

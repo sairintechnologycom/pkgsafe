@@ -206,9 +206,13 @@ with `pkgsafe db export-bundle`, `pkgsafe db verify-bundle`, and
 **Behavior analysis is disabled by default and must be requested explicitly.**
 Use `--behavior heuristic` only in disposable environments: it runs lifecycle
 scripts on the host **without OS isolation**; detection is pattern/canary based
-and `network_mode` is not enforced. `--behavior isolated` is reserved for a real
-isolation backend and reports unavailable until that backend exists. Do not call
-heuristic mode sandboxing or containment.
+and `network_mode` is not enforced. `--behavior isolated` runs lifecycle
+scripts inside Linux user/mount/pid/ipc/uts/network namespaces via bubblewrap
+with **network disabled by default (enforced)**; it requires `bwrap` and
+unprivileged user namespaces, reports unavailable otherwise, and never falls
+back to host execution. Isolation reduces host exposure but shares the host
+kernel. Do not call heuristic mode sandboxing or containment. See
+[docs/behavior-analysis.md](docs/behavior-analysis.md).
 
 **Real repo validation gates GA.** Use
 `pkgsafe test benchmark --repo-list benchmarks/real-repos.json --json` and

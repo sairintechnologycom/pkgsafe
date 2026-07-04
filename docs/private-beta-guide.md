@@ -8,7 +8,7 @@ PkgSafe private beta is strongest for npm dependency scanning, OSV vulnerability
 - PyPI, Go, and Cargo support are available for early validation, but they are not npm-equivalent yet.
 - Behavior analysis defaults to `disabled`.
 - `heuristic` behavior mode runs lifecycle scripts on the host and is not containment.
-- `isolated` behavior mode is experimental, Linux-only, and reports unavailable unless bubblewrap isolation is available.
+- `isolated` behavior mode is Linux-only and reports unavailable unless bubblewrap user-namespace isolation is available; network is disabled by default and enforced.
 
 ## Real Repo Validation
 
