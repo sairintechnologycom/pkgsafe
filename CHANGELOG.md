@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-04
+
 ### Added
 - PyPI is now GA. All three gates from `evidence/pypi/pypi-ga-readiness.md`
   are closed (evidence: `evidence/pypi/pypi-ga-gates-closed.md`):
