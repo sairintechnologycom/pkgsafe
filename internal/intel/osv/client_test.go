@@ -26,7 +26,7 @@ func TestQueryRetriesThenSucceeds(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"vulns":[{"id":"GHSA-xxxx"}]}`))
+		_, _ = w.Write([]byte(`{"vulns":[{"id":"GHSA-xxxx"}]}`))
 	}))
 	defer srv.Close()
 

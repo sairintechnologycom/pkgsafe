@@ -47,7 +47,7 @@ func TestUpdateDBAndStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/npm/all.zip" {
 			w.Header().Set("Content-Type", "application/zip")
-			w.Write(zipBytes)
+			_, _ = w.Write(zipBytes)
 			return
 		}
 		http.Error(w, "not found", http.StatusNotFound)

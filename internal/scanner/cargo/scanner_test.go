@@ -154,7 +154,7 @@ func TestScanPackageOnline(t *testing.T) {
 	cratesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/api/v1/crates/serde/1.0.0") {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"version": {"num":"1.0.0","created_at":"2026-06-25T10:00:00Z","yanked":false}}`))
+			_, _ = w.Write([]byte(`{"version": {"num":"1.0.0","created_at":"2026-06-25T10:00:00Z","yanked":false}}`))
 			return
 		}
 		http.Error(w, "not found", http.StatusNotFound)
@@ -164,7 +164,7 @@ func TestScanPackageOnline(t *testing.T) {
 	// Mock OSV server
 	osvSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"vulns": []}`))
+		_, _ = w.Write([]byte(`{"vulns": []}`))
 	}))
 	defer osvSrv.Close()
 
@@ -206,7 +206,7 @@ func TestScanPackageOnlineOSVFailClosed(t *testing.T) {
 	cratesSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/api/v1/crates/serde/1.0.0") {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"version": {"num":"1.0.0","created_at":"2026-06-25T10:00:00Z","yanked":false}}`))
+			_, _ = w.Write([]byte(`{"version": {"num":"1.0.0","created_at":"2026-06-25T10:00:00Z","yanked":false}}`))
 			return
 		}
 		http.Error(w, "not found", http.StatusNotFound)

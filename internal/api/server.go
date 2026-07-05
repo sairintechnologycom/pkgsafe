@@ -386,10 +386,7 @@ func Serve(cfg Config) error {
 	if bind == "" {
 		bind = "127.0.0.1"
 	}
-	port := cfg.Port
-	if strings.HasPrefix(port, ":") {
-		port = port[1:]
-	}
+	port := strings.TrimPrefix(cfg.Port, ":")
 
 	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
 

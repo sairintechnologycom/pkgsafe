@@ -7,10 +7,10 @@ not GA-equivalent yet.
 ## Download Release Assets
 
 Pick the archive for your platform and download it with the release integrity
-files. This Linux amd64 example pins v1.0.0:
+files. This Linux amd64 example pins v1.6.0:
 
 ```bash
-VERSION=1.0.0
+VERSION=1.6.0
 OS=linux
 ARCH=amd64
 ARCHIVE="pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -90,10 +90,10 @@ After extracting the archive, confirm the binary reports the expected version:
 ./pkgsafe version
 ```
 
-A v1.0.0 release build reports:
+A v1.6.0 release build reports:
 
 ```text
-pkgsafe v1.0.0 (<commit>)
+pkgsafe v1.6.0 (<commit>)
 ```
 
 Local development builds may report a `-dev` version or `none` commit instead.

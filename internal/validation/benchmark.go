@@ -1865,23 +1865,6 @@ func loadRepoExpectation(repoPath string) (RealRepoSpec, bool) {
 	return exp, true
 }
 
-func legacyRepoSpec(repoPath string) RealRepoSpec {
-	if exp, ok := loadRepoExpectation(repoPath); ok {
-		return exp
-	}
-	return RealRepoSpec{
-		Name:                 filepath.Base(repoPath),
-		Path:                 repoPath,
-		RepoType:             "external repo",
-		ExpectedNoFalseBlock: true,
-		BehaviorMode:         string(types.BehaviorDisabled),
-	}
-}
-
-func validateLegacyRealRepo(repoPath string, deps []types.Dependency, scanDurationMs int64) RepoValidation {
-	return validateRealRepo(legacyRepoSpec(repoPath), deps, scanDurationMs, false)
-}
-
 func findBenchmarkDep(expected benchmarkExpectedDep, actual []types.Dependency, consumed []bool) int {
 	for i, dep := range actual {
 		if consumed[i] || dep.Name == "" {
