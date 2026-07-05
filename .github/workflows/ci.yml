@@ -70,6 +70,11 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.8
+          # Build the linter from source with the runner's Go toolchain. The
+          # prebuilt v1.64.8 binary is compiled with Go 1.24 and refuses to run
+          # against a go.mod that targets Go 1.25 ("language version used to
+          # build golangci-lint is lower than the targeted Go version").
+          install-mode: goinstall
           args: --timeout 5m
 
   isolated-behavior-e2e:
