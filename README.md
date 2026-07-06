@@ -1,10 +1,61 @@
 # PkgSafe
 
-PkgSafe is a local-first package safety CLI for developer and AI-agent workflows. It validates open-source packages before installation using registry metadata, lifecycle-script analysis, suspicious-pattern detection, typosquat heuristics, policy scoring, and MCP-compatible JSON-RPC tools.
+**A supply-chain firewall for AI coding agents — and the developers who run them.**
+
+Coding agents now run `npm install` and `pip install` on their own, and
+"slopsquatting" (an LLM hallucinating a package name an attacker has already
+registered) is a real attack. PkgSafe checks a package *before* it is installed
+— against OSV advisories, lifecycle-script analysis, typosquat heuristics, and
+your policy — and returns a clear **allow / warn / block** decision. It runs
+locally and speaks **MCP**, so your agent has to ask PkgSafe first.
 
 > GA scope: npm and PyPI supply-chain guardrails for package scanning,
 > lockfile/CI gating, policy controls, OSV intelligence, and evidence reports.
 > Go and Cargo are preview coverage and are not GA-equivalent yet.
+
+## Quick start
+
+Install — single static binary, CGo-free, no runtime dependencies:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sairintechnologycom/pkgsafe/main/scripts/install-remote.sh | bash
+```
+
+The installer downloads the signed release for your OS/arch and verifies its
+SHA-256 checksum. Prefer to install by hand or with full signature
+verification? See [Install](#install) below.
+
+Scan a package before you install it:
+
+```bash
+pkgsafe scan-npm-package axios
+```
+
+Catch a package that runs a suspicious install hook:
+
+```text
+$ pkgsafe scan-local-npm ./testdata/npm/postinstall-curl --mode block
+Decision: BLOCK
+Package: npm/postinstall-curl-example@1.0.0
+Risk Score: 65/100
+Reasons:
+- [medium +20] lifecycle_script_present: Package defines a postinstall script
+- [high +30]   network_command_in_lifecycle: Lifecycle script uses curl
+Recommended Action: Do not install this package.
+```
+
+Guard an AI agent — add PkgSafe as an MCP server in Claude Code or Cursor:
+
+```json
+{
+  "mcpServers": {
+    "pkgsafe": { "command": "pkgsafe", "args": ["mcp", "serve"] }
+  }
+}
+```
+
+The agent must now call `validate_package_install` before installing anything:
+`BLOCK` means never install, `WARN` means ask a human first.
 
 ## Install
 
@@ -143,11 +194,22 @@ Start the MCP-compatible stdio server:
 pkgsafe mcp serve
 ```
 
-Example JSON-RPC request:
+PkgSafe speaks standard MCP: `initialize`, then `tools/list` to discover
+tools, then `tools/call` to invoke one. The package-safety tools are exposed
+via `tools/call` (not as top-level JSON-RPC methods).
+
+Example: ask PkgSafe whether an AI agent should install a package:
 
 ```json
-{"jsonrpc":"2.0","id":1,"method":"validate_package_install","params":{"ecosystem":"npm","name":"axios"}}
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"validate_package_install","arguments":{"ecosystem":"npm","name":"axios","requested_by":"ai_agent"}}}
 ```
+
+Available MCP tools include `validate_package_install`,
+`validate_install_command` (validate a full `npm install …` / `pip install …`
+string), `suggest_safe_alternative` (for risky, unknown, or hallucinated
+package names), `explain_package_risk`, `score_lockfile`, and governance/audit
+reports. Run `tools/list` for the full, self-describing schema.
 
 CLI JSON output uses the stable scan contract:
 
