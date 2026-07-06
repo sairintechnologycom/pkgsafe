@@ -33,7 +33,7 @@ locally and speaks **MCP**, so your agent has to ask PkgSafe first.
 Install — single static binary, CGo-free, no runtime dependencies:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sairintechnologycom/pkgsafe/main/scripts/install-remote.sh | bash
+curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash
 ```
 
 The installer downloads the signed release for your OS/arch and verifies its
@@ -71,10 +71,10 @@ coverage and are not GA-equivalent yet.
 **Quickest** — the install script (verifies the SHA-256 checksum for you):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sairintechnologycom/pkgsafe/main/scripts/install-remote.sh | bash
+curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash
 # pin a version or install dir:
 PKGSAFE_VERSION=1.6.0 PKGSAFE_BIN_DIR="$HOME/.local/bin" \
-  bash -c 'curl -fsSL https://raw.githubusercontent.com/sairintechnologycom/pkgsafe/main/scripts/install-remote.sh | bash'
+  bash -c 'curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash'
 ```
 
 **Manual** — download a published release archive:

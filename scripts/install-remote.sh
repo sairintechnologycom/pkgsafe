@@ -42,13 +42,18 @@ case "$arch" in
 esac
 
 # --- resolve version ---
+# Resolve "latest" via the github.com redirect rather than api.github.com:
+# the API is rate-limited to 60 requests/hour per IP for unauthenticated
+# callers, which is easily exhausted behind shared/CGNAT IPs during a launch.
 version="${PKGSAFE_VERSION:-}"
 if [ -z "$version" ]; then
   info "resolving latest release ..."
-  version="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' | head -1 \
-    | sed -E 's/.*"tag_name":[[:space:]]*"v?([^"]+)".*/\1/')"
-  [ -n "$version" ] || err "could not resolve latest version; set PKGSAFE_VERSION explicitly"
+  loc="$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+    "https://github.com/${REPO}/releases/latest")" \
+    || err "could not reach GitHub to resolve the latest release; set PKGSAFE_VERSION explicitly"
+  version="${loc##*/tag/}"
+  [ -n "$version" ] && [ "$version" != "$loc" ] \
+    || err "could not parse latest version from '$loc'; set PKGSAFE_VERSION explicitly"
 fi
 version="${version#v}"
 
