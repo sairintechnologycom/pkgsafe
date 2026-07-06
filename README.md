@@ -9,6 +9,8 @@ registered) is a real attack. PkgSafe checks a package *before* it is installed
 your policy — and returns a clear **allow / warn / block** decision. It runs
 locally and speaks **MCP**, so your agent has to ask PkgSafe first.
 
+![PkgSafe warns on a typosquat and blocks a package that reads your AWS credentials](demo/pkgsafe-demo.gif)
+
 > GA scope: npm and PyPI supply-chain guardrails for package scanning,
 > lockfile/CI gating, policy controls, OSV intelligence, and evidence reports.
 > Go and Cargo are preview coverage and are not GA-equivalent yet.
