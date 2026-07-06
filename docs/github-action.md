@@ -234,7 +234,7 @@ jobs:
 
       - name: Install PkgSafe
         run: |
-          curl -sSL https://raw.githubusercontent.com/sairintechnologycom/pkgsafe/main/scripts/install.sh | sh
+          curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash
 
       - name: Warm vulnerability database
         run: |

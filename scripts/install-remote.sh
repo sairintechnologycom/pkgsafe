@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# PkgSafe remote installer.
+# PkgSafe remote installer. Published as the "install.sh" release asset.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/sairintechnologycom/pkgsafe/main/scripts/install-remote.sh | bash
+#   curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash
 #
 # Environment overrides:
 #   PKGSAFE_VERSION   pin a specific version, e.g. 1.6.0 (default: latest release)

@@ -28,7 +28,7 @@ One or two sentences on what this release is and who it is for.
 Download the archive for your platform from the assets below, or:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/sairintechnologycom/pkgsafe/<VERSION>/scripts/install.sh | sh
+curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash
 pkgsafe version   # should print pkgsafe <VERSION> (<commit>)
 ```
 

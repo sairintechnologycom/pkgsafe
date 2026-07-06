@@ -67,6 +67,12 @@ signs:
 release:
   draft: true
   prerelease: auto
+  # Attach the remote install script to every release as install.sh so
+  # https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh
+  # always resolves (served by the release CDN, no raw/API rate limits).
+  extra_files:
+    - glob: ./scripts/install-remote.sh
+      name_template: install.sh
 
 changelog:
   use: github

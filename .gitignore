@@ -3,3 +3,6 @@ dist/
 *.db
 .pkgsafe/
 pkgsafe-team-evidence.zip
+
+# Internal launch/marketing copy — kept local, not published
+docs/launch-kit.md
