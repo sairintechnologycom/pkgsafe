@@ -143,11 +143,3 @@ func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor Pac
 
 	return nil
 }
-
-func loadPolicy(path, mode string) (policy.Policy, error) {
-	pol, err := policy.Load(path)
-	if err != nil {
-		return policy.Policy{}, err
-	}
-	return policy.ApplyMode(pol, mode)
-}

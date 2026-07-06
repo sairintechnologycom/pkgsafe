@@ -678,9 +678,5 @@ func runInstallEnforcementTests() bool {
 	os.Setenv("PKGSAFE_REQUESTED_BY", "ai_agent")
 	defer os.Unsetenv("PKGSAFE_REQUESTED_BY")
 	proceedAI, _, _ := intercept.CanProceed(nil, types.DecisionWarn, sfYes, pol)
-	if proceedAI {
-		return false
-	}
-
-	return true
+	return !proceedAI
 }

@@ -30,14 +30,10 @@ type AuditEntry struct {
 }
 
 func LogAudit(pol policy.Policy, entry AuditEntry) error {
-	// Check if audit logging is enabled by policy
-	// For backward compatibility, default to true if not specified
-	enabled := true
 	logPath := "~/.pkgsafe/audit.log"
 
-	// If policy has install_interception settings, check them
-	// We'll read these from pol.InstallInterception.AuditLogEnabled/Path
-	enabled = pol.InstallInterception.AuditLogEnabled
+	// Read audit-logging settings from policy.
+	enabled := pol.InstallInterception.AuditLogEnabled
 	if pol.InstallInterception.AuditLogPath != "" {
 		logPath = pol.InstallInterception.AuditLogPath
 	}

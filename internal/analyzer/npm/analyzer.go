@@ -122,10 +122,6 @@ func AnalyzePackageJSON(b []byte, pol policy.Policy) (types.ScanResult, error) {
 	return risk.Evaluate(pkg, dedupeReasons(findings), unique(lifecycle), unique(suspicious), alts, pol), nil
 }
 
-func containsFold(haystack, needle string) bool {
-	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
-}
-
 func matchAny(rawLower, normalized, pattern string) bool {
 	pat := strings.ToLower(pattern)
 	return strings.Contains(rawLower, pat) || strings.Contains(normalized, pat)

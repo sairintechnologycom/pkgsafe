@@ -226,7 +226,7 @@ func extractNameFromPath(path string) string {
 
 func parseLockfileV1Deps(deps map[string]packageLockDependency, parentPath string, directMap map[string]string, sourceFile string, out *[]types.Dependency) {
 	for name, dep := range deps {
-		pkgPath := name
+		var pkgPath string
 		if parentPath != "" {
 			pkgPath = parentPath + "/node_modules/" + name
 		} else {
@@ -312,7 +312,7 @@ func extractCallArguments(content string) []string {
 		rIdx := strings.Index(content[idx:], "require(")
 		iIdx := strings.Index(content[idx:], "import(")
 
-		target := -1
+		var target int
 		if rIdx != -1 && iIdx != -1 {
 			if rIdx < iIdx {
 				target = idx + rIdx + len("require(")

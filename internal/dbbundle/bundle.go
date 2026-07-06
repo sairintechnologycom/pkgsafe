@@ -323,7 +323,7 @@ func writeZip(path string, files map[string][]byte) error {
 	sort.Strings(names)
 	for _, name := range names {
 		h := &zip.FileHeader{Name: name, Method: zip.Deflate}
-		h.SetModTime(zipTime)
+		h.Modified = zipTime
 		w, err := zw.CreateHeader(h)
 		if err != nil {
 			zw.Close()

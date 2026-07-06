@@ -15,7 +15,7 @@ coverage and are not GA-equivalent yet.
 Install a published release:
 
 ```bash
-VERSION=1.0.0
+VERSION=1.6.0
 OS=linux
 ARCH=amd64
 curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"

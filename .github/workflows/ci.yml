@@ -8,7 +8,54 @@ on:
 
 jobs:
   test:
-    name: Build & Test
+    # Full race-enabled test suite on the Unix platforms the CLI and the
+    # behavior runner target. Windows gets a lighter build+vet job below
+    # (the race detector needs a cgo toolchain and the suite is not yet
+    # validated on Windows).
+    name: Build & Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run Tests (race)
+        run: go test -race ./...
+
+  build-windows:
+    name: Build & Vet (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+  lint:
+    name: Lint (golangci-lint)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -19,8 +66,16 @@ jobs:
         with:
           go-version: 'stable'
 
-      - name: Run Tests
-        run: go test -v ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.8
+          # Build the linter from source with the runner's Go toolchain. The
+          # prebuilt v1.64.8 binary is compiled with Go 1.24 and refuses to run
+          # against a go.mod that targets Go 1.25 ("language version used to
+          # build golangci-lint is lower than the targeted Go version").
+          install-mode: goinstall
+          args: --timeout 5m
 
   isolated-behavior-e2e:
     name: Isolated Behavior Backend E2E (Linux)

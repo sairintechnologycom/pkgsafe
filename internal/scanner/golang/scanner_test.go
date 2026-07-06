@@ -98,7 +98,7 @@ func TestScanPackageOnline(t *testing.T) {
 		// Expecting path to match /github.com/foo/bar/@v/v1.0.0.info (or case-encoded)
 		if strings.Contains(r.URL.Path, "/github.com/foo/bar/@v/v1.0.0.info") {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"Version":"v1.0.0","Time":"2026-06-25T10:00:00Z"}`))
+			_, _ = w.Write([]byte(`{"Version":"v1.0.0","Time":"2026-06-25T10:00:00Z"}`))
 			return
 		}
 		http.Error(w, "not found", http.StatusNotFound)
@@ -108,7 +108,7 @@ func TestScanPackageOnline(t *testing.T) {
 	// Mock OSV server
 	osvSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"vulns": []}`))
+		_, _ = w.Write([]byte(`{"vulns": []}`))
 	}))
 	defer osvSrv.Close()
 
