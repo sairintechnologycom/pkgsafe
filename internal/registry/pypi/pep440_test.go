@@ -87,7 +87,7 @@ func TestComparePEP440Ordering(t *testing.T) {
 
 func TestComparePEP440Equivalence(t *testing.T) {
 	pairs := [][2]string{
-		{"1.0", "1.0.0"},   // trailing zeros insignificant
+		{"1.0", "1.0.0"},    // trailing zeros insignificant
 		{"1.0rc1", "1.0c1"}, // c normalizes to rc
 		{"1.0.post1", "1.0-1"},
 		{"1.0a1", "1.0.alpha1"},

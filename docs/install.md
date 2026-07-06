@@ -1,17 +1,17 @@
 # Install PkgSafe
 
-PkgSafe is distributed as a single static binary. PkgSafe v1.0.0 is npm-first
-GA: npm package scanning, package-lock scanning, CI gating, policies, OSV
-intelligence, and evidence reports are the production scope. PyPI, Go, and
-Cargo coverage is preview and should not be treated as npm-equivalent.
+PkgSafe is distributed as a single static binary. PkgSafe v1.6.0 is GA for npm
+and PyPI: package and lockfile scanning, CI gating, policies, OSV intelligence,
+and evidence reports are the production scope. Go and Cargo coverage is preview
+and should not be treated as GA-equivalent.
 
 Use the published release artifacts for normal installs. The examples below pin
-v1.0.0; replace `VERSION` only when intentionally installing a newer release.
+v1.6.0; replace `VERSION` only when intentionally installing a newer release.
 
 ## macOS arm64
 
 ```bash
-VERSION=1.0.0
+VERSION=1.6.0
 OS=darwin
 ARCH=arm64
 curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -24,7 +24,7 @@ pkgsafe doctor
 ## macOS amd64
 
 ```bash
-VERSION=1.0.0
+VERSION=1.6.0
 OS=darwin
 ARCH=amd64
 curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -37,7 +37,7 @@ pkgsafe doctor
 ## Linux amd64
 
 ```bash
-VERSION=1.0.0
+VERSION=1.6.0
 OS=linux
 ARCH=amd64
 curl -LO "https://github.com/sairintechnologycom/pkgsafe/releases/download/v${VERSION}/pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -52,7 +52,7 @@ pkgsafe doctor
 Run from PowerShell:
 
 ```powershell
-$Version = "1.0.0"
+$Version = "1.6.0"
 $Os = "windows"
 $Arch = "amd64"
 $Archive = "pkgsafe_${Version}_${Os}_${Arch}.zip"
@@ -70,7 +70,7 @@ Download the archive, checksums, cosign signature, and signing certificate into
 the same directory:
 
 ```bash
-VERSION=1.0.0
+VERSION=1.6.0
 OS=linux
 ARCH=amd64
 ARCHIVE="pkgsafe_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -117,10 +117,10 @@ tar -xzf "${ARCHIVE}"
 ./pkgsafe doctor
 ```
 
-A v1.0.0 release build reports a version line in this shape:
+A v1.6.0 release build reports a version line in this shape:
 
 ```text
-pkgsafe v1.0.0 (<commit>)
+pkgsafe v1.6.0 (<commit>)
 ```
 
 Local development builds may report a `-dev` version or `none` commit instead.

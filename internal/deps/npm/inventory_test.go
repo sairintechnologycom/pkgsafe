@@ -133,7 +133,7 @@ func TestScanInventory_MalformedAndEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	deps, err = ScanInventory(tmp)
+	_, err = ScanInventory(tmp)
 	if err != nil {
 		t.Fatalf("ScanInventory failed on malformed package.json: %v", err)
 	}

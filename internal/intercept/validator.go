@@ -165,9 +165,7 @@ func Validate(ctx context.Context, cmd *InstallCommand, sf SafetyFlags, pol poli
 		}
 	}
 
-	for _, pkg := range cmd.Packages {
-		packagesToScan = append(packagesToScan, pkg)
-	}
+	packagesToScan = append(packagesToScan, cmd.Packages...)
 
 	// 2. Initialize appropriate scanners
 	var scannerNPM snpm.Scanner

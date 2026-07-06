@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -865,8 +864,7 @@ func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, ha
 	fmt.Fprintf(w, "Package: %s/%s\n", res.Package.Ecosystem, res.Package.Name)
 	fmt.Fprintf(w, "Latest Known Version: %s\n", emptyLatest(res.Package.Version))
 
-	lastScannedVer := "none"
-	lastDecision := "none"
+	var lastScannedVer, lastDecision string
 	riskScore := res.Score
 
 	if hasCached {
@@ -1074,26 +1072,6 @@ func cmdDoctor(args []string) error {
 	})
 }
 
-func policyStatus(pol policy.Policy, pkg types.PackageIdentity) string {
-	switch {
-	case policy.IsBlocked(pol, pkg.Ecosystem, pkg.Name):
-		return "blocked"
-	case policy.IsTrusted(pol, pkg.Ecosystem, pkg.Name):
-		return "trusted"
-	default:
-		return "unlisted"
-	}
-}
-
-func hasReason(reasons []types.Reason, id string) bool {
-	for _, reason := range reasons {
-		if reason.ID == id {
-			return true
-		}
-	}
-	return false
-}
-
 func emptyLatest(v string) string {
 	if v == "" {
 		return "latest"
@@ -1107,32 +1085,6 @@ func saveResult(res types.ScanResult) error {
 		return err
 	}
 	return store.Put(res)
-}
-
-func ensureAbs(path string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return path
-	}
-	return abs
-}
-
-func splitPackageSpec(s string) (string, string) {
-	if strings.HasPrefix(s, "@") {
-		idx := strings.LastIndex(s, "@")
-		if idx > 0 {
-			return s[:idx], s[idx+1:]
-		}
-		return s, ""
-	}
-	parts := strings.SplitN(s, "@", 2)
-	if len(parts) == 2 {
-		return parts[0], parts[1]
-	}
-	return s, ""
 }
 
 func reorderFlags(args []string) []string {

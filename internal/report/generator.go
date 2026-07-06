@@ -104,13 +104,11 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 
 	// 3. Scan Dependency Files
 	store, _ := cache.Load("")
-	var detectedFiles []string
 	var allPkgs []types.PackageIdentity
 
 	// NPM
 	npmLockPath := filepath.Join(repoPath, "package-lock.json")
 	if _, err := os.Stat(npmLockPath); err == nil {
-		detectedFiles = append(detectedFiles, "package-lock.json")
 		pkgs, err := parseNPMLockfile(npmLockPath)
 		if err == nil {
 			allPkgs = append(allPkgs, pkgs...)
@@ -125,7 +123,6 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 	for _, f := range pypiFiles {
 		pPath := filepath.Join(repoPath, f)
 		if _, err := os.Stat(pPath); err == nil {
-			detectedFiles = append(detectedFiles, f)
 			parsed, err := pydeps.ParseFile(pPath)
 			if err == nil {
 				for _, dep := range parsed {
@@ -323,7 +320,7 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 	// 6. Exceptions Summary
 	var exceptions []ExceptionRecord
 	for _, exc := range pol.Exceptions {
-		daysUntil := int(exc.AllowedUntil.Sub(time.Now()).Hours() / 24)
+		daysUntil := int(time.Until(exc.AllowedUntil).Hours() / 24)
 		status := "Active"
 		if exc.IsExpired() {
 			status = "Expired"

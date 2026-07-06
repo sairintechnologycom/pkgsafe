@@ -2,7 +2,6 @@ package pypi
 
 import (
 	"archive/tar"
-	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -278,25 +277,6 @@ func makeTarGz(t *testing.T, files map[string]string) []byte {
 		t.Fatal(err)
 	}
 	if err := gw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return buf.Bytes()
-}
-
-func makeZip(t *testing.T, files map[string]string) []byte {
-	t.Helper()
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	for name, content := range files {
-		f, err := zw.Create(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := f.Write([]byte(content)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := zw.Close(); err != nil {
 		t.Fatal(err)
 	}
 	return buf.Bytes()

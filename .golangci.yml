@@ -1,0 +1,24 @@
+# golangci-lint configuration for pkgsafe.
+# Pins the linter set so local runs and CI agree. Keep this conservative and
+# high-signal: a red lint gate must mean a real defect, not style churn.
+run:
+  timeout: 5m
+
+linters:
+  # Default set (errcheck, gosimple, govet, ineffassign, staticcheck, unused)
+  # plus a few high-signal additions. Enable explicitly so the gate is stable
+  # across golangci-lint upgrades.
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+
+issues:
+  # Show every finding; do not hide behind the default per-linter cap.
+  max-issues-per-linter: 0
+  max-same-issues: 0
