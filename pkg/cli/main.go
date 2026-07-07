@@ -35,6 +35,9 @@ import (
 	sgolang "github.com/sairintechnologycom/pkgsafe/internal/scanner/golang"
 	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
 	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 	"github.com/sairintechnologycom/pkgsafe/internal/validation"
 	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
@@ -682,6 +685,111 @@ func cmdScanLockfile(args []string) error {
 	return output.Write(os.Stdout, res, *asJSON)
 }
 
+func detectEcosystem(pkgName string, pol policy.Policy, offline bool) (string, string) {
+	lowerName := strings.ToLower(pkgName)
+	if strings.HasPrefix(lowerName, "npm:") {
+		return "npm", pkgName[4:]
+	}
+	if strings.HasPrefix(lowerName, "pypi:") {
+		return "pypi", pkgName[5:]
+	}
+	if strings.HasPrefix(lowerName, "pip:") {
+		return "pypi", pkgName[4:]
+	}
+	if strings.HasPrefix(pkgName, "@") || strings.Contains(pkgName, "/") {
+		return "npm", pkgName
+	}
+
+	// Check cache
+	store, err := cache.Load("")
+	if err == nil {
+		_, hasNpm := store.Get("npm", pkgName, "")
+		_, hasPypi := store.Get("pypi", pkgName, "")
+		if hasNpm && !hasPypi {
+			return "npm", pkgName
+		}
+		if hasPypi && !hasNpm {
+			return "pypi", pkgName
+		}
+	}
+
+	if offline {
+		return "npm", pkgName
+	}
+
+	// Probe registries concurrently
+	type probeResult struct {
+		eco   string
+		found bool
+	}
+	ch := make(chan probeResult, 2)
+
+	// NPM Probe
+	go func() {
+		_, regCfg := registry.ResolveRegistry("npm", pkgName, pol)
+		client := rnpm.NewClient(regCfg.URL)
+		if regCfg.Auth.Method != "" && regCfg.Auth.Method != "none" {
+			client.HTTPClient = registry.NewAuthenticatedHTTPClient(regCfg)
+		}
+		_, err := client.FetchMetadata(pkgName)
+		ch <- probeResult{eco: "npm", found: err == nil}
+	}()
+
+	// PyPI Probe
+	go func() {
+		_, regCfg := registry.ResolveRegistry("pypi", pkgName, pol)
+		client := rpypi.NewClient(regCfg.URL)
+		if regCfg.Auth.Method != "" && regCfg.Auth.Method != "none" {
+			client.HTTPClient = registry.NewAuthenticatedHTTPClient(regCfg)
+		}
+		_, err := client.FetchMetadata(pkgName)
+		ch <- probeResult{eco: "pypi", found: err == nil}
+	}()
+
+	// Wait for both with a short timeout (e.g. 1.5s)
+	timeout := time.After(1500 * time.Millisecond)
+	npmFound := false
+	pypiFound := false
+	responses := 0
+
+	for responses < 2 {
+		select {
+		case res := <-ch:
+			responses++
+			if res.eco == "npm" {
+				npmFound = res.found
+			} else {
+				pypiFound = res.found
+			}
+		case <-timeout:
+			break
+		}
+	}
+
+	if npmFound && !pypiFound {
+		return "npm", pkgName
+	}
+	if pypiFound && !npmFound {
+		return "pypi", pkgName
+	}
+	if npmFound && pypiFound {
+		// Found in both! Prompt if interactive
+		if isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd()) {
+			fmt.Printf("Package %q found in both npm and pypi registries.\n", pkgName)
+			fmt.Print("Which ecosystem did you mean?\n  1) npm\n  2) PyPI\nSelect (1-2, default 1): ")
+			var choice string
+			fmt.Scanln(&choice)
+			if choice == "2" {
+				return "pypi", pkgName
+			}
+			return "npm", pkgName
+		}
+	}
+
+	// Default fallback
+	return "npm", pkgName
+}
+
 func cmdExplain(args []string) error {
 	fs := flag.NewFlagSet("explain", flag.ContinueOnError)
 	ver := fs.String("version", "", "package version")
@@ -701,15 +809,44 @@ func cmdExplain(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	eco, cleanName := detectEcosystem(pkgName, pol, *offline)
+
+	if eco == "pypi" {
+		store, _ := cache.Load("")
+		cached, hasCached := store.Get("pypi", cleanName, *ver)
+
+		scanner := spypi.New()
+		scanner.Policy = pol
+		scanner.Offline = *offline
+		scanner.RequestedBy = "human"
+		scanner.Environment = "developer"
+		res, err := scanner.ScanPackage(cleanName, *ver)
+		if err != nil {
+			if hasCached {
+				cached = stripEnterprise(cached, false)
+				return output.Write(os.Stdout, cached, *asJSON)
+			}
+			return err
+		}
+		res = stripEnterprise(res, false)
+		_ = saveResult(res)
+		if *asJSON {
+			return output.Write(os.Stdout, res, true)
+		}
+		writeExplain(os.Stdout, res, cached, hasCached, pol)
+		return nil
+	}
+
 	store, _ := cache.Load("")
-	cached, hasCached := store.Get("npm", pkgName, *ver)
+	cached, hasCached := store.Get("npm", cleanName, *ver)
 
 	scanner := snpm.New()
 	scanner.Policy = pol
 	scanner.Offline = *offline
 	scanner.RequestedBy = "human"
 	scanner.Environment = "developer"
-	res, err := scanner.ScanPackage(pkgName, *ver)
+	res, err := scanner.ScanPackage(cleanName, *ver)
 	if err != nil {
 		if hasCached {
 			cached = stripEnterprise(cached, false)
