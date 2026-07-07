@@ -883,11 +883,12 @@ func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, ha
 		}
 	}
 
-	var green, yellow, red, bold, reset string
+	var green, yellow, red, gray, bold, reset string
 	if color {
 		green = "\033[32m"
 		yellow = "\033[33m"
 		red = "\033[31m"
+		gray = "\033[90m"
 		bold = "\033[1m"
 		reset = "\033[0m"
 	}
@@ -923,16 +924,32 @@ func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, ha
 	fmt.Fprintf(w, "Last Decision: %s%s%s\n", decisionColor, lastDecision, reset)
 
 	scoreColor := reset
-	if color {
-		if riskScore >= 70 {
+	scoreLevel := "Low Risk"
+	if riskScore >= 70 {
+		if color {
 			scoreColor = bold + red
-		} else if riskScore >= 30 {
+		}
+		scoreLevel = "High Risk"
+	} else if riskScore >= 30 {
+		if color {
 			scoreColor = bold + yellow
-		} else {
+		}
+		scoreLevel = "Medium Risk"
+	} else {
+		if color {
 			scoreColor = bold + green
 		}
 	}
-	fmt.Fprintf(w, "Risk Score: %s%d/100%s\n\n", scoreColor, riskScore, reset)
+
+	var scoreLegend string
+	if color {
+		scoreLegend = fmt.Sprintf(" %s[Scale: 0-29 %sLow%s, 30-69 %sMed%s, 70-100 %sHigh%s]%s",
+			gray, green, gray, yellow, gray, red, gray, reset)
+	} else {
+		scoreLegend = " [Scale: 0-29 Low, 30-69 Med, 70-100 High]"
+	}
+
+	fmt.Fprintf(w, "Risk Score: %s%d/100 (%s)%s%s\n\n", scoreColor, riskScore, scoreLevel, reset, scoreLegend)
 
 	fmt.Fprintln(w, "Vulnerability Summary:")
 	if len(res.Vulnerabilities) > 0 {
