@@ -6,6 +6,7 @@
 package cli
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -14,6 +15,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -244,6 +247,7 @@ Usage:
   pkgsafe ci scan [--lockfile <path>] [--policy <path>] [--mode audit|warn|block] [--fail-on none|warn|block]
   pkgsafe policy validate <path>
   pkgsafe policy explain <path>
+  pkgsafe policy edit [--policy <path>]
   pkgsafe registry list [--policy <path>] [--registry-config <path>]
   pkgsafe registry test [--policy <path>] [--registry-config <path>] <name>
   pkgsafe registry test [--policy <path>] [--registry-config <path>] --ecosystem <npm|pypi> --package <name>
@@ -2391,4 +2395,357 @@ func logDependenciesToAudit(pol policy.Policy, cmd, ecosystem string, subResults
 		InstallExecuted: false,
 	}
 	_ = intercept.LogAudit(pol, auditEntry)
+}
+
+func cmdPolicyEdit(args []string) error {
+	fs := flag.NewFlagSet("policy-edit", flag.ContinueOnError)
+	policyPath := fs.String("policy", "", "policy YAML path")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	polPath := "~/.pkgsafe/policy.yaml"
+	if *policyPath != "" {
+		polPath = *policyPath
+	}
+	absPath := audit.ExpandHome(polPath)
+
+	pol, err := loadPolicy(polPath, "", "", *registryConfig)
+	if err != nil {
+		if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file") {
+			fmt.Printf("Policy file %s not found. Creating default policy...\n", polPath)
+			err = os.MkdirAll(filepath.Dir(absPath), 0755)
+			if err != nil {
+				return err
+			}
+			err = writePolicyToYAML(absPath, policy.Default())
+			if err != nil {
+				return err
+			}
+			pol, err = loadPolicy(polPath, "", "", *registryConfig)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Println("\n========================================")
+		fmt.Printf("      PkgSafe Policy Editor Wizard      \n")
+		fmt.Printf("  Editing: %s\n", absPath)
+		fmt.Println("========================================")
+		fmt.Printf("  1) Change Mode (current: %s)\n", pol.Mode)
+		fmt.Printf("  2) Manage Trusted Packages (NPM: %d, PyPI: %d)\n", len(pol.TrustedPackages.NPM), len(pol.TrustedPackages.PyPI))
+		fmt.Printf("  3) Manage Blocked Packages (NPM: %d, PyPI: %d)\n", len(pol.BlockedPackages.NPM), len(pol.BlockedPackages.PyPI))
+		fmt.Printf("  4) Change Threat Score Thresholds (Allow Max: %d, Warn Max: %d, Block Min: %d)\n",
+			pol.Thresholds.AllowMaxScore, pol.Thresholds.WarnMaxScore, pol.Thresholds.BlockMinScore)
+		fmt.Printf("  5) Toggle Ecosystems (NPM: %t, PyPI: %t)\n", pol.Ecosystems.NPM.Enabled, pol.Ecosystems.PyPI.Enabled)
+		fmt.Println("  6) Save Changes and Exit")
+		fmt.Println("  7) Cancel and Exit without Saving")
+		fmt.Print("\nChoose an option (1-7): ")
+
+		choice, _ := reader.ReadString('\n')
+		choice = strings.TrimSpace(choice)
+
+		switch choice {
+		case "1":
+			fmt.Print("\nEnter new mode (warn, block, audit): ")
+			val, _ := reader.ReadString('\n')
+			val = strings.TrimSpace(strings.ToLower(val))
+			if val == "warn" || val == "block" || val == "audit" {
+				pol.Mode = policy.Mode(val)
+				fmt.Printf("Mode updated to: %s\n", pol.Mode)
+			} else {
+				fmt.Println("Invalid mode. Choose from: warn, block, audit")
+			}
+
+		case "2":
+			fmt.Println("\n--- Manage Trusted Packages ---")
+			fmt.Println("  1) Add NPM Package")
+			fmt.Println("  2) Remove NPM Package")
+			fmt.Println("  3) Add PyPI Package")
+			fmt.Println("  4) Remove PyPI Package")
+			fmt.Println("  5) Back")
+			fmt.Print("Choose an option: ")
+			subChoice, _ := reader.ReadString('\n')
+			subChoice = strings.TrimSpace(subChoice)
+
+			switch subChoice {
+			case "1":
+				fmt.Print("Enter NPM package name to TRUST: ")
+				pkg, _ := reader.ReadString('\n')
+				pkg = strings.TrimSpace(pkg)
+				if pkg != "" {
+					pol.TrustedPackages.NPM = append(pol.TrustedPackages.NPM, pkg)
+					fmt.Printf("Added NPM package to Trusted List: %s\n", pkg)
+				}
+			case "2":
+				fmt.Print("Enter NPM package name to REMOVE from Trust: ")
+				pkg, _ := reader.ReadString('\n')
+				pkg = strings.TrimSpace(pkg)
+				found := false
+				var newList []string
+				for _, p := range pol.TrustedPackages.NPM {
+					if p != pkg {
+						newList = append(newList, p)
+					} else {
+						found = true
+					}
+				}
+				if found {
+					pol.TrustedPackages.NPM = newList
+					fmt.Printf("Removed NPM package from Trusted List: %s\n", pkg)
+				} else {
+					fmt.Println("Package not found in list.")
+				}
+			case "3":
+				fmt.Print("Enter PyPI package name to TRUST: ")
+				pkg, _ := reader.ReadString('\n')
+				pkg = strings.TrimSpace(pkg)
+				if pkg != "" {
+					pol.TrustedPackages.PyPI = append(pol.TrustedPackages.PyPI, pkg)
+					fmt.Printf("Added PyPI package to Trusted List: %s\n", pkg)
+				}
+			case "4":
+				fmt.Print("Enter PyPI package name to REMOVE from Trust: ")
+				pkg, _ := reader.ReadString('\n')
+				pkg = strings.TrimSpace(pkg)
+				found := false
+				var newList []string
+				for _, p := range pol.TrustedPackages.PyPI {
+					if p != pkg {
+						newList = append(newList, p)
+					} else {
+						found = true
+					}
+				}
+				if found {
+					pol.TrustedPackages.PyPI = newList
+					fmt.Printf("Removed PyPI package from Trusted List: %s\n", pkg)
+				} else {
+					fmt.Println("Package not found in list.")
+				}
+			}
+
+		case "3":
+			fmt.Println("\n--- Manage Blocked Packages ---")
+			fmt.Println("  1) Add NPM Package")
+			fmt.Println("  2) Remove NPM Package")
+			fmt.Println("  3) Add PyPI Package")
+			fmt.Println("  4) Remove PyPI Package")
+			fmt.Println("  5) Back")
+			fmt.Print("Choose an option: ")
+			subChoice, _ := reader.ReadString('\n')
+			subChoice = strings.TrimSpace(subChoice)
+
+			switch subChoice {
+			case "1":
+				fmt.Print("Enter NPM package name to BLOCK: ")
+				pkg, _ := reader.ReadString('\n')
+				pkg = strings.TrimSpace(pkg)
+				if pkg != "" {
+					pol.BlockedPackages.NPM = append(pol.BlockedPackages.NPM, pkg)
+					fmt.Printf("Added NPM package to Block List: %s\n", pkg)
+				}
+			case "2":
+				fmt.Print("Enter NPM package name to REMOVE from Block list: ")
+				pkg, _ := reader.ReadString('\n')
+				pkg = strings.TrimSpace(pkg)
+				found := false
+				var newList []string
+				for _, p := range pol.BlockedPackages.NPM {
+					if p != pkg {
+						newList = append(newList, p)
+					} else {
+						found = true
+					}
+				}
+				if found {
+					pol.BlockedPackages.NPM = newList
+					fmt.Printf("Removed NPM package from Block List: %s\n", pkg)
+				} else {
+					fmt.Println("Package not found in list.")
+				}
+			case "3":
+				fmt.Print("Enter PyPI package name to BLOCK: ")
+				pkg, _ := reader.ReadString('\n')
+				pkg = strings.TrimSpace(pkg)
+				if pkg != "" {
+					pol.BlockedPackages.PyPI = append(pol.BlockedPackages.PyPI, pkg)
+					fmt.Printf("Added PyPI package to Block List: %s\n", pkg)
+				}
+			case "4":
+				fmt.Print("Enter PyPI package name to REMOVE from Block list: ")
+				pkg, _ := reader.ReadString('\n')
+				pkg = strings.TrimSpace(pkg)
+				found := false
+				var newList []string
+				for _, p := range pol.BlockedPackages.PyPI {
+					if p != pkg {
+						newList = append(newList, p)
+					} else {
+						found = true
+					}
+				}
+				if found {
+					pol.BlockedPackages.PyPI = newList
+					fmt.Printf("Removed PyPI package from Block List: %s\n", pkg)
+				} else {
+					fmt.Println("Package not found in list.")
+				}
+			}
+
+		case "4":
+			fmt.Println("\n--- Change Threat Score Thresholds ---")
+			fmt.Printf("Current: Allow Max = %d, Warn Max = %d, Block Min = %d\n",
+				pol.Thresholds.AllowMaxScore, pol.Thresholds.WarnMaxScore, pol.Thresholds.BlockMinScore)
+			
+			fmt.Print("Enter new Allow Max Score (e.g. 29): ")
+			allowStr, _ := reader.ReadString('\n')
+			allowVal, err1 := strconv.Atoi(strings.TrimSpace(allowStr))
+
+			fmt.Print("Enter new Warn Max Score (e.g. 69): ")
+			warnStr, _ := reader.ReadString('\n')
+			warnVal, err2 := strconv.Atoi(strings.TrimSpace(warnStr))
+
+			fmt.Print("Enter new Block Min Score (e.g. 70): ")
+			blockStr, _ := reader.ReadString('\n')
+			blockVal, err3 := strconv.Atoi(strings.TrimSpace(blockStr))
+
+			if err1 == nil && err2 == nil && err3 == nil {
+				pol.Thresholds.AllowMaxScore = allowVal
+				pol.Thresholds.WarnMaxScore = warnVal
+				pol.Thresholds.BlockMinScore = blockVal
+				fmt.Println("Thresholds updated successfully!")
+			} else {
+				fmt.Println("Invalid input. All scores must be integers.")
+			}
+
+		case "5":
+			fmt.Println("\n--- Toggle Ecosystems ---")
+			fmt.Printf("  1) Toggle NPM (current: %t)\n", pol.Ecosystems.NPM.Enabled)
+			fmt.Printf("  2) Toggle PyPI (current: %t)\n", pol.Ecosystems.PyPI.Enabled)
+			fmt.Print("Choose an option (1-2): ")
+			subChoice, _ := reader.ReadString('\n')
+			subChoice = strings.TrimSpace(subChoice)
+			if subChoice == "1" {
+				pol.Ecosystems.NPM.Enabled = !pol.Ecosystems.NPM.Enabled
+				fmt.Printf("NPM enabled set to: %t\n", pol.Ecosystems.NPM.Enabled)
+			} else if subChoice == "2" {
+				pol.Ecosystems.PyPI.Enabled = !pol.Ecosystems.PyPI.Enabled
+				fmt.Printf("PyPI enabled set to: %t\n", pol.Ecosystems.PyPI.Enabled)
+			}
+
+		case "6":
+			err := writePolicyToYAML(absPath, pol)
+			if err != nil {
+				return fmt.Errorf("save policy: %w", err)
+			}
+			fmt.Printf("\nPolicy changes saved successfully to %s\n", absPath)
+			return nil
+
+		case "7":
+			fmt.Println("\nExited without saving.")
+			return nil
+		}
+	}
+}
+
+func writePolicyToYAML(path string, pol policy.Policy) error {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("schema_version: %q\n\n", pol.SchemaVersion))
+	sb.WriteString(fmt.Sprintf("mode: %s\n\n", pol.Mode))
+
+	sb.WriteString("thresholds:\n")
+	sb.WriteString(fmt.Sprintf("  allow_max_score: %d\n", pol.Thresholds.AllowMaxScore))
+	sb.WriteString(fmt.Sprintf("  warn_max_score: %d\n", pol.Thresholds.WarnMaxScore))
+	sb.WriteString(fmt.Sprintf("  block_min_score: %d\n\n", pol.Thresholds.BlockMinScore))
+
+	sb.WriteString("ecosystems:\n")
+	sb.WriteString(fmt.Sprintf("  npm:\n    enabled: %t\n", pol.Ecosystems.NPM.Enabled))
+	sb.WriteString(fmt.Sprintf("  pypi:\n    enabled: %t\n\n", pol.Ecosystems.PyPI.Enabled))
+
+	sb.WriteString("sandbox:\n")
+	sb.WriteString(fmt.Sprintf("  enabled: %t\n", pol.Sandbox.Enabled))
+	sb.WriteString(fmt.Sprintf("  behavior_mode: %q\n", pol.Sandbox.BehaviorMode))
+	sb.WriteString(fmt.Sprintf("  default_timeout_seconds: %d\n", pol.Sandbox.DefaultTimeoutSeconds))
+	sb.WriteString(fmt.Sprintf("  network_mode: %q\n", pol.Sandbox.NetworkMode))
+	sb.WriteString(fmt.Sprintf("  keep_sandbox: %t\n", pol.Sandbox.KeepSandbox))
+	sb.WriteString(fmt.Sprintf("  fail_open_when_unavailable: %t\n\n", pol.Sandbox.FailOpenWhenUnavailable))
+
+	if len(pol.ProtectedPaths) > 0 {
+		sb.WriteString("protected_paths:\n")
+		for _, p := range pol.ProtectedPaths {
+			sb.WriteString(fmt.Sprintf("  - %q\n", p))
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("trusted_packages:\n")
+	if len(pol.TrustedPackages.NPM) > 0 {
+		sb.WriteString("  npm:\n")
+		for _, p := range pol.TrustedPackages.NPM {
+			sb.WriteString(fmt.Sprintf("    - %s\n", p))
+		}
+	} else {
+		sb.WriteString("  npm: []\n")
+	}
+	if len(pol.TrustedPackages.PyPI) > 0 {
+		sb.WriteString("  pypi:\n")
+		for _, p := range pol.TrustedPackages.PyPI {
+			sb.WriteString(fmt.Sprintf("    - %s\n", p))
+		}
+	} else {
+		sb.WriteString("  pypi: []\n")
+	}
+	sb.WriteString("\n")
+
+	sb.WriteString("blocked_packages:\n")
+	if len(pol.BlockedPackages.NPM) > 0 {
+		sb.WriteString("  npm:\n")
+		for _, p := range pol.BlockedPackages.NPM {
+			sb.WriteString(fmt.Sprintf("    - %s\n", p))
+		}
+	} else {
+		sb.WriteString("  npm: []\n")
+	}
+	if len(pol.BlockedPackages.PyPI) > 0 {
+		sb.WriteString("  pypi:\n")
+		for _, p := range pol.BlockedPackages.PyPI {
+			sb.WriteString(fmt.Sprintf("    - %s\n", p))
+		}
+	} else {
+		sb.WriteString("  pypi: []\n")
+	}
+	sb.WriteString("\n")
+
+	if len(pol.Rules) > 0 {
+		sb.WriteString("rules:\n")
+		var keys []string
+		for k := range pol.Rules {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			r := pol.Rules[k]
+			sb.WriteString(fmt.Sprintf("  %s:\n", k))
+			sb.WriteString(fmt.Sprintf("    enabled: %t\n", r.Enabled))
+			sb.WriteString(fmt.Sprintf("    severity: %s\n", r.Severity))
+			sb.WriteString(fmt.Sprintf("    score: %d\n", r.Score))
+			if r.MaxAgeDays > 0 {
+				sb.WriteString(fmt.Sprintf("    max_age_days: %d\n", r.MaxAgeDays))
+			}
+			if r.BlockInStrictMode {
+				sb.WriteString(fmt.Sprintf("    block_in_strict_mode: %t\n", r.BlockInStrictMode))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	return os.WriteFile(path, []byte(sb.String()), 0644)
 }

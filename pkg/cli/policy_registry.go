@@ -16,10 +16,12 @@ import (
 
 func cmdPolicy(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: pkgsafe policy [validate|explain|test]")
+		return fmt.Errorf("usage: pkgsafe policy [validate|explain|test|edit]")
 	}
 
 	switch args[0] {
+	case "edit":
+		return cmdPolicyEdit(args[1:])
 	case "validate":
 		if len(args) < 2 {
 			return fmt.Errorf("usage: pkgsafe policy validate <path>")
