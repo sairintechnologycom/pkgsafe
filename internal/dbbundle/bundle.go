@@ -130,6 +130,21 @@ func Export(dbPath, outputPath string) (Manifest, error) {
 	return manifest, nil
 }
 
+// SignatureVerifier, when set by a downstream distribution (the private
+// pkgsafe-enterprise binary), verifies a signed bundle's detached signature.
+// It receives the bundle's files (keyed by in-zip path, including
+// SignaturePath) and the parsed manifest, and returns whether the signature is
+// valid. The OSS build leaves it nil, so a bundle carrying a signature remains
+// private-enterprise functionality and is rejected with the historical error —
+// making this seam byte-identical for the public binary.
+//
+// Note the deliberate asymmetry with license entitlement: a data bundle that
+// DECLARES a signature but fails verification is rejected (fail-closed),
+// because importing a tampered intelligence database is a security risk.
+// Fail-open governs entitlement (never block scanning); it does not govern
+// signed-data integrity.
+var SignatureVerifier func(files map[string][]byte, manifest Manifest) (bool, error)
+
 func Verify(bundlePath string) (VerifyResult, error) {
 	files, err := readZip(bundlePath)
 	if err != nil {
@@ -179,7 +194,21 @@ func Verify(bundlePath string) (VerifyResult, error) {
 	}
 	res.FreshnessAtVerify, res.Stale = EvaluateFreshness(manifest.LastUpdates, StaleAfter)
 	if res.SignaturePresent {
-		return res, fmt.Errorf("signed offline intelligence bundles are private-enterprise functionality")
+		if SignatureVerifier == nil {
+			// OSS build: signed bundles are private-enterprise functionality.
+			// Byte-identical to the pre-seam behavior.
+			return res, fmt.Errorf("signed offline intelligence bundles are private-enterprise functionality")
+		}
+		res.SignatureChecked = true
+		ok, err := SignatureVerifier(files, manifest)
+		if err != nil {
+			return res, fmt.Errorf("verify bundle signature: %w", err)
+		}
+		res.SignatureVerified = ok
+		if !ok {
+			// Fail-closed: a declared-but-invalid signature is rejected.
+			return res, fmt.Errorf("bundle signature verification failed")
+		}
 	}
 	return res, nil
 }
