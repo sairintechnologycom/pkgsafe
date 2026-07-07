@@ -133,7 +133,9 @@ Active exceptions:
 		return cmdPolicyTest(args[1:])
 
 	case "pack":
-		return fmt.Errorf("signed policy archive commands are private-enterprise functionality; use pkgsafe-enterprise")
+		return enterpriseOrElse("policy pack", args[1:], func() error {
+			return fmt.Errorf("signed policy archive commands are private-enterprise functionality; use pkgsafe-enterprise")
+		})
 	default:
 		return fmt.Errorf("unknown policy subcommand %q", args[0])
 	}

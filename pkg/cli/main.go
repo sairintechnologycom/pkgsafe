@@ -852,6 +852,9 @@ func scanRemoteNPM(name, version string, pol policy.Policy) (types.ScanResult, e
 
 func loadPolicy(path, mode, policyPack, registryConfig string) (policy.Policy, error) {
 	if strings.TrimSpace(policyPack) != "" {
+		if LoadSignedPolicyFunc != nil {
+			return LoadSignedPolicyFunc(policyPack, path, mode, registryConfig)
+		}
 		return policy.Policy{}, fmt.Errorf("signed policy archives are private-enterprise functionality; use pkgsafe-enterprise")
 	}
 	pol, err := policy.ResolvePolicy(policyPack, "", path, mode, registryConfig)

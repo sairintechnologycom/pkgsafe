@@ -34,21 +34,21 @@ func cmdReport(args []string) error {
 	case "ga-evidence":
 		return cmdReportEvidence(args[1:], "ga")
 	case "team-evidence":
-		return privateEnterpriseCommand("report team-evidence")
+		return enterpriseOr("report team-evidence", args[1:])
 	case "exceptions":
-		return privateEnterpriseCommand("report exceptions")
+		return enterpriseOr("report exceptions", args[1:])
 	case "overrides":
-		return privateEnterpriseCommand("report overrides")
+		return enterpriseOr("report overrides", args[1:])
 	case "policy":
-		return privateEnterpriseCommand("report policy")
+		return enterpriseOr("report policy", args[1:])
 	case "ci":
 		return cmdReportCI(args[1:])
 	case "siem-export":
-		return privateEnterpriseCommand("report siem-export")
+		return enterpriseOr("report siem-export", args[1:])
 	case "servicenow-export":
-		return privateEnterpriseCommand("report servicenow-export")
+		return enterpriseOr("report servicenow-export", args[1:])
 	case "azure-devops-export":
-		return privateEnterpriseCommand("report azure-devops-export")
+		return enterpriseOr("report azure-devops-export", args[1:])
 	default:
 		return fmt.Errorf("unknown report subcommand %q", args[0])
 	}
