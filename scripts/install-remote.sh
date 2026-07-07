@@ -17,9 +17,28 @@ set -euo pipefail
 REPO="sairintechnologycom/pkgsafe"
 BIN_DIR="${PKGSAFE_BIN_DIR:-/usr/local/bin}"
 
-err()  { echo "pkgsafe-install: error: $*" >&2; exit 1; }
-info() { echo "pkgsafe-install: $*"; }
-need() { command -v "$1" >/dev/null 2>&1 || err "required tool not found: $1"; }
+# --- color support ---
+if [ -t 1 ]; then
+  BOLD="\033[1m"
+  GREEN="\033[32m"
+  BLUE="\033[34m"
+  YELLOW="\033[33m"
+  RED="\033[31m"
+  RESET="\033[0m"
+else
+  BOLD=""
+  GREEN=""
+  BLUE=""
+  YELLOW=""
+  RED=""
+  RESET=""
+fi
+
+err()   { printf "${RED}✗ error:${RESET} %b\n" "$*" >&2; exit 1; }
+info()  { printf "${BLUE}..${RESET} %b\n" "$*"; }
+success() { printf "${GREEN}✓${RESET} %b\n" "$*"; }
+warn()  { printf "${YELLOW}⚠${RESET} %b\n" "$*"; }
+need()  { command -v "$1" >/dev/null 2>&1 || err "required tool not found: $1"; }
 
 need curl
 need tar
@@ -93,10 +112,13 @@ else
   sudo mv "${tmp}/pkgsafe" "${BIN_DIR}/pkgsafe"
 fi
 
-info "installed pkgsafe ${version} -> ${BIN_DIR}/pkgsafe"
+success "installed pkgsafe ${version} -> ${BIN_DIR}/pkgsafe"
 if command -v pkgsafe >/dev/null 2>&1; then
   pkgsafe version || true
 else
-  info "note: ${BIN_DIR} is not on your PATH — add it or invoke ${BIN_DIR}/pkgsafe directly"
+  warn "note: ${BIN_DIR} is not on your PATH — add it or invoke ${BIN_DIR}/pkgsafe directly"
 fi
-info "next: 'pkgsafe doctor' to check your setup, or see MCP setup at https://github.com/${REPO}#mcp-tool"
+
+printf "\n${BOLD}Next steps:${RESET}\n"
+printf "  1. Run ${BOLD}pkgsafe doctor${RESET} to check your setup\n"
+printf "  2. See MCP setup at ${BLUE}https://github.com/${REPO}#mcp-tool${RESET}\n\n"

@@ -10,8 +10,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/mattn/go-isatty"
 	"github.com/sairintechnologycom/pkgsafe/internal/cache"
 	"github.com/sairintechnologycom/pkgsafe/internal/db"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
@@ -164,21 +166,177 @@ func networkStatus(url string) (string, string) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 200 && resp.StatusCode < 500 {
-		return "pass", fmt.Sprintf("reachable: %s", resp.Status)
+		return "pass", "reachable"
 	}
 	return "warn", fmt.Sprintf("unexpected status: %s", resp.Status)
 }
 
-func writeDoctorHuman(rep DoctorReport) {
-	fmt.Println("PkgSafe Doctor")
-	fmt.Println()
-	status := "PASS"
-	if !rep.Pass {
-		status = "FAIL"
+const (
+	colorReset   = "\033[0m"
+	colorBold    = "\033[1m"
+	colorGreen   = "\033[32m"
+	colorYellow  = "\033[33m"
+	colorRed     = "\033[31m"
+	colorCyan    = "\033[36m"
+	colorGray    = "\033[90m"
+)
+
+func useColor() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
 	}
-	fmt.Printf("Status: %s\n\n", status)
+	if os.Getenv("TERM") == "dumb" {
+		return false
+	}
+	return isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+}
+
+func writeDoctorHuman(rep DoctorReport) {
+	color := useColor()
+
+	var green, yellow, red, cyan, gray, bold, reset string
+	if color {
+		green = colorGreen
+		yellow = colorYellow
+		red = colorRed
+		cyan = colorCyan
+		gray = colorGray
+		bold = colorBold
+		reset = colorReset
+	}
+
+	fmt.Printf("%sPkgSafe Doctor%s\n", bold, reset)
+	fmt.Println("==============")
+
+	statusStr := bold + green + "PASS" + reset
+	if !rep.Pass {
+		statusStr = bold + red + "FAIL" + reset
+	}
+	fmt.Printf("Status: %s\n\n", statusStr)
+
+	// Groups
+	groups := []struct {
+		title  string
+		checks []string
+	}{
+		{
+			title:  "System & Configuration",
+			checks: []string{"version", "config path", "policy", "private registry config", "MCP readiness"},
+		},
+		{
+			title:  "Local Storage",
+			checks: []string{"database", "scan cache"},
+		},
+		{
+			title:  "Registry Connectivity",
+			checks: []string{"OSV network", "npm registry", "PyPI registry"},
+		},
+		{
+			title:  "Package Managers",
+			checks: []string{"package manager npm", "package manager pip", "package manager python"},
+		},
+	}
+
+	// Create a map of checks for easy lookup
+	checkMap := make(map[string]DoctorCheck)
 	for _, check := range rep.Checks {
-		fmt.Printf("- [%s] %s: %s\n", check.Status, check.Name, check.Summary)
+		checkMap[check.Name] = check
+	}
+
+	// Print grouped checks
+	printedChecks := make(map[string]bool)
+	for _, grp := range groups {
+		// Only print group if at least one of its checks is present
+		hasChecks := false
+		for _, name := range grp.checks {
+			if _, ok := checkMap[name]; ok {
+				hasChecks = true
+				break
+			}
+		}
+		if !hasChecks {
+			continue
+		}
+
+		fmt.Printf("%s%s%s\n", bold+cyan, grp.title, reset)
+		for _, name := range grp.checks {
+			check, ok := checkMap[name]
+			if !ok {
+				continue
+			}
+			printedChecks[name] = true
+
+			// Format prefix/status and text colors
+			var symbol string
+			var textStart, textEnd string
+			switch check.Status {
+			case "pass":
+				symbol = green + "✓" + reset
+			case "warn":
+				symbol = yellow + "⚠" + reset
+				if color {
+					textStart = yellow
+					textEnd = reset
+				}
+			case "fail":
+				symbol = red + "✗" + reset
+				if color {
+					textStart = red
+					textEnd = reset
+				}
+			default: // skip or other
+				symbol = gray + "-" + reset
+			}
+
+			// Clean name: for Package Managers group, strip "package manager " prefix
+			displayName := check.Name
+			if grp.title == "Package Managers" && strings.HasPrefix(displayName, "package manager ") {
+				displayName = strings.TrimPrefix(displayName, "package manager ")
+			}
+
+			fmt.Printf("  %s %s%s: %s%s\n", symbol, textStart, displayName, check.Summary, textEnd)
+		}
+		fmt.Println()
+	}
+
+	// Print any remaining checks not in predefined groups
+	hasRemaining := false
+	for _, check := range rep.Checks {
+		if !printedChecks[check.Name] {
+			hasRemaining = true
+			break
+		}
+	}
+
+	if hasRemaining {
+		fmt.Printf("%sOther Checks%s\n", bold+cyan, reset)
+		for _, check := range rep.Checks {
+			if printedChecks[check.Name] {
+				continue
+			}
+			var symbol string
+			var textStart, textEnd string
+			switch check.Status {
+			case "pass":
+				symbol = green + "✓" + reset
+			case "warn":
+				symbol = yellow + "⚠" + reset
+				if color {
+					textStart = yellow
+					textEnd = reset
+				}
+			case "fail":
+				symbol = red + "✗" + reset
+				if color {
+					textStart = red
+					textEnd = reset
+				}
+			default:
+				symbol = gray + "-" + reset
+			}
+			fmt.Printf("  %s %s%s: %s%s\n", symbol, textStart, check.Name, check.Summary, textEnd)
+		}
+		fmt.Println()
 	}
 }
 
