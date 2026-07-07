@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -129,6 +130,8 @@ func RunWith(cfg RunConfig, args []string) error {
 	case "version", "--version", "-v":
 		fmt.Printf("pkgsafe %s (%s)\n", version, commit)
 		return nil
+	case "scan":
+		return cmdScan(args[1:])
 	case "scan-local-npm":
 		return cmdScanLocalNPM(args[1:])
 	case "scan-npm-package":
@@ -216,6 +219,7 @@ func usage() {
 	fmt.Print(`PkgSafe - local-first package safety CLI
 
 Usage:
+  pkgsafe scan [dir] [--policy <path>] [--mode warn|block|audit] [--offline] [--json]
   pkgsafe scan-local-npm <dir> [--json]
   pkgsafe scan-npm-package <name> [--version <version>] [--policy <path>] [--mode warn|block|audit] [--json]
   pkgsafe scan-pypi-package <name> [--version <version>] [--policy <path>] [--mode warn|block|audit] [--json]
@@ -2016,6 +2020,372 @@ func logLockfileToAudit(pol policy.Policy, path string, res types.ScanResult) {
 		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 		Command:         "pkgsafe scan-lockfile " + path,
 		Ecosystem:       "npm-lock",
+		Packages:        auditPkgs,
+		Mode:            string(pol.Mode),
+		InstallExecuted: false,
+	}
+	_ = intercept.LogAudit(pol, auditEntry)
+}
+
+func cmdScan(args []string) error {
+	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "write JSON output")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	mode := fs.String("mode", "", "audit, warn, or block")
+	offline := fs.Bool("offline", false, "run scan offline using cached database")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	dir := "."
+	if fs.NArg() == 1 {
+		dir = fs.Arg(0)
+	} else if fs.NArg() > 1 {
+		return errors.New("usage: pkgsafe scan [dir]")
+	}
+
+	pol, err := loadPolicy(*policyPath, *mode, "", *registryConfig)
+	if err != nil {
+		return err
+	}
+
+	if !*offline {
+		cli.UpdateDBAsync("", "", "osv", 24*time.Hour)
+	}
+
+	type fileScanResult struct {
+		file     string
+		eco      string
+		decision string
+		score    int
+		findings string
+	}
+
+	var results []fileScanResult
+	var jsonResults []interface{}
+
+	// 1. package-lock.json
+	lockfilePath := filepath.Join(dir, "package-lock.json")
+	if _, err := os.Stat(lockfilePath); err == nil {
+		res, err := anpm.AnalyzeLockfile(lockfilePath, pol)
+		if err == nil {
+			res = stripEnterprise(res, false)
+			logLockfileToAudit(pol, lockfilePath, res)
+			jsonResults = append(jsonResults, res)
+			
+			findings := "clean"
+			if len(res.Reasons) > 0 {
+				var fList []string
+				for _, r := range res.Reasons {
+					if r.ID != "lockfile_summary" && r.ID != "score_clamped" && r.ID != "large_dependency_graph" && r.ID != "empty_lockfile" {
+						fList = append(fList, r.ID)
+					}
+				}
+				if len(fList) > 0 {
+					findings = strings.Join(unique(fList), ", ")
+				}
+			}
+			results = append(results, fileScanResult{
+				file:     "package-lock.json",
+				eco:      "npm",
+				decision: string(res.Decision),
+				score:    res.Score,
+				findings: findings,
+			})
+		}
+	} else {
+		pkgJsonPath := filepath.Join(dir, "package.json")
+		if _, err := os.Stat(pkgJsonPath); err == nil {
+			scanner := snpm.New()
+			scanner.Policy = pol
+			res, err := scanner.ScanLocalPackage(dir)
+			if err == nil {
+				res = stripEnterprise(res, false)
+				_ = saveResult(res)
+				logExplainToAudit(pol, "scan-local-npm", "npm", res)
+				jsonResults = append(jsonResults, res)
+				
+				findings := "clean"
+				if len(res.Reasons) > 0 {
+					var fList []string
+					for _, r := range res.Reasons {
+						if r.ID != "score_clamped" {
+							fList = append(fList, r.ID)
+						}
+					}
+					findings = strings.Join(unique(fList), ", ")
+				}
+				results = append(results, fileScanResult{
+					file:     "package.json",
+					eco:      "npm",
+					decision: string(res.Decision),
+					score:    res.Score,
+					findings: findings,
+				})
+			}
+		}
+	}
+
+	// 2. Cargo.lock
+	cargoPath := filepath.Join(dir, "Cargo.lock")
+	if _, err := os.Stat(cargoPath); err == nil {
+		b, err := os.ReadFile(cargoPath)
+		if err == nil {
+			deps, err := cargodeps.ParseCargoLock(b)
+			if err == nil {
+				scanner := scargo.New()
+				scanner.Policy = pol
+				scanner.Offline = *offline
+				
+				var subResults []types.ScanResult
+				worstScore := 0
+				aggDecision := "ALLOW"
+				var fList []string
+				
+				for _, dep := range deps {
+					res, err := scanner.ScanPackage(dep.Name, dep.Version)
+					if err == nil {
+						res = stripEnterprise(res, false)
+						_ = saveResult(res)
+						subResults = append(subResults, res)
+						if res.Score > worstScore {
+							worstScore = res.Score
+						}
+						if res.Decision == types.DecisionBlock {
+							aggDecision = "BLOCK"
+						} else if res.Decision == types.DecisionWarn && aggDecision != "BLOCK" {
+							aggDecision = "WARN"
+						}
+						for _, r := range res.Reasons {
+							fList = append(fList, r.ID)
+						}
+					}
+				}
+				logDependenciesToAudit(pol, "pkgsafe scan-cargo-deps "+cargoPath, "cargo-lock", subResults)
+				jsonResults = append(jsonResults, map[string]interface{}{
+					"file":    "Cargo.lock",
+					"results": subResults,
+				})
+				
+				findings := "clean"
+				if len(fList) > 0 {
+					findings = strings.Join(unique(fList), ", ")
+				}
+				results = append(results, fileScanResult{
+					file:     "Cargo.lock",
+					eco:      "cargo",
+					decision: aggDecision,
+					score:    worstScore,
+					findings: findings,
+				})
+			}
+		}
+	}
+
+	// 3. go.mod
+	goModPath := filepath.Join(dir, "go.mod")
+	if _, err := os.Stat(goModPath); err == nil {
+		b, err := os.ReadFile(goModPath)
+		if err == nil {
+			deps, err := godeps.ParseGoMod(b)
+			if err == nil {
+				scanner := sgolang.New()
+				scanner.Policy = pol
+				scanner.Offline = *offline
+				
+				var subResults []types.ScanResult
+				worstScore := 0
+				aggDecision := "ALLOW"
+				var fList []string
+				
+				for _, dep := range deps {
+					res, err := scanner.ScanPackage(dep.Name, dep.Version)
+					if err == nil {
+						res = stripEnterprise(res, false)
+						_ = saveResult(res)
+						subResults = append(subResults, res)
+						if res.Score > worstScore {
+							worstScore = res.Score
+						}
+						if res.Decision == types.DecisionBlock {
+							aggDecision = "BLOCK"
+						} else if res.Decision == types.DecisionWarn && aggDecision != "BLOCK" {
+							aggDecision = "WARN"
+						}
+						for _, r := range res.Reasons {
+							fList = append(fList, r.ID)
+						}
+					}
+				}
+				logDependenciesToAudit(pol, "pkgsafe scan-go-deps "+goModPath, "go-mod", subResults)
+				jsonResults = append(jsonResults, map[string]interface{}{
+					"file":    "go.mod",
+					"results": subResults,
+				})
+				
+				findings := "clean"
+				if len(fList) > 0 {
+					findings = strings.Join(unique(fList), ", ")
+				}
+				results = append(results, fileScanResult{
+					file:     "go.mod",
+					eco:      "golang",
+					decision: aggDecision,
+					score:    worstScore,
+					findings: findings,
+				})
+			}
+		}
+	}
+
+	// 4. requirements.txt
+	reqPath := filepath.Join(dir, "requirements.txt")
+	if _, err := os.Stat(reqPath); err == nil {
+		deps, err := pydeps.ParseFile(reqPath)
+		if err == nil {
+			scanner := spypi.New()
+			scanner.Policy = pol
+			scanner.Offline = *offline
+			
+			var subResults []types.ScanResult
+			worstScore := 0
+			aggDecision := "ALLOW"
+			var fList []string
+			
+			for _, dep := range deps {
+				res, err := scanner.ScanPackage(dep.Name, dep.Version)
+				if err == nil {
+					res = stripEnterprise(res, false)
+					_ = saveResult(res)
+					subResults = append(subResults, res)
+					if res.Score > worstScore {
+						worstScore = res.Score
+					}
+					if res.Decision == types.DecisionBlock {
+						aggDecision = "BLOCK"
+					} else if res.Decision == types.DecisionWarn && aggDecision != "BLOCK" {
+						aggDecision = "WARN"
+					}
+					for _, r := range res.Reasons {
+						fList = append(fList, r.ID)
+					}
+				}
+			}
+			logDependenciesToAudit(pol, "pkgsafe scan-python-deps "+reqPath, "python-requirements", subResults)
+			jsonResults = append(jsonResults, map[string]interface{}{
+				"file":    "requirements.txt",
+				"results": subResults,
+			})
+			
+			findings := "clean"
+			if len(fList) > 0 {
+				findings = strings.Join(unique(fList), ", ")
+			}
+			results = append(results, fileScanResult{
+				file:     "requirements.txt",
+				eco:      "pypi",
+				decision: aggDecision,
+				score:    worstScore,
+				findings: findings,
+			})
+		}
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(jsonResults)
+	}
+
+	var bold, green, red, yellow, reset string
+	color := false
+	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	}
+	if color {
+		bold = "\033[1m"
+		green = "\033[32m"
+		red = "\033[31m"
+		yellow = "\033[33m"
+		reset = "\033[0m"
+	}
+
+	absDir, _ := filepath.Abs(dir)
+	fmt.Printf("%sPkgSafe Workspace Scan%s\n", bold, reset)
+	fmt.Printf("======================\n")
+	fmt.Printf("Directory: %s\n\n", absDir)
+
+	if len(results) == 0 {
+		fmt.Println("No supported project files found to scan.")
+		return nil
+	}
+
+	fmt.Printf("%sScan Results:%s\n", bold, reset)
+	fmt.Printf("  %-20s %-8s %-12s %-24s\n", "FILE", "DECISION", "WORST SCORE", "FINDINGS")
+	fmt.Println(strings.Repeat("-", 76))
+
+	for _, r := range results {
+		decColor := green
+		if strings.EqualFold(r.decision, "BLOCK") {
+			decColor = red
+		} else if strings.EqualFold(r.decision, "WARN") {
+			decColor = yellow
+		}
+		
+		findingsStr := r.findings
+		if len(findingsStr) > 24 {
+			findingsStr = findingsStr[:21] + "..."
+		}
+
+		fmt.Printf("  %-20s %s%-8s%s %-12d %-24s\n", 
+			r.file, 
+			decColor, r.decision, reset, 
+			r.score, 
+			findingsStr,
+		)
+	}
+	fmt.Println()
+
+	hasBlock := false
+	for _, r := range results {
+		if strings.EqualFold(r.decision, "BLOCK") {
+			hasBlock = true
+		}
+	}
+	if hasBlock {
+		return fmt.Errorf("scan failed: one or more project files violate policy")
+	}
+
+	return nil
+}
+
+func unique(in []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, v := range in {
+		if !seen[v] {
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func logDependenciesToAudit(pol policy.Policy, cmd, ecosystem string, subResults []types.ScanResult) {
+	var auditPkgs []intercept.AuditPackage
+	for _, res := range subResults {
+		auditPkgs = append(auditPkgs, intercept.AuditPackage{
+			Name:      res.Package.Name,
+			Version:   res.Package.Version,
+			Decision:  string(res.Decision),
+			RiskScore: res.Score,
+		})
+	}
+	auditEntry := intercept.AuditEntry{
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		Command:         cmd,
+		Ecosystem:       ecosystem,
 		Packages:        auditPkgs,
 		Mode:            string(pol.Mode),
 		InstallExecuted: false,
