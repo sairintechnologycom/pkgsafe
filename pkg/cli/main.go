@@ -1028,6 +1028,28 @@ func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, ha
 		}
 	}
 	fmt.Fprintf(w, "Recommended Action:\n%s%s%s\n", recColor, recAction, reset)
+
+	// Suggested next steps
+	fmt.Fprintln(w)
+	var cmdColor, suggestBold, suggestReset string
+	if color {
+		cmdColor = "\033[36m"
+		suggestBold = "\033[1m"
+		suggestReset = "\033[0m"
+	}
+	fmt.Fprintf(w, "%sSuggested Next Steps:%s\n", suggestBold, suggestReset)
+	if res.Decision == "allow" {
+		if res.Package.Ecosystem == "npm" {
+			fmt.Fprintf(w, "  • Install this package safely:    %spkgsafe npm-install %s%s\n", cmdColor, res.Package.Name, suggestReset)
+			fmt.Fprintf(w, "  • Try explain for Python:        %spkgsafe explain-pypi %s%s\n", cmdColor, res.Package.Name, suggestReset)
+		} else if res.Package.Ecosystem == "pypi" {
+			fmt.Fprintf(w, "  • Install this package safely:    %spkgsafe pip install %s%s\n", cmdColor, res.Package.Name, suggestReset)
+			fmt.Fprintf(w, "  • Try explain for npm:           %spkgsafe explain %s%s\n", cmdColor, res.Package.Name, suggestReset)
+		}
+	} else {
+		fmt.Fprintf(w, "  • Review active scanning policy:  %spkgsafe policy explain <policy-path>%s\n", cmdColor, suggestReset)
+		fmt.Fprintf(w, "  • Check registry configurations:  %spkgsafe registry list%s\n", cmdColor, suggestReset)
+	}
 }
 
 func uniqueStrings(in []string) []string {

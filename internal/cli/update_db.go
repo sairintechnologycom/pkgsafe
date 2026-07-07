@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattn/go-isatty"
 	"github.com/sairintechnologycom/pkgsafe/internal/db"
 	"github.com/sairintechnologycom/pkgsafe/internal/intel/osv"
 	"github.com/sairintechnologycom/pkgsafe/internal/logging"
@@ -99,6 +100,22 @@ func updateDB(dbPath, ecosystem, source string, silent bool) error {
 		if len(failures) > 0 {
 			fmt.Printf("Failed: %s\n", strings.Join(failures, "; "))
 		}
+
+		// Suggested next steps
+		color := false
+		if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+			color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+		}
+		var bold, cyan, reset string
+		if color {
+			bold = "\033[1m"
+			cyan = "\033[36m"
+			reset = "\033[0m"
+		}
+		fmt.Println()
+		fmt.Printf("%sSuggested Next Steps:%s\n", bold, reset)
+		fmt.Printf("  • Verify environment setup:     %spkgsafe doctor%s\n", bold+cyan, reset)
+		fmt.Printf("  • Scan project dependencies:     %spkgsafe scan-lockfile package-lock.json%s\n", bold+cyan, reset)
 	}
 
 	// Fail closed: if every requested ecosystem failed, surface an error rather

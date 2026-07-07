@@ -338,6 +338,27 @@ func writeDoctorHuman(rep DoctorReport) {
 		}
 		fmt.Println()
 	}
+
+	// Suggested next commands
+	fmt.Printf("%sSuggested Next Steps:%s\n", bold, reset)
+	if rep.Pass {
+		fmt.Printf("  • Check a package's risk details:  %spkgsafe explain <package-name>%s\n", bold+cyan, reset)
+		fmt.Printf("  • Scan your project dependencies:  %spkgsafe scan-lockfile package-lock.json%s\n", bold+cyan, reset)
+		fmt.Printf("  • Set up shell shims:              %spkgsafe init shell%s\n", bold+cyan, reset)
+	} else {
+		hasStaleDB := false
+		for _, check := range rep.Checks {
+			if check.Name == "database" && (check.Status == "warn" || check.Status == "fail") {
+				hasStaleDB = true
+				break
+			}
+		}
+		if hasStaleDB {
+			fmt.Printf("  • Update local vulnerability DB:   %spkgsafe update-db%s\n", bold+cyan, reset)
+		}
+		fmt.Printf("  • Diagnose network & policies:     %spkgsafe doctor --skip-network%s\n", bold+cyan, reset)
+	}
+	fmt.Println()
 }
 
 func userHomeFallback() string {
