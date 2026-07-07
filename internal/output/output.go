@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
+	"github.com/mattn/go-isatty"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
@@ -80,6 +82,10 @@ func Write(w io.Writer, result types.ScanResult, asJSON bool) error {
 			TrustInfo:        result.TrustInfo,
 			ExceptionInfo:    result.ExceptionInfo,
 		})
+	}
+
+	if result.Package.Ecosystem == "npm-lock" {
+		return writeLockfileReport(w, result)
 	}
 
 	if result.Sandbox.Enabled && result.Package.Ecosystem != "pypi" {
@@ -291,4 +297,128 @@ func unique(in []string) []string {
 		}
 	}
 	return out
+}
+
+func writeLockfileReport(w io.Writer, result types.ScanResult) error {
+	var bold, green, red, yellow, reset string
+	color := false
+	if f, ok := w.(*os.File); ok {
+		if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+			color = isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
+		}
+	}
+	if color {
+		bold = "\033[1m"
+		green = "\033[32m"
+		red = "\033[31m"
+		yellow = "\033[33m"
+		reset = "\033[0m"
+	}
+
+	fmt.Fprintf(w, "%s%sPkgSafe Lockfile Scan Report%s\n", bold, green, reset)
+	fmt.Fprintf(w, "%s============================%s\n\n", bold, reset)
+
+	// Decision & Score
+	decisionStr := strings.ToUpper(string(result.Decision))
+	decisionColor := green
+	if result.Decision == types.DecisionBlock {
+		decisionColor = red
+	} else if result.Decision == types.DecisionWarn {
+		decisionColor = yellow
+	}
+	fmt.Fprintf(w, "Decision:   %s%s%s%s\n", bold, decisionColor, decisionStr, reset)
+	
+	// Risk score colorized
+	scoreColor := green
+	scoreLabel := "Low Risk"
+	if result.Score >= 70 {
+		scoreColor = red
+		scoreLabel = "High Risk"
+	} else if result.Score >= 30 {
+		scoreColor = yellow
+		scoreLabel = "Medium Risk"
+	}
+	fmt.Fprintf(w, "Risk Score: %s%s%d/100 (%s)%s [Scale: 0-29 Low, 30-69 Med, 70-100 High]\n\n", bold, scoreColor, result.Score, scoreLabel, reset)
+
+	// Summary stats
+	var total, allowed, blocked, warned int
+	for _, s := range result.Suspicious {
+		if strings.HasPrefix(s, "lockfile_summary:") {
+			fmt.Sscanf(s, "lockfile_summary:total:%d,allowed:%d,blocked:%d,warned:%d", &total, &allowed, &blocked, &warned)
+		}
+	}
+
+	if total > 0 {
+		fmt.Fprintf(w, "%sDependency Graph Summary:%s\n", bold, reset)
+		fmt.Fprintf(w, "  Total Dependencies: %d\n", total)
+		fmt.Fprintf(w, "  Allowed:            %s%d%s\n", green, allowed, reset)
+		if blocked > 0 {
+			fmt.Fprintf(w, "  Blocked:            %s%d%s\n", red, blocked, reset)
+		} else {
+			fmt.Fprintf(w, "  Blocked:            %d\n", blocked)
+		}
+		if warned > 0 {
+			fmt.Fprintf(w, "  Warnings / Risks:   %s%d%s\n", yellow, warned, reset)
+		} else {
+			fmt.Fprintf(w, "  Warnings / Risks:   %d\n", warned)
+		}
+		fmt.Fprintln(w)
+	}
+
+	// Finding Table
+	findings := []types.Reason{}
+	for _, r := range result.Reasons {
+		if r.ID != "lockfile_summary" && r.ID != "score_clamped" && r.ID != "large_dependency_graph" && r.ID != "empty_lockfile" {
+			findings = append(findings, r)
+		}
+	}
+
+	if len(findings) > 0 {
+		fmt.Fprintf(w, "%sTop Dependency Findings:%s\n", bold, reset)
+		// Table header
+		fmt.Fprintf(w, "  %-8s %-32s %-10s %-24s\n", "STATUS", "DEPENDENCY", "DECISION", "REASON")
+		fmt.Fprintf(w, "  %s\n", strings.Repeat("-", 80))
+
+		for _, r := range findings {
+			status := "✓ PASS"
+			statusColor := green
+			decision := "ALLOW"
+			decisionColor := green
+
+			if r.ID == "blocked_package" || r.ID == "known_malware_indicator" || strings.HasPrefix(r.ID, "known_vulnerability_high") || strings.HasPrefix(r.ID, "known_vulnerability_critical") {
+				status = "✗ FAIL"
+				statusColor = red
+				decision = "BLOCK"
+				decisionColor = red
+			} else {
+				status = "⚠ WARN"
+				statusColor = yellow
+				decision = "WARN"
+				decisionColor = yellow
+			}
+
+			dep := r.Evidence
+			if dep == "" {
+				dep = r.Description
+			}
+
+			fmt.Fprintf(w, "  %s%-8s%s %-32s %s%-10s%s %-24s\n", 
+				statusColor, status, reset, 
+				truncate(dep, 32), 
+				decisionColor, decision, reset, 
+				truncate(r.ID, 24),
+			)
+		}
+		fmt.Fprintln(w)
+	}
+
+	fmt.Fprintf(w, "%sRecommended Action:%s\n%s\n", bold, reset, RecommendedAction(result))
+	return nil
+}
+
+func truncate(s string, limit int) string {
+	if len(s) > limit {
+		return s[:limit-3] + "..."
+	}
+	return s
 }

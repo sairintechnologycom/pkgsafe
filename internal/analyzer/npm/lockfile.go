@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/mattn/go-isatty"
 	"github.com/sairintechnologycom/pkgsafe/internal/db"
 	"github.com/sairintechnologycom/pkgsafe/internal/intel"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
@@ -75,8 +77,12 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 	if len(names) > 500 {
 		reasons = append(reasons, types.Reason{ID: "large_dependency_graph", Description: "Large dependency graph increases transitive supply-chain exposure", Evidence: fmt.Sprintf("%d packages", len(names))})
 	}
+	blockedDeps := make(map[string]bool)
+	warnedDeps := make(map[string]bool)
+
 	for _, name := range names {
 		if policy.IsBlocked(pol, "npm", name) {
+			blockedDeps[name] = true
 			reasons = append(reasons, types.Reason{
 				ID:          "blocked_package",
 				Description: fmt.Sprintf("Lockfile contains blocked dependency %q", name),
@@ -86,6 +92,7 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 		matches := typosquat.Check(name)
 		if len(matches) > 0 {
 			alts = append(alts, matches...)
+			warnedDeps[name] = true
 			reasons = append(reasons, types.Reason{ID: "typosquat_candidate", Description: "Lockfile contains dependency resembling a popular package", Evidence: name})
 			reasons = append(reasons, types.Reason{ID: "missing_repository", Description: "Lockfile dependency metadata does not include a source repository", Evidence: name})
 		}
@@ -97,7 +104,17 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 	if err == nil {
 		defer d.Close()
 		ctx := context.Background()
+		interactive := isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())
+		totalDeps := len(deps)
+		processed := 0
 		for name, ver := range deps {
+			processed++
+			if interactive && processed%10 == 0 {
+				percent := (processed * 100) / totalDeps
+				barLen := percent / 5
+				bar := strings.Repeat("■", barLen) + strings.Repeat(" ", 20-barLen)
+				fmt.Fprintf(os.Stderr, "\rScanning dependencies: [%s] %d%% (%d/%d)   ", bar, percent, processed, totalDeps)
+			}
 			vulns, err := d.GetVulnerabilitiesForPackage(ctx, "npm", name)
 			if err != nil {
 				continue
@@ -107,12 +124,18 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 					resultVulns = append(resultVulns, typeVuln(v))
 
 					if intel.IsMalware(v) {
+						blockedDeps[name] = true
 						reasons = append(reasons, types.Reason{
 							ID:          "known_malware_indicator",
 							Description: fmt.Sprintf("Lockfile contains dependency %q with malware", name),
 							Evidence:    name + "@" + ver,
 						})
 					} else {
+						if v.Severity == "high" || v.Severity == "critical" {
+							blockedDeps[name] = true
+						} else {
+							warnedDeps[name] = true
+						}
 						reasons = append(reasons, types.Reason{
 							ID:          "known_vulnerability_" + v.Severity,
 							Description: fmt.Sprintf("Lockfile contains dependency %q with a %s severity advisory", name, v.Severity),
@@ -122,9 +145,22 @@ func AnalyzeLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
 				}
 			}
 		}
+		if interactive {
+			fmt.Fprintf(os.Stderr, "\rScanning dependencies: [%s] 100%% (%d/%d) Done!\n", strings.Repeat("■", 20), totalDeps, totalDeps)
+		}
 	}
 
-	evalRes := risk.Evaluate(pkg, reasons, nil, nil, unique(alts), pol)
+	// Calculate counts
+	blockedCount := len(blockedDeps)
+	warnedCount := 0
+	for name := range warnedDeps {
+		if !blockedDeps[name] {
+			warnedCount++
+		}
+	}
+	allowedCount := len(names) - blockedCount - warnedCount
+
+	evalRes := risk.Evaluate(pkg, reasons, nil, []string{fmt.Sprintf("lockfile_summary:total:%d,allowed:%d,blocked:%d,warned:%d", len(names), allowedCount, blockedCount, warnedCount)}, unique(alts), pol)
 	evalRes.Vulnerabilities = dedupeVulnerabilities(resultVulns)
 	return evalRes, nil
 }
