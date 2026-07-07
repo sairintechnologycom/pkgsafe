@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattn/go-isatty"
 	anpm "github.com/sairintechnologycom/pkgsafe/internal/analyzer/npm"
 	"github.com/sairintechnologycom/pkgsafe/internal/api"
 	"github.com/sairintechnologycom/pkgsafe/internal/cache"
@@ -875,6 +876,22 @@ func stripEnterprise(res types.ScanResult, enabled bool) types.ScanResult {
 }
 
 func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, hasCached bool, pol policy.Policy) {
+	color := false
+	if f, ok := w.(*os.File); ok {
+		if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+			color = isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
+		}
+	}
+
+	var green, yellow, red, bold, reset string
+	if color {
+		green = "\033[32m"
+		yellow = "\033[33m"
+		red = "\033[31m"
+		bold = "\033[1m"
+		reset = "\033[0m"
+	}
+
 	fmt.Fprintf(w, "Package: %s/%s\n", res.Package.Ecosystem, res.Package.Name)
 	fmt.Fprintf(w, "Latest Known Version: %s\n", emptyLatest(res.Package.Version))
 
@@ -891,8 +908,31 @@ func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, ha
 	}
 
 	fmt.Fprintf(w, "Last Scanned Version: %s\n", emptyLatest(lastScannedVer))
-	fmt.Fprintf(w, "Last Decision: %s\n", lastDecision)
-	fmt.Fprintf(w, "Risk Score: %d/100\n\n", riskScore)
+
+	decisionColor := reset
+	if color {
+		switch lastDecision {
+		case "ALLOW":
+			decisionColor = bold + green
+		case "BLOCK":
+			decisionColor = bold + red
+		default:
+			decisionColor = bold + yellow
+		}
+	}
+	fmt.Fprintf(w, "Last Decision: %s%s%s\n", decisionColor, lastDecision, reset)
+
+	scoreColor := reset
+	if color {
+		if riskScore >= 70 {
+			scoreColor = bold + red
+		} else if riskScore >= 30 {
+			scoreColor = bold + yellow
+		} else {
+			scoreColor = bold + green
+		}
+	}
+	fmt.Fprintf(w, "Risk Score: %s%d/100%s\n\n", scoreColor, riskScore, reset)
 
 	fmt.Fprintln(w, "Vulnerability Summary:")
 	if len(res.Vulnerabilities) > 0 {
@@ -910,7 +950,18 @@ func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, ha
 				if count > 1 {
 					suffix = "advisories"
 				}
-				fmt.Fprintf(w, "- %d %s %s found\n", count, sev, suffix)
+				sevColor := reset
+				if color {
+					switch sev {
+					case "critical", "high":
+						sevColor = red
+					case "medium":
+						sevColor = yellow
+					default:
+						sevColor = green
+					}
+				}
+				fmt.Fprintf(w, "- %d %s%s%s %s found\n", count, sevColor, sev, reset, suffix)
 			}
 		}
 		if len(fixedVersions) > 0 {
@@ -918,7 +969,11 @@ func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, ha
 			fmt.Fprintf(w, "- Fixed in: %s\n", strings.Join(fixedVersions, ", "))
 		}
 	} else {
-		fmt.Fprintln(w, "- No known advisories found")
+		summaryPrefix := "- "
+		if color {
+			summaryPrefix += green + "✓ " + reset
+		}
+		fmt.Fprintf(w, "%sNo known advisories found\n", summaryPrefix)
 	}
 	fmt.Fprintln(w)
 
@@ -926,13 +981,36 @@ func writeExplain(w io.Writer, res types.ScanResult, cached types.ScanResult, ha
 		fmt.Fprintln(w, "Top Risk Reasons:")
 		for _, r := range res.Reasons {
 			if r.ScoreImpact > 0 || r.ID == "trusted_package_reduction" {
-				fmt.Fprintf(w, "- [%s %+d] %s: %s\n", r.Severity, r.ScoreImpact, r.ID, r.Description)
+				impactColor := reset
+				if color {
+					switch r.Severity {
+					case "critical", "high":
+						impactColor = red
+					case "medium":
+						impactColor = yellow
+					default:
+						impactColor = green
+					}
+				}
+				fmt.Fprintf(w, "- [%s%s %+d%s] %s: %s\n", impactColor, r.Severity, r.ScoreImpact, reset, r.ID, r.Description)
 			}
 		}
 		fmt.Fprintln(w)
 	}
 
-	fmt.Fprintf(w, "Recommended Action:\n%s\n", output.RecommendedAction(res))
+	recAction := output.RecommendedAction(res)
+	recColor := reset
+	if color {
+		switch res.Decision {
+		case "allow":
+			recColor = green
+		case "block":
+			recColor = red
+		default:
+			recColor = yellow
+		}
+	}
+	fmt.Fprintf(w, "Recommended Action:\n%s%s%s\n", recColor, recAction, reset)
 }
 
 func uniqueStrings(in []string) []string {
