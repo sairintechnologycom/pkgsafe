@@ -27,6 +27,7 @@ import (
 	npminventory "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
 	pydeps "github.com/sairintechnologycom/pkgsafe/internal/deps/python"
 	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
+	"github.com/sairintechnologycom/pkgsafe/internal/license"
 	"github.com/sairintechnologycom/pkgsafe/internal/mcp"
 	"github.com/sairintechnologycom/pkgsafe/internal/output"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
@@ -72,6 +73,16 @@ type RunConfig struct {
 	// policy pack metadata and exceptions-used tracking. Reserved for the
 	// private enterprise distribution.
 	CIEnterpriseMode bool
+
+	// Entitlement carries the resolved enterprise license, or nil. The public
+	// pkgsafe binary always leaves it nil, which — because (*license.Entitlement)
+	// methods are nil-safe and fail open — grants no premium features and
+	// preserves exact OSS behavior. The private enterprise binary resolves a
+	// license at startup (via license.Resolver) and populates this so feature
+	// gates can call cfg.Entitlement.Allows(<feature>). A nil, expired, or
+	// unverifiable entitlement must only withhold premium features; it must
+	// never disable scanning.
+	Entitlement *license.Entitlement
 }
 
 // Execute runs the pkgsafe CLI with the given arguments (excluding the
