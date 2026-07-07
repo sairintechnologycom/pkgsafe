@@ -563,3 +563,23 @@ func TestSandboxProfileCommand(t *testing.T) {
 		t.Errorf("sandbox profile json failed: %v", err)
 	}
 }
+
+func TestVerifyCommand(t *testing.T) {
+	passLf := filepath.Join("..", "..", "editors", "vscode", "package-lock.json")
+	failLf := filepath.Join("..", "..", "testdata", "npm", "package-lock.json")
+
+	err := Run([]string{"verify", passLf})
+	if err != nil {
+		t.Errorf("verify pass lockfile failed: %v", err)
+	}
+
+	err = Run([]string{"verify", passLf, "--json"})
+	if err != nil {
+		t.Errorf("verify pass lockfile json failed: %v", err)
+	}
+
+	err = Run([]string{"verify", failLf})
+	if err == nil {
+		t.Errorf("expected verify fail lockfile to return error, but got nil")
+	}
+}

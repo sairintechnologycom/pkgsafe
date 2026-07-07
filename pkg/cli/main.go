@@ -186,6 +186,8 @@ func RunWith(cfg RunConfig, args []string) error {
 		}
 		usage()
 		return fmt.Errorf("unknown sandbox command")
+	case "verify":
+		return cmdVerify(args[1:])
 	case "inventory":
 		if len(args) > 1 && args[1] == "diff" {
 			return cmdInventoryDiff(args[2:])
@@ -243,6 +245,7 @@ Usage:
   pkgsafe scan-lockfile <package-lock.json> [--json]
   pkgsafe tree [package-lock.json] [--only-risky] [--depth <n>] [--policy <path>] [--json]
   pkgsafe sandbox profile <package-name> [--version <version>] [--policy <path>] [--json]
+  pkgsafe verify [package-lock.json] [--json]
   pkgsafe inventory <repo-path> [--json]
   pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
   pkgsafe test corpus [--json] [--explain-misses]
@@ -2768,10 +2771,14 @@ type treePackageLock struct {
 	Version         string `json:"version"`
 	LockfileVersion int    `json:"lockfileVersion"`
 	Packages        map[string]struct {
-		Version string `json:"version"`
+		Version   string `json:"version"`
+		Resolved  string `json:"resolved"`
+		Integrity string `json:"integrity"`
 	} `json:"packages"`
 	Dependencies map[string]struct {
-		Version string `json:"version"`
+		Version   string `json:"version"`
+		Resolved  string `json:"resolved"`
+		Integrity string `json:"integrity"`
 	} `json:"dependencies"`
 }
 
@@ -3165,5 +3172,201 @@ func cmdSandboxProfile(args []string) error {
 		}
 	}
 
+	return nil
+}
+
+type integrityReportItem struct {
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	Status    string `json:"status"` // "ok", "weak", "missing", "insecure"
+	Details   string `json:"details"`
+	Algorithm string `json:"algorithm,omitempty"`
+	Resolved  string `json:"resolved,omitempty"`
+}
+
+type integrityReportSummary struct {
+	File            string                 `json:"file"`
+	TotalPackages   int                    `json:"total_packages"`
+	OKCount         int                    `json:"ok_count"`
+	WeakCount       int                    `json:"weak_count"`
+	MissingCount    int                    `json:"missing_count"`
+	InsecureCount   int                    `json:"insecure_count"`
+	Items           []integrityReportItem  `json:"items"`
+}
+
+func cmdVerify(args []string) error {
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "output verification as JSON")
+
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	lfPath := "package-lock.json"
+	if fs.NArg() == 1 {
+		lfPath = fs.Arg(0)
+	} else if fs.NArg() > 1 {
+		return errors.New("usage: pkgsafe verify [package-lock.json]")
+	}
+
+	b, err := os.ReadFile(lfPath)
+	if err != nil {
+		return fmt.Errorf("read lockfile: %w", err)
+	}
+
+	var lf treePackageLock
+	if err := json.Unmarshal(b, &lf); err != nil {
+		return fmt.Errorf("parse lockfile: %w", err)
+	}
+
+	var items []integrityReportItem
+	var countOK, countWeak, countMissing, countInsecure int
+
+	for path, pkg := range lf.Packages {
+		if path == "" || path == "node_modules" {
+			continue
+		}
+		chain := parsePathToChain(path)
+		if len(chain) == 0 {
+			continue
+		}
+		name := chain[len(chain)-1]
+
+		item := integrityReportItem{
+			Name:     name,
+			Version:  pkg.Version,
+			Resolved: pkg.Resolved,
+			Status:   "ok",
+		}
+
+		if pkg.Integrity == "" {
+			item.Status = "missing"
+			item.Details = "no integrity hash present"
+			countMissing++
+		} else {
+			parts := strings.Split(pkg.Integrity, "-")
+			alg := parts[0]
+			item.Algorithm = alg
+			if alg == "sha512" || alg == "sha256" {
+				item.Status = "ok"
+				countOK++
+			} else {
+				item.Status = "weak"
+				item.Details = fmt.Sprintf("deprecated hash algorithm used: %s", alg)
+				countWeak++
+			}
+		}
+
+		if strings.HasPrefix(pkg.Resolved, "http://") {
+			item.Status = "insecure"
+			item.Details = "unencrypted HTTP protocol resolved"
+			countInsecure++
+		}
+
+		items = append(items, item)
+	}
+
+	if len(items) == 0 {
+		for name, dep := range lf.Dependencies {
+			item := integrityReportItem{
+				Name:     name,
+				Version:  dep.Version,
+				Resolved: dep.Resolved,
+				Status:   "ok",
+			}
+
+			if dep.Integrity == "" {
+				item.Status = "missing"
+				item.Details = "no integrity hash present"
+				countMissing++
+			} else {
+				parts := strings.Split(dep.Integrity, "-")
+				alg := parts[0]
+				item.Algorithm = alg
+				if alg == "sha512" || alg == "sha256" {
+					item.Status = "ok"
+					countOK++
+				} else {
+					item.Status = "weak"
+					item.Details = fmt.Sprintf("deprecated hash algorithm used: %s", alg)
+					countWeak++
+				}
+			}
+
+			if strings.HasPrefix(dep.Resolved, "http://") {
+				item.Status = "insecure"
+				item.Details = "unencrypted HTTP protocol resolved"
+				countInsecure++
+			}
+
+			items = append(items, item)
+		}
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Name < items[j].Name
+	})
+
+	report := integrityReportSummary{
+		File:          lfPath,
+		TotalPackages: len(items),
+		OKCount:       countOK,
+		WeakCount:     countWeak,
+		MissingCount:  countMissing,
+		InsecureCount: countInsecure,
+		Items:         items,
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(report)
+	}
+
+	var bold, green, red, yellow, reset string
+	color := false
+	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	}
+	if color {
+		bold = "\033[1m"
+		green = "\033[32m"
+		red = "\033[31m"
+		yellow = "\033[33m"
+		reset = "\033[0m"
+	}
+
+	fmt.Printf("%sPkgSafe Lockfile Integrity Verification Report%s\n", bold, reset)
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Printf("Lockfile: %s\n\n", lfPath)
+
+	for _, it := range items {
+		switch it.Status {
+		case "ok":
+			fmt.Printf("  [%s✓ OK%s]      %s@%s (alg: %s)\n", green, reset, it.Name, it.Version, it.Algorithm)
+		case "weak":
+			fmt.Printf("  [%s⚠ WEAK%s]    %s@%s (%s)\n", yellow, reset, it.Name, it.Version, it.Details)
+		case "missing":
+			fmt.Printf("  [%s✗ MISSING%s] %s@%s (%s)\n", red, reset, it.Name, it.Version, it.Details)
+		case "insecure":
+			fmt.Printf("  [%s✗ INSECURE%s]%s@%s (%s)\n", red, reset, it.Name, it.Version, it.Details)
+		}
+	}
+
+	fmt.Println()
+	fmt.Printf("Verification Summary:\n")
+	fmt.Printf("  • Total Packages Checked: %d\n", report.TotalPackages)
+	fmt.Printf("  • Secure Checksums:       %d\n", report.OKCount)
+	fmt.Printf("  • Weak Checksums:         %d\n", report.WeakCount)
+	fmt.Printf("  • Missing Checksums:      %d\n", report.MissingCount)
+	fmt.Printf("  • Insecure Protocols:     %d\n", report.InsecureCount)
+	fmt.Println()
+
+	if report.MissingCount > 0 || report.InsecureCount > 0 || report.WeakCount > 0 {
+		fmt.Printf("%sVerification Result: FAIL (Issues detected)%s\n", red, reset)
+		return errors.New("lockfile integrity verification failed")
+	}
+
+	fmt.Printf("%sVerification Result: PASS (All packages cryptographically authentic)%s\n", green, reset)
 	return nil
 }
