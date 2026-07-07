@@ -441,3 +441,89 @@ version = "0.2.0"
 		t.Errorf("expected error for missing positional argument in scan-cargo-deps, got nil")
 	}
 }
+
+func TestHistoryCommand(t *testing.T) {
+	tmp := t.TempDir()
+	polPath := filepath.Join(tmp, "policy.yaml")
+	if err := os.WriteFile(polPath, []byte(`mode: warn`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Run([]string{"history", "--clear", "--policy", polPath})
+	if err != nil {
+		t.Errorf("history --clear failed: %v", err)
+	}
+
+	err = Run([]string{"history", "--policy", polPath})
+	if err != nil {
+		t.Errorf("history failed: %v", err)
+	}
+
+	err = Run([]string{"history", "--json", "--policy", polPath})
+	if err != nil {
+		t.Errorf("history --json failed: %v", err)
+	}
+}
+
+func TestWorkspaceScanCommand(t *testing.T) {
+	err := Run([]string{"scan", ".", "--offline"})
+	if err != nil {
+		t.Errorf("scan . failed: %v", err)
+	}
+
+	err = Run([]string{"scan", ".", "--offline", "--json"})
+	if err != nil {
+		t.Errorf("scan . --json failed: %v", err)
+	}
+
+	err = Run([]string{"scan", t.TempDir(), "--offline"})
+	if err != nil {
+		t.Errorf("scan nonexistent failed: %v", err)
+	}
+}
+
+func TestPolicyEditCommandInteractive(t *testing.T) {
+	tmp := t.TempDir()
+	polPath := filepath.Join(tmp, "policy-test-edit.yaml")
+
+	if err := os.WriteFile(polPath, []byte(`mode: warn`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStdin := os.Stdin
+	defer func() { os.Stdin = oldStdin }()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdin = r
+	w.WriteString("7\n")
+	w.Close()
+
+	err = Run([]string{"policy", "edit", "--policy", polPath})
+	if err != nil {
+		t.Errorf("policy edit Option 7 (cancel) failed: %v", err)
+	}
+
+	r2, w2, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdin = r2
+	w2.WriteString("1\nblock\n6\n")
+	w2.Close()
+
+	err = Run([]string{"policy", "edit", "--policy", polPath})
+	if err != nil {
+		t.Errorf("policy edit change and save failed: %v", err)
+	}
+
+	content, err := os.ReadFile(polPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(content, []byte("mode: block")) {
+		t.Errorf("expected policy file to contain mode: block, got:\n%s", string(content))
+	}
+}
