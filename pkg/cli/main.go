@@ -38,6 +38,7 @@ import (
 	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
 	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/audit"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 	"github.com/sairintechnologycom/pkgsafe/internal/typosquat"
 	"github.com/sairintechnologycom/pkgsafe/internal/validation"
@@ -166,6 +167,8 @@ func RunWith(cfg RunConfig, args []string) error {
 		return cmdDB(args[1:])
 	case "doctor":
 		return cmdDoctor(args[1:])
+	case "history":
+		return cmdHistory(args[1:])
 	case "inventory":
 		if len(args) > 1 && args[1] == "diff" {
 			return cmdInventoryDiff(args[2:])
@@ -254,6 +257,7 @@ Usage:
   pkgsafe python <python-args...>
   pkgsafe run [--] <command-args...>
   pkgsafe init shell
+  pkgsafe history [--limit <n>] [--decision <block|warn|allow>] [--clear] [--json]
   pkgsafe version
 `)
 }
@@ -683,6 +687,7 @@ func cmdScanLockfile(args []string) error {
 		return err
 	}
 	res = stripEnterprise(res, false)
+	logLockfileToAudit(pol, fs.Arg(0), res)
 	return output.Write(os.Stdout, res, *asJSON)
 }
 
@@ -855,6 +860,7 @@ func cmdExplain(args []string) error {
 		}
 		res = stripEnterprise(res, false)
 		_ = saveResult(res)
+		logExplainToAudit(pol, "explain", "pypi", res)
 		if *asJSON {
 			return output.Write(os.Stdout, res, true)
 		}
@@ -903,6 +909,7 @@ func cmdExplain(args []string) error {
 	}
 	res = stripEnterprise(res, false)
 	_ = saveResult(res)
+	logExplainToAudit(pol, "explain", "npm", res)
 	if *asJSON {
 		return output.Write(os.Stdout, res, true)
 	}
@@ -970,6 +977,7 @@ func cmdExplainPyPI(args []string) error {
 	}
 	res = stripEnterprise(res, false)
 	_ = saveResult(res)
+	logExplainToAudit(pol, "explain-pypi", "pypi", res)
 	if *asJSON {
 		return output.Write(os.Stdout, res, true)
 	}
@@ -1451,7 +1459,8 @@ func flagNeedsValue(arg string) bool {
 	switch name {
 	case "version", "mode", "policy", "log-level", "timeout", "network", "behavior",
 		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "registry-config", "port", "token",
-		"base", "repo", "repo-list", "fixtures", "definitions", "db", "output", "signing-key", "key":
+		"base", "repo", "repo-list", "fixtures", "definitions", "db", "output", "signing-key", "key",
+		"decision", "limit":
 		return true
 	default:
 		return false
@@ -1814,4 +1823,202 @@ func cmdInventoryDiff(args []string) error {
 	}
 
 	return nil
+}
+
+func cmdHistory(args []string) error {
+	fs := flag.NewFlagSet("history", flag.ContinueOnError)
+	limit := fs.Int("limit", 50, "limit number of history entries shown")
+	decision := fs.String("decision", "", "filter by decision (allow, warn, block)")
+	clear := fs.Bool("clear", false, "clear history logs")
+	asJSON := fs.Bool("json", false, "write output as JSON")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	pol, _ := loadPolicy(*policyPath, "", "", *registryConfig)
+	logPath := "~/.pkgsafe/audit.log"
+	if pol.InstallInterception.AuditLogPath != "" {
+		logPath = pol.InstallInterception.AuditLogPath
+	}
+	absPath := audit.ExpandHome(logPath)
+
+	if *clear {
+		err := os.Remove(absPath)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("clear history: %w", err)
+		}
+		fmt.Println("PkgSafe audit history cleared.")
+		return nil
+	}
+
+	entries, err := audit.ReadAuditLog(logPath)
+	if err != nil {
+		return err
+	}
+
+	filtered := []audit.AuditEntry{}
+	for i := len(entries) - 1; i >= 0; i-- {
+		entry := entries[i]
+		if *decision != "" {
+			matches := false
+			for _, pkg := range entry.Packages {
+				if strings.EqualFold(pkg.Decision, *decision) {
+					matches = true
+					break
+				}
+			}
+			if !matches {
+				continue
+			}
+		}
+		filtered = append(filtered, entry)
+		if len(filtered) >= *limit {
+			break
+		}
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(filtered)
+	}
+
+	if len(filtered) == 0 {
+		fmt.Println("No history entries found.")
+		return nil
+	}
+
+	var bold, green, red, yellow, reset string
+	color := false
+	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	}
+	if color {
+		bold = "\033[1m"
+		green = "\033[32m"
+		red = "\033[31m"
+		yellow = "\033[33m"
+		reset = "\033[0m"
+	}
+
+	fmt.Printf("%sPkgSafe Audit History (newest first):%s\n", bold, reset)
+	fmt.Printf("  %-20s %-32s %-8s %-16s\n", "TIMESTAMP", "COMMAND / ACTION", "DECISION", "PACKAGES")
+	fmt.Println(strings.Repeat("-", 90))
+
+	for _, entry := range filtered {
+		aggDecision := "ALLOW"
+		for _, p := range entry.Packages {
+			if strings.EqualFold(p.Decision, "block") {
+				aggDecision = "BLOCK"
+				break
+			}
+			if strings.EqualFold(p.Decision, "warn") {
+				aggDecision = "WARN"
+			}
+		}
+
+		decColor := green
+		if aggDecision == "BLOCK" {
+			decColor = red
+		} else if aggDecision == "WARN" {
+			decColor = yellow
+		}
+
+		cmd := entry.Command
+		if len(cmd) > 32 {
+			cmd = cmd[:29] + "..."
+		}
+
+		var pkgNames []string
+		for _, p := range entry.Packages {
+			pName := p.Name
+			if p.Version != "" {
+				pName = pName + "@" + p.Version
+			}
+			pkgNames = append(pkgNames, pName)
+		}
+		pkgStr := strings.Join(pkgNames, ", ")
+		if len(pkgStr) > 24 {
+			pkgStr = pkgStr[:21] + "..."
+		}
+		if pkgStr == "" {
+			pkgStr = "-"
+		}
+
+		tStr := entry.Timestamp
+		if len(tStr) >= 19 {
+			tStr = strings.Replace(tStr[:19], "T", " ", 1)
+		}
+
+		fmt.Printf("  %-20s %-32s %s%-8s%s %-16s\n", 
+			tStr, 
+			cmd, 
+			decColor, aggDecision, reset, 
+			pkgStr,
+		)
+	}
+	fmt.Println()
+
+	return nil
+}
+
+func logExplainToAudit(pol policy.Policy, cmd, eco string, res types.ScanResult) {
+	auditPkg := intercept.AuditPackage{
+		Name:      res.Package.Name,
+		Version:   res.Package.Version,
+		Decision:  string(res.Decision),
+		RiskScore: res.Score,
+	}
+	auditEntry := intercept.AuditEntry{
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		Command:         "pkgsafe " + cmd + " " + res.Package.Name,
+		Ecosystem:       eco,
+		Packages:        []intercept.AuditPackage{auditPkg},
+		Mode:            string(pol.Mode),
+		InstallExecuted: false,
+	}
+	_ = intercept.LogAudit(pol, auditEntry)
+}
+
+func logLockfileToAudit(pol policy.Policy, path string, res types.ScanResult) {
+	var auditPkgs []intercept.AuditPackage
+	for _, r := range res.Reasons {
+		if r.ID == "lockfile_summary" || r.ID == "score_clamped" || r.ID == "large_dependency_graph" || r.ID == "empty_lockfile" {
+			continue
+		}
+		dec := "ALLOW"
+		score := 0
+		if r.ID == "blocked_package" || r.ID == "known_malware_indicator" || strings.HasPrefix(r.ID, "known_vulnerability_high") || strings.HasPrefix(r.ID, "known_vulnerability_critical") {
+			dec = "BLOCK"
+			score = 100
+		} else {
+			dec = "WARN"
+			score = 30
+		}
+		name := r.Evidence
+		version := ""
+		if strings.Contains(name, "@") {
+			parts := strings.SplitN(name, "@", 2)
+			name = parts[0]
+			version = parts[1]
+		}
+		auditPkgs = append(auditPkgs, intercept.AuditPackage{
+			Name:      name,
+			Version:   version,
+			Decision:  dec,
+			RiskScore: score,
+		})
+	}
+
+	auditEntry := intercept.AuditEntry{
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		Command:         "pkgsafe scan-lockfile " + path,
+		Ecosystem:       "npm-lock",
+		Packages:        auditPkgs,
+		Mode:            string(pol.Mode),
+		InstallExecuted: false,
+	}
+	_ = intercept.LogAudit(pol, auditEntry)
 }
