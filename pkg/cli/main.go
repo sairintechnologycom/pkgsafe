@@ -180,6 +180,12 @@ func RunWith(cfg RunConfig, args []string) error {
 		return cmdDoctor(args[1:])
 	case "history":
 		return cmdHistory(args[1:])
+	case "sandbox":
+		if len(args) > 1 && args[1] == "profile" {
+			return cmdSandboxProfile(args[2:])
+		}
+		usage()
+		return fmt.Errorf("unknown sandbox command")
 	case "inventory":
 		if len(args) > 1 && args[1] == "diff" {
 			return cmdInventoryDiff(args[2:])
@@ -236,6 +242,7 @@ Usage:
   pkgsafe scan-cargo-deps <Cargo.lock> [--json]
   pkgsafe scan-lockfile <package-lock.json> [--json]
   pkgsafe tree [package-lock.json] [--only-risky] [--depth <n>] [--policy <path>] [--json]
+  pkgsafe sandbox profile <package-name> [--version <version>] [--policy <path>] [--json]
   pkgsafe inventory <repo-path> [--json]
   pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
   pkgsafe test corpus [--json] [--explain-misses]
@@ -3019,5 +3026,144 @@ func cmdTree(args []string) error {
 	}
 
 	printTree(root, "", false, color)
+	return nil
+}
+
+func cmdSandboxProfile(args []string) error {
+	fs := flag.NewFlagSet("sandbox-profile", flag.ContinueOnError)
+	version := fs.String("version", "", "package version")
+	asJSON := fs.Bool("json", false, "output profile as JSON")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	if fs.NArg() != 1 {
+		return errors.New("usage: pkgsafe sandbox profile <package-name>")
+	}
+
+	pkgName := fs.Arg(0)
+
+	eco := "npm"
+	cleanName := pkgName
+	if strings.HasPrefix(pkgName, "npm:") {
+		cleanName = pkgName[4:]
+	} else if strings.HasPrefix(pkgName, "pypi:") {
+		eco = "pypi"
+		cleanName = pkgName[5:]
+	}
+
+	store, _ := cache.Load("")
+	cached, hasCached := store.Get(eco, cleanName, *version)
+
+	if !hasCached {
+		pol, err := loadPolicy(*policyPath, "", "", *registryConfig)
+		if err != nil {
+			return err
+		}
+
+		if eco == "npm" {
+			scanner := snpm.New()
+			scanner.Policy = pol
+			res, err := scanner.ScanPackage(cleanName, *version)
+			if err != nil {
+				return fmt.Errorf("no cache found and scan failed: %w", err)
+			}
+			res = stripEnterprise(res, false)
+			_ = saveResult(res)
+			cached = res
+		} else {
+			scanner := spypi.New()
+			scanner.Policy = pol
+			res, err := scanner.ScanPackage(cleanName, *version)
+			if err != nil {
+				return fmt.Errorf("no cache found and scan failed: %w", err)
+			}
+			res = stripEnterprise(res, false)
+			_ = saveResult(res)
+			cached = res
+		}
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(cached.Sandbox)
+	}
+
+	var bold, green, red, yellow, reset string
+	color := false
+	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	}
+	if color {
+		bold = "\033[1m"
+		green = "\033[32m"
+		red = "\033[31m"
+		yellow = "\033[33m"
+		reset = "\033[0m"
+	}
+
+	fmt.Printf("%sSandbox Behavioral Profile for %s/%s@%s%s\n", bold, eco, cleanName, cached.Package.Version, reset)
+	fmt.Println(strings.Repeat("=", 60))
+
+	sb := cached.Sandbox
+	fmt.Printf("Sandbox Enabled:    %t\n", sb.Enabled)
+	fmt.Printf("Backend Available:  %t\n", sb.Available)
+	fmt.Printf("Behavior Mode:      %s\n", sb.BehaviorMode)
+	fmt.Printf("Isolated Execution: %t\n", sb.Isolated)
+	if sb.Runner != "" {
+		fmt.Printf("Runner Name:        %s\n", sb.Runner)
+	}
+	if sb.NetworkMode != "" {
+		fmt.Printf("Network Policy:     %s\n", sb.NetworkMode)
+	}
+	if sb.Warning != "" {
+		fmt.Printf("%sWarning:            %s%s\n", yellow, sb.Warning, reset)
+	}
+	if sb.NotPerformed {
+		fmt.Printf("%sExecution Skipped:   %s%s\n", yellow, sb.NotPerfReason, reset)
+	}
+
+	fmt.Println("\nScripts Executed:")
+	if len(sb.ScriptsExecuted) == 0 {
+		fmt.Println("  (None)")
+	} else {
+		for _, scr := range sb.ScriptsExecuted {
+			status := fmt.Sprintf("%sExit Code %d%s", green, scr.ExitCode, reset)
+			if scr.ExitCode != 0 {
+				status = fmt.Sprintf("%sExit Code %d%s", red, scr.ExitCode, reset)
+			}
+			if scr.TimedOut {
+				status = fmt.Sprintf("%sTimed Out%s", red, reset)
+			}
+			if scr.Error != "" {
+				status = fmt.Sprintf("%sError: %s%s", red, scr.Error, reset)
+			}
+
+			fmt.Printf("  • %s%s%s (%s, Duration: %dms, Isolated: %t)\n",
+				bold, scr.Name, reset,
+				status, scr.DurationMs, scr.Isolated,
+			)
+
+			if len(scr.Trace) > 0 {
+				fmt.Println("    Trace logs:")
+				for _, line := range scr.Trace {
+					fmt.Printf("      - %s\n", line)
+				}
+			}
+
+			if len(scr.Findings) > 0 {
+				fmt.Println("    Findings:")
+				for _, f := range scr.Findings {
+					fmt.Printf("      - [%s%s%s] %s\n", red, f.RuleID, reset, f.Description)
+				}
+			}
+			fmt.Println()
+		}
+	}
+
 	return nil
 }

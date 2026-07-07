@@ -551,3 +551,15 @@ func TestTreeCommand(t *testing.T) {
 		t.Errorf("tree run --depth failed: %v", err)
 	}
 }
+
+func TestSandboxProfileCommand(t *testing.T) {
+	err := Run([]string{"sandbox", "profile", "axios", "--version", "1.6.0"})
+	if err != nil {
+		t.Errorf("sandbox profile failed: %v", err)
+	}
+
+	err = Run([]string{"sandbox", "profile", "axios", "--version", "1.6.0", "--json"})
+	if err != nil {
+		t.Errorf("sandbox profile json failed: %v", err)
+	}
+}
