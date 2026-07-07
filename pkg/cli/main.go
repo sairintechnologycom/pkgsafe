@@ -27,7 +27,6 @@ import (
 	npminventory "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
 	pydeps "github.com/sairintechnologycom/pkgsafe/internal/deps/python"
 	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
-	"github.com/sairintechnologycom/pkgsafe/internal/license"
 	"github.com/sairintechnologycom/pkgsafe/internal/mcp"
 	"github.com/sairintechnologycom/pkgsafe/internal/output"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
@@ -38,6 +37,7 @@ import (
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 	"github.com/sairintechnologycom/pkgsafe/internal/validation"
 	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
+	"github.com/sairintechnologycom/pkgsafe/pkg/license"
 )
 
 // version/commit mirror the build-injected values in internal/version so the

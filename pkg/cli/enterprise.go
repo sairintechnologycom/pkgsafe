@@ -10,7 +10,7 @@ import (
 // through to the same stub error it returns today — OSS behavior is unchanged.
 //
 // The enterprise binary resolves a license once at startup (see
-// internal/license) and registers a handler that closure-captures the
+// pkg/license) and registers a handler that closure-captures the
 // resolved *license.Entitlement, gating each command. When the license does
 // not grant a feature the handler returns handled=false, so the user sees the
 // identical OSS "private-enterprise functionality" message — a lapsed or
