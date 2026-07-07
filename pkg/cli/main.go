@@ -1399,6 +1399,7 @@ func cmdDoctor(args []string) error {
 	policyPath := fs.String("policy", "", "policy YAML path")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
 	skipNetwork := fs.Bool("skip-network", false, "skip OSV network availability check")
+	fix := fs.Bool("fix", false, "attempt to automatically fix warning or failing states")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -1407,6 +1408,7 @@ func cmdDoctor(args []string) error {
 		RegistryConfig: *registryConfig,
 		SkipNetwork:    *skipNetwork,
 		JSON:           *asJSON,
+		Fix:            *fix,
 	})
 }
 

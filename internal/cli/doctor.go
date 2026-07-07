@@ -38,10 +38,14 @@ type DoctorOptions struct {
 	RegistryConfig string
 	SkipNetwork    bool
 	JSON           bool
+	Fix            bool
 }
 
 func Doctor(opts DoctorOptions) error {
 	rep := RunDoctor(opts)
+	if opts.Fix {
+		rep = RunDoctorFix(opts, rep)
+	}
 	if opts.JSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -75,6 +79,24 @@ func RunDoctor(opts DoctorOptions) DoctorReport {
 		add("policy", "pass", "default policy is valid")
 	} else {
 		add("policy", "pass", fmt.Sprintf("policy %s is valid", opts.PolicyPath))
+	}
+
+	// Check shell shims
+	shimsConfigured := false
+	home := userHomeFallback()
+	for _, rc := range []string{".zshrc", ".bashrc", ".bash_profile", ".profile", ".config/fish/config.fish"} {
+		path := filepath.Join(home, rc)
+		if b, err := os.ReadFile(path); err == nil {
+			if strings.Contains(string(b), "pkgsafe npm") || strings.Contains(string(b), "pkgsafe pip") {
+				shimsConfigured = true
+				break
+			}
+		}
+	}
+	if shimsConfigured {
+		add("shell shims", "pass", "configured in shell profile")
+	} else {
+		add("shell shims", "warn", "not configured in shell profile; command-intercepting shims are not active")
 	}
 
 	d, err := db.Open("")
@@ -221,7 +243,7 @@ func writeDoctorHuman(rep DoctorReport) {
 	}{
 		{
 			title:  "System & Configuration",
-			checks: []string{"version", "config path", "policy", "private registry config", "MCP readiness"},
+			checks: []string{"version", "config path", "policy", "shell shims", "private registry config", "MCP readiness"},
 		},
 		{
 			title:  "Local Storage",
@@ -367,4 +389,229 @@ func userHomeFallback() string {
 		return "."
 	}
 	return home
+}
+
+func RunDoctorFix(opts DoctorOptions, rep DoctorReport) DoctorReport {
+	color := useColor()
+	var green, red, bold, reset string
+	if color {
+		green = colorGreen
+		red = colorRed
+		bold = colorBold
+		reset = colorReset
+	}
+
+	anyFixed := false
+	for _, check := range rep.Checks {
+		if check.Status == "pass" || check.Status == "skip" {
+			continue
+		}
+
+		switch check.Name {
+		case "database":
+			fmt.Printf("%s⚙ Attempting to fix database warning/failure...%s\n", bold, reset)
+			err := UpdateDB("", "", "")
+			if err != nil {
+				fmt.Printf("%s✗ Database fix failed: %v%s\n", red, err, reset)
+			} else {
+				fmt.Printf("%s✓ Database updated successfully.%s\n", green, reset)
+				anyFixed = true
+			}
+
+		case "policy":
+			if opts.PolicyPath != "" {
+				if _, err := os.Stat(opts.PolicyPath); os.IsNotExist(err) {
+					fmt.Printf("%s⚙ Creating default policy at custom path %s...%s\n", bold, opts.PolicyPath, reset)
+					err := writeDefaultPolicy(opts.PolicyPath)
+					if err != nil {
+						fmt.Printf("%s✗ Failed to write policy file: %v%s\n", red, err, reset)
+					} else {
+						fmt.Printf("%s✓ Policy file created successfully.%s\n", green, reset)
+						anyFixed = true
+					}
+				} else {
+					fmt.Printf("%s⚠ Custom policy path %q exists but failed to load. Please inspect and fix the file manually.%s\n", red, opts.PolicyPath, reset)
+				}
+			} else {
+				defaultPath := filepath.Join(userHomeFallback(), ".pkgsafe", "policy.yaml")
+				if _, err := os.Stat(defaultPath); os.IsNotExist(err) {
+					fmt.Printf("%s⚙ Creating default policy at %s...%s\n", bold, defaultPath, reset)
+					_ = os.MkdirAll(filepath.Dir(defaultPath), 0755)
+					err := writeDefaultPolicy(defaultPath)
+					if err != nil {
+						fmt.Printf("%s✗ Failed to write policy file: %v%s\n", red, err, reset)
+					} else {
+						fmt.Printf("%s✓ Policy file created successfully.%s\n", green, reset)
+						anyFixed = true
+					}
+				}
+			}
+
+		case "scan cache":
+			fmt.Printf("%s⚙ Creating scan cache directory...%s\n", bold, reset)
+			cachePath := filepath.Join(userHomeFallback(), ".pkgsafe", "cache")
+			err := os.MkdirAll(cachePath, 0755)
+			if err != nil {
+				fmt.Printf("%s✗ Failed to create cache directory: %v%s\n", red, err, reset)
+			} else {
+				fmt.Printf("%s✓ Cache directory created successfully.%s\n", green, reset)
+				anyFixed = true
+			}
+
+		case "shell shims":
+			fmt.Printf("%s⚙ Launching interactive shell shim installer...%s\n", bold, reset)
+			err := autoInstallAliases()
+			if err != nil {
+				fmt.Printf("%s✗ Shell shim installation failed: %v%s\n", red, err, reset)
+			} else {
+				fmt.Printf("%s✓ Shell shims configured.%s\n", green, reset)
+				anyFixed = true
+			}
+		}
+	}
+
+	if anyFixed {
+		fmt.Printf("\n%s⚙ Re-running checks after fixes...%s\n\n", bold, reset)
+		return RunDoctor(opts)
+	}
+
+	return rep
+}
+
+func writeDefaultPolicy(path string) error {
+	defaultYaml := `schema_version: "1.0"
+
+mode: warn
+
+thresholds:
+  allow_max_score: 29
+  warn_max_score: 69
+  block_min_score: 70
+
+ecosystems:
+  npm:
+    enabled: true
+  pypi:
+    enabled: true
+
+sandbox:
+  enabled: false
+  behavior_mode: disabled
+  default_timeout_seconds: 10
+  network_mode: disabled
+  keep_sandbox: false
+  fail_open_when_unavailable: true
+
+protected_paths:
+  - "~/.aws"
+  - "~/.azure"
+  - "~/.gcp"
+  - "~/.ssh"
+  - "~/.kube"
+  - "~/.npmrc"
+  - "~/.pypirc"
+  - ".env"
+  - ".env.local"
+  - ".vault-token"
+
+trusted_packages:
+  npm:
+    - lodash
+    - axios
+    - react
+    - express
+    - typescript
+  pypi:
+    - requests
+    - flask
+    - django
+    - fastapi
+    - numpy
+    - pandas
+    - pydantic
+    - pytest
+
+blocked_packages:
+  npm: []
+  pypi: []
+
+rules:
+  lifecycle_script_present:
+    enabled: true
+    severity: medium
+    score: 20
+
+  network_command_in_lifecycle:
+    enabled: true
+    severity: high
+    score: 30
+    block_in_strict_mode: true
+
+  credential_path_reference:
+    enabled: true
+    severity: critical
+    score: 100
+
+  secret_keyword_reference:
+    enabled: true
+    severity: high
+    score: 35
+
+  obfuscated_script:
+    enabled: true
+    severity: high
+    score: 25
+
+  typosquat_candidate:
+    enabled: true
+    severity: high
+    score: 25
+
+  missing_repository:
+    enabled: true
+    severity: low
+    score: 10
+
+  missing_license:
+    enabled: true
+    severity: low
+    score: 5
+
+  new_package:
+    enabled: true
+    severity: medium
+    score: 15
+    max_age_days: 14
+
+  trusted_package_reduction:
+    enabled: true
+    severity: informational
+    score: -20
+
+  blocked_package:
+    enabled: true
+    severity: critical
+    score: 100
+
+  known_vulnerability_critical:
+    enabled: true
+    severity: critical
+    score: 70
+
+  known_vulnerability_high:
+    enabled: true
+    severity: high
+    score: 50
+
+  known_vulnerability_medium:
+    enabled: true
+    severity: medium
+    score: 25
+
+  known_vulnerability_low:
+    enabled: true
+    severity: low
+    score: 10
+`
+	return os.WriteFile(path, []byte(defaultYaml), 0644)
 }
