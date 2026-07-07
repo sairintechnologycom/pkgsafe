@@ -527,3 +527,27 @@ func TestPolicyEditCommandInteractive(t *testing.T) {
 		t.Errorf("expected policy file to contain mode: block, got:\n%s", string(content))
 	}
 }
+
+func TestTreeCommand(t *testing.T) {
+	lf := filepath.Join("..", "..", "testdata", "npm", "package-lock.json")
+
+	err := Run([]string{"tree", lf})
+	if err != nil {
+		t.Errorf("tree run failed: %v", err)
+	}
+
+	err = Run([]string{"tree", lf, "--json"})
+	if err != nil {
+		t.Errorf("tree run --json failed: %v", err)
+	}
+
+	err = Run([]string{"tree", lf, "--only-risky"})
+	if err != nil {
+		t.Errorf("tree run --only-risky failed: %v", err)
+	}
+
+	err = Run([]string{"tree", lf, "--depth", "1"})
+	if err != nil {
+		t.Errorf("tree run --depth failed: %v", err)
+	}
+}

@@ -7,6 +7,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -26,8 +27,10 @@ import (
 	"github.com/sairintechnologycom/pkgsafe/internal/cache"
 	"github.com/sairintechnologycom/pkgsafe/internal/ci"
 	"github.com/sairintechnologycom/pkgsafe/internal/cli"
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
 	"github.com/sairintechnologycom/pkgsafe/internal/dbbundle"
 	cargodeps "github.com/sairintechnologycom/pkgsafe/internal/deps/cargo"
+	"github.com/sairintechnologycom/pkgsafe/internal/intel"
 	godeps "github.com/sairintechnologycom/pkgsafe/internal/deps/golang"
 	npminventory "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
 	pydeps "github.com/sairintechnologycom/pkgsafe/internal/deps/python"
@@ -135,6 +138,8 @@ func RunWith(cfg RunConfig, args []string) error {
 		return nil
 	case "scan":
 		return cmdScan(args[1:])
+	case "tree":
+		return cmdTree(args[1:])
 	case "scan-local-npm":
 		return cmdScanLocalNPM(args[1:])
 	case "scan-npm-package":
@@ -230,6 +235,7 @@ Usage:
   pkgsafe scan-go-deps <go.mod> [--json]
   pkgsafe scan-cargo-deps <Cargo.lock> [--json]
   pkgsafe scan-lockfile <package-lock.json> [--json]
+  pkgsafe tree [package-lock.json] [--only-risky] [--depth <n>] [--policy <path>] [--json]
   pkgsafe inventory <repo-path> [--json]
   pkgsafe inventory diff [--base <branch>] [--repo <path>] [--json]
   pkgsafe test corpus [--json] [--explain-misses]
@@ -1468,7 +1474,7 @@ func flagNeedsValue(arg string) bool {
 	case "version", "mode", "policy", "log-level", "timeout", "network", "behavior",
 		"lockfile", "dependency-file", "ecosystem", "fail-on", "json-output", "sarif-output", "summary-output", "baseline", "registry-config", "port", "token",
 		"base", "repo", "repo-list", "fixtures", "definitions", "db", "output", "signing-key", "key",
-		"decision", "limit":
+		"decision", "limit", "depth":
 		return true
 	default:
 		return false
@@ -2748,4 +2754,270 @@ func writePolicyToYAML(path string, pol policy.Policy) error {
 	}
 
 	return os.WriteFile(path, []byte(sb.String()), 0644)
+}
+
+type treePackageLock struct {
+	Name            string `json:"name"`
+	Version         string `json:"version"`
+	LockfileVersion int    `json:"lockfileVersion"`
+	Packages        map[string]struct {
+		Version string `json:"version"`
+	} `json:"packages"`
+	Dependencies map[string]struct {
+		Version string `json:"version"`
+	} `json:"dependencies"`
+}
+
+type depNode struct {
+	Name     string     `json:"name"`
+	Version  string     `json:"version"`
+	Children []*depNode `json:"children"`
+	Decision string     `json:"decision"`
+}
+
+func parsePathToChain(path string) []string {
+	parts := strings.Split(path, "node_modules/")
+	var chain []string
+	for _, p := range parts {
+		p = strings.Trim(p, "/")
+		if p != "" {
+			chain = append(chain, p)
+		}
+	}
+	return chain
+}
+
+func enrichTreeDecisions(node *depNode, pol policy.Policy, d *db.DB) {
+	if node.Name == "" {
+		node.Decision = "allow"
+	} else {
+		dec := "allow"
+		if policy.IsBlocked(pol, "npm", node.Name) {
+			dec = "block"
+		} else {
+			matches := typosquat.Check(node.Name)
+			if len(matches) > 0 {
+				dec = "warn"
+			}
+		}
+
+		if d != nil && dec != "block" {
+			ctx := context.Background()
+			vulns, err := d.GetVulnerabilitiesForPackage(ctx, "npm", node.Name)
+			if err == nil {
+				for _, v := range vulns {
+					if intel.IsVersionAffected(node.Version, v) {
+						if intel.IsMalware(v) || v.Severity == "high" || v.Severity == "critical" {
+							dec = "block"
+							break
+						} else {
+							dec = "warn"
+						}
+					}
+				}
+			}
+		}
+		node.Decision = dec
+	}
+
+	for _, child := range node.Children {
+		enrichTreeDecisions(child, pol, d)
+	}
+}
+
+func pruneCleanNodes(node *depNode) bool {
+	isRisky := node.Decision == "block" || node.Decision == "warn"
+
+	var activeChildren []*depNode
+	for _, child := range node.Children {
+		childRisky := pruneCleanNodes(child)
+		if childRisky {
+			activeChildren = append(activeChildren, child)
+			isRisky = true
+		}
+	}
+	node.Children = activeChildren
+	return isRisky
+}
+
+func limitTreeDepth(node *depNode, currentDepth, maxDepth int) {
+	if currentDepth >= maxDepth {
+		node.Children = nil
+		return
+	}
+	for _, child := range node.Children {
+		limitTreeDepth(child, currentDepth+1, maxDepth)
+	}
+}
+
+func printTree(node *depNode, prefix string, isLast bool, color bool) {
+	var bold, green, red, yellow, reset string
+	if color {
+		bold = "\033[1m"
+		green = "\033[32m"
+		red = "\033[31m"
+		yellow = "\033[33m"
+		reset = "\033[0m"
+	}
+
+	var label, decColor string
+	switch node.Decision {
+	case "block":
+		label = " [✗ BLOCK]"
+		decColor = red
+	case "warn":
+		label = " [⚠ WARN]"
+		decColor = yellow
+	case "allow":
+		label = " [✓ ALLOW]"
+		decColor = green
+	}
+
+	line := ""
+	if node.Name != "" {
+		connector := "├── "
+		if isLast {
+			connector = "└── "
+		}
+		line = prefix + connector + bold + node.Name + "@" + node.Version + reset + decColor + label + reset
+	} else {
+		line = bold + "Project: " + node.Version + reset
+	}
+
+	fmt.Println(line)
+
+	newPrefix := prefix
+	if node.Name != "" {
+		if isLast {
+			newPrefix += "    "
+		} else {
+			newPrefix += "│   "
+		}
+	}
+
+	sort.Slice(node.Children, func(i, j int) bool {
+		return node.Children[i].Name < node.Children[j].Name
+	})
+
+	for i, child := range node.Children {
+		printTree(child, newPrefix, i == len(node.Children)-1, color)
+	}
+}
+
+func cmdTree(args []string) error {
+	fs := flag.NewFlagSet("tree", flag.ContinueOnError)
+	onlyRisky := fs.Bool("only-risky", false, "show only paths containing warn or block decisions")
+	depth := fs.Int("depth", 99, "max depth to print the dependency tree")
+	asJSON := fs.Bool("json", false, "output raw tree structure as JSON")
+	policyPath := fs.String("policy", "", "policy YAML path")
+	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
+
+	if err := fs.Parse(reorderFlags(args)); err != nil {
+		return err
+	}
+
+	lfPath := "package-lock.json"
+	if fs.NArg() == 1 {
+		lfPath = fs.Arg(0)
+	} else if fs.NArg() > 1 {
+		return errors.New("usage: pkgsafe tree [package-lock.json]")
+	}
+
+	b, err := os.ReadFile(lfPath)
+	if err != nil {
+		return fmt.Errorf("read lockfile: %w", err)
+	}
+
+	var lf treePackageLock
+	if err := json.Unmarshal(b, &lf); err != nil {
+		return fmt.Errorf("parse lockfile: %w", err)
+	}
+
+	pol, err := loadPolicy(*policyPath, "", "", *registryConfig)
+	if err != nil {
+		return err
+	}
+
+	root := &depNode{
+		Name:    "",
+		Version: lf.Version,
+	}
+
+	type pkgInfo struct {
+		chain []string
+		ver   string
+	}
+	var list []pkgInfo
+	for path, pkg := range lf.Packages {
+		if path == "" || path == "node_modules" {
+			continue
+		}
+		chain := parsePathToChain(path)
+		if len(chain) == 0 {
+			continue
+		}
+		list = append(list, pkgInfo{
+			chain: chain,
+			ver:   pkg.Version,
+		})
+	}
+	if len(list) == 0 {
+		for name, dep := range lf.Dependencies {
+			list = append(list, pkgInfo{
+				chain: []string{name},
+				ver:   dep.Version,
+			})
+		}
+	}
+
+	sort.Slice(list, func(i, j int) bool {
+		return len(list[i].chain) < len(list[j].chain)
+	})
+
+	nodes := make(map[string]*depNode)
+	nodes[""] = root
+
+	for _, pi := range list {
+		parentKey := strings.Join(pi.chain[:len(pi.chain)-1], ">")
+		parent, ok := nodes[parentKey]
+		if !ok {
+			parent = root
+		}
+
+		node := &depNode{
+			Name:    pi.chain[len(pi.chain)-1],
+			Version: pi.ver,
+		}
+		parent.Children = append(parent.Children, node)
+		
+		nodeKey := strings.Join(pi.chain, ">")
+		nodes[nodeKey] = node
+	}
+
+	d, _ := db.Open("")
+	if d != nil {
+		defer d.Close()
+	}
+	enrichTreeDecisions(root, pol, d)
+
+	if *onlyRisky {
+		pruneCleanNodes(root)
+	}
+	if *depth < 99 {
+		limitTreeDepth(root, 0, *depth)
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(root)
+	}
+
+	var color bool
+	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	}
+
+	printTree(root, "", false, color)
+	return nil
 }
