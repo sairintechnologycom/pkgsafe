@@ -39,6 +39,7 @@ import (
 	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
 	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
+	"github.com/sairintechnologycom/pkgsafe/internal/typosquat"
 	"github.com/sairintechnologycom/pkgsafe/internal/validation"
 	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
 	"github.com/sairintechnologycom/pkgsafe/pkg/license"
@@ -827,6 +828,29 @@ func cmdExplain(args []string) error {
 				cached = stripEnterprise(cached, false)
 				return output.Write(os.Stdout, cached, *asJSON)
 			}
+			// Typo suggestion check
+			npmAlts := typosquat.CheckEcosystem("npm", cleanName)
+			pypiAlts := typosquat.CheckEcosystem("pypi", cleanName)
+			if len(npmAlts) > 0 || len(pypiAlts) > 0 {
+				color := false
+				if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+					color = isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())
+				}
+				var bold, yellow, reset string
+				if color {
+					bold = "\033[1m"
+					yellow = "\033[33m"
+					reset = "\033[0m"
+				}
+				fmt.Fprintf(os.Stderr, "%s⚠ Package %q not found. Did you mean one of these popular packages?%s\n", yellow, cleanName, reset)
+				for _, alt := range npmAlts {
+					fmt.Fprintf(os.Stderr, "  • %snpm/%s%s\n", bold, alt, reset)
+				}
+				for _, alt := range pypiAlts {
+					fmt.Fprintf(os.Stderr, "  • %spypi/%s%s\n", bold, alt, reset)
+				}
+				fmt.Fprintln(os.Stderr)
+			}
 			return err
 		}
 		res = stripEnterprise(res, false)
@@ -851,6 +875,29 @@ func cmdExplain(args []string) error {
 		if hasCached {
 			cached = stripEnterprise(cached, false)
 			return output.Write(os.Stdout, cached, *asJSON)
+		}
+		// Typo suggestion check
+		npmAlts := typosquat.CheckEcosystem("npm", cleanName)
+		pypiAlts := typosquat.CheckEcosystem("pypi", cleanName)
+		if len(npmAlts) > 0 || len(pypiAlts) > 0 {
+			color := false
+			if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+				color = isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())
+			}
+			var bold, yellow, reset string
+			if color {
+				bold = "\033[1m"
+				yellow = "\033[33m"
+				reset = "\033[0m"
+			}
+			fmt.Fprintf(os.Stderr, "%s⚠ Package %q not found. Did you mean one of these popular packages?%s\n", yellow, cleanName, reset)
+			for _, alt := range npmAlts {
+				fmt.Fprintf(os.Stderr, "  • %snpm/%s%s\n", bold, alt, reset)
+			}
+			for _, alt := range pypiAlts {
+				fmt.Fprintf(os.Stderr, "  • %spypi/%s%s\n", bold, alt, reset)
+			}
+			fmt.Fprintln(os.Stderr)
 		}
 		return err
 	}
@@ -895,6 +942,29 @@ func cmdExplainPyPI(args []string) error {
 		if hasCached {
 			cached = stripEnterprise(cached, false)
 			return output.Write(os.Stdout, cached, *asJSON)
+		}
+		// Typo suggestion check
+		npmAlts := typosquat.CheckEcosystem("npm", pkgName)
+		pypiAlts := typosquat.CheckEcosystem("pypi", pkgName)
+		if len(npmAlts) > 0 || len(pypiAlts) > 0 {
+			color := false
+			if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+				color = isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())
+			}
+			var bold, yellow, reset string
+			if color {
+				bold = "\033[1m"
+				yellow = "\033[33m"
+				reset = "\033[0m"
+			}
+			fmt.Fprintf(os.Stderr, "%s⚠ Package %q not found. Did you mean one of these popular packages?%s\n", yellow, pkgName, reset)
+			for _, alt := range npmAlts {
+				fmt.Fprintf(os.Stderr, "  • %snpm/%s%s\n", bold, alt, reset)
+			}
+			for _, alt := range pypiAlts {
+				fmt.Fprintf(os.Stderr, "  • %spypi/%s%s\n", bold, alt, reset)
+			}
+			fmt.Fprintln(os.Stderr)
 		}
 		return err
 	}
