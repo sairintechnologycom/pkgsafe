@@ -100,6 +100,27 @@ type envelope struct {
 	Sig string `json:"sig"`
 }
 
+// SigningInput returns the exact payload bytes an issuer must sign for claim.
+// It performs no cryptography and holds no key: the caller computes
+// ed25519.Sign(privateKey, SigningInput(claim)) and passes the result to
+// Encode. Keeping the payload derivation here makes this package the single
+// source of truth for the wire format, so a signer and Resolve can never
+// disagree about which bytes are signed.
+func SigningInput(claim Claim) ([]byte, error) {
+	return json.Marshal(claim)
+}
+
+// Encode assembles a token from the signed payload and its detached signature.
+// payload MUST be the exact bytes returned by SigningInput(claim) and sig the
+// ed25519 signature over those bytes. Encode performs no cryptography.
+func Encode(kid string, payload, sig []byte) ([]byte, error) {
+	return json.Marshal(envelope{
+		KID:     kid,
+		Payload: base64.RawURLEncoding.EncodeToString(payload),
+		Sig:     base64.RawURLEncoding.EncodeToString(sig),
+	})
+}
+
 // Entitlement is the resolved, fail-open-safe capability set. The zero value
 // and any nil *Entitlement grant nothing (OSS behavior). Construct only via
 // Resolve.

@@ -22,21 +22,36 @@ func refNow() time.Time {
 // (the package itself is verification-only).
 func signToken(t *testing.T, priv ed25519.PrivateKey, kid string, claim Claim) []byte {
 	t.Helper()
-	payload, err := json.Marshal(claim)
+	// Exercise the exported wire-format helpers so signer and verifier stay in
+	// lockstep — this is exactly the path the mint tool takes.
+	payload, err := SigningInput(claim)
 	if err != nil {
-		t.Fatalf("marshal claim: %v", err)
+		t.Fatalf("signing input: %v", err)
 	}
 	sig := ed25519.Sign(priv, payload)
-	env := envelope{
-		KID:     kid,
-		Payload: base64.RawURLEncoding.EncodeToString(payload),
-		Sig:     base64.RawURLEncoding.EncodeToString(sig),
-	}
-	b, err := json.Marshal(env)
+	token, err := Encode(kid, payload, sig)
 	if err != nil {
-		t.Fatalf("marshal envelope: %v", err)
+		t.Fatalf("encode: %v", err)
 	}
-	return b
+	return token
+}
+
+// TestSignEncodeRoundTrip proves the exported issuer helpers produce a token
+// that Resolve accepts — the compatibility contract the mint tool depends on.
+func TestSignEncodeRoundTrip(t *testing.T) {
+	pub, priv := newKeypair(t)
+	payload, err := SigningInput(validClaim())
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := Encode(testKID, payload, ed25519.Sign(priv, payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ent := resolverFor(pub, token, refNow()).Resolve()
+	if ent.Status != StatusActive {
+		t.Fatalf("round-trip status = %q, want active", ent.Status)
+	}
 }
 
 func newKeypair(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
