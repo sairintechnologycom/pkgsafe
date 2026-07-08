@@ -77,6 +77,8 @@ The install script honors `PKGSAFE_VERSION` (pin a version) and
 
 ## Use it
 
+### 1. Scan packages & dependencies
+
 **Check a package before you install it:**
 
 ```bash
@@ -102,12 +104,15 @@ Recommended Action: Do not install this package.
 ```bash
 pkgsafe scan-lockfile ./package-lock.json       # npm
 pkgsafe scan-python-deps ./requirements.txt     # PyPI (also pyproject.toml, poetry.lock, uv.lock, Pipfile)
+pkgsafe scan-go-deps ./go.mod                   # Go (preview)
+pkgsafe scan-cargo-deps ./Cargo.lock             # Cargo (preview)
 ```
 
 **Install with a built-in safety check** (scans first, installs only if allowed):
 
 ```bash
 pkgsafe npm-install axios
+pkgsafe pip install requests
 ```
 
 **Understand a decision** in plain language:
@@ -117,8 +122,54 @@ pkgsafe explain axios            # npm
 pkgsafe explain-pypi requests    # PyPI
 ```
 
+### 2. Visualize & verify lockfiles
+
+**Visualize dependency trees with risk highlighting:**
+Inspect your npm dependencies and easily filter out safe nodes to focus on the packages that PkgSafe flags:
+
+```bash
+pkgsafe tree package-lock.json --only-risky
+```
+
+**Verify lockfile integrity:**
+Audit your lockfile's package integrity and cryptographic hashes against registry and vulnerability records to detect tampering or lockfile-poisoning attacks:
+
+```bash
+pkgsafe verify package-lock.json
+```
+
+### 3. Manage local safety policy
+
+PkgSafe enforces a configurable security policy. By default, it uses a sensible default policy, but you can fully customize rule severities, risk score weights, custom trusted/blocked package lists, and protected paths:
+
+*   **Edit policy interactively**:
+    ```bash
+    pkgsafe policy edit
+    ```
+*   **Validate policy syntax**:
+    ```bash
+    pkgsafe policy validate ./policy.yaml
+    ```
+*   **Explain how a policy scores risk**:
+    ```bash
+    pkgsafe policy explain ./policy.yaml
+    ```
+
+### 4. Diagnostics & history
+
+*   **Audit installation history**:
+    Review previous safety scans and decisions recorded in the local audit log:
+    ```bash
+    pkgsafe history
+    ```
+*   **Check system health & environment**:
+    Confirm database status, registry connectivity, OIDC verification setup, and local package managers:
+    ```bash
+    pkgsafe doctor
+    ```
+
 <details>
-<summary>Modes, policy, and JSON output</summary>
+<summary>Modes, policy flag, and JSON output</summary>
 
 **Modes** decide how strict enforcement is (add `--mode` to any scan):
 
@@ -150,6 +201,7 @@ MCP tools return):
 ```
 
 </details>
+
 
 ## Guard your AI agent (MCP)
 
