@@ -52,6 +52,12 @@ func (d *DB) Migrate() error {
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		);`,
+		`CREATE TABLE IF NOT EXISTS popular_packages (
+			ecosystem TEXT NOT NULL,
+			name TEXT NOT NULL,
+			downloads_count INTEGER,
+			PRIMARY KEY (ecosystem, name)
+		);`,
 	}
 
 	for _, q := range schema {

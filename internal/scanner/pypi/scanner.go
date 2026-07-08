@@ -17,6 +17,7 @@ import (
 	"github.com/sairintechnologycom/pkgsafe/internal/registry"
 	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/risk"
+	"github.com/sairintechnologycom/pkgsafe/internal/sandbox"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 	"github.com/sairintechnologycom/pkgsafe/internal/typosquat"
 )
@@ -29,6 +30,9 @@ type Scanner struct {
 	DBPath         string
 	SandboxEnabled bool
 	BehaviorMode   types.BehaviorMode
+	SandboxTimeout time.Duration
+	NetworkMode    string
+	KeepSandbox    bool
 	RequestedBy    string
 	Environment    string
 	RegistryName   string
@@ -36,10 +40,12 @@ type Scanner struct {
 
 func New() Scanner {
 	return Scanner{
-		Registry:    rpypi.NewClient(""),
-		Policy:      policy.Default(),
-		RequestedBy: "human",
-		Environment: "developer",
+		Registry:       rpypi.NewClient(""),
+		Policy:         policy.Default(),
+		RequestedBy:    "human",
+		Environment:    "developer",
+		SandboxTimeout: 10 * time.Second,
+		NetworkMode:    "disabled",
 	}
 }
 
@@ -175,21 +181,123 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	res.Vulnerabilities = vulns
 	res.Artifact = analysis.Artifact
 	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
-	if behaviorMode != types.BehaviorDisabled {
-		res.Sandbox = types.SandboxSummary{
-			Enabled:      true,
-			Available:    false,
-			BehaviorMode: behaviorMode,
-			Isolated:     false,
-			NotPerformed: true,
-		}
-		if behaviorMode == types.BehaviorIsolated {
-			res.Sandbox.NotPerfReason = "PyPI isolated behavior analysis is unavailable for this package flow. Static analysis completed only."
+	behaviorEnabled := behaviorMode != types.BehaviorDisabled
+	runnerSelection := sandbox.SelectRunner(ctx, behaviorMode)
+	res.Sandbox = types.SandboxSummary{
+		Enabled:        behaviorEnabled,
+		Available:      runnerSelection.Meta.Available,
+		BehaviorMode:   behaviorMode,
+		Isolated:       runnerSelection.Meta.Isolated,
+		Runner:         runnerSelection.Meta.Name,
+		NetworkMode:    s.NetworkMode,
+		TimeoutSeconds: int(s.SandboxTimeout.Seconds()),
+		Warning:        runnerSelection.Meta.Warning,
+	}
+
+	var sandboxFindings []types.Reason
+	if behaviorEnabled {
+		if res.Decision == types.DecisionBlock {
+			res.Sandbox.NotPerformed = true
+			res.Sandbox.NotPerfReason = "behavior analysis skipped because static analysis already blocked the package"
+		} else if !runnerSelection.Meta.Available {
+			res.Sandbox.NotPerformed = true
+			res.Sandbox.NotPerfReason = runnerSelection.Meta.Unavailable
 		} else {
-			res.Sandbox.Warning = "PyPI heuristic behavior analysis is disabled; setup/build hooks are not executed without isolated backend."
-			res.Sandbox.NotPerfReason = "PyPI behavior analysis is not implemented yet. Static analysis completed only."
+			var packagePaths []string
+			entries, _ := os.ReadDir(tmp)
+			for _, entry := range entries {
+				if entry.IsDir() {
+					packagePaths = append(packagePaths, filepath.Join(tmp, entry.Name()))
+				}
+			}
+
+			runner := runnerSelection.Runner
+			var scriptsExecuted []types.SandboxScriptResult
+
+			for _, pkgPath := range packagePaths {
+				workDir := pkgPath
+				hasSetupPy := false
+				if _, err := os.Stat(filepath.Join(workDir, "setup.py")); err == nil {
+					hasSetupPy = true
+				} else {
+					// Check immediate subdirectories for setup.py (standard sdist extraction structure)
+					subEntries, _ := os.ReadDir(pkgPath)
+					for _, subEntry := range subEntries {
+						if subEntry.IsDir() {
+							candidate := filepath.Join(pkgPath, subEntry.Name())
+							if _, err := os.Stat(filepath.Join(candidate, "setup.py")); err == nil {
+								workDir = candidate
+								hasSetupPy = true
+								break
+							}
+						}
+					}
+				}
+				if !hasSetupPy {
+					continue
+				}
+
+				scriptName := "setup.py install"
+				scriptCmd := "python3 setup.py install --user"
+
+				req := sandbox.SandboxRequest{
+					Ecosystem:     "pypi",
+					PackageName:   res.Package.Name,
+					Version:       res.Package.Version,
+					PackagePath:   workDir,
+					ScriptName:    scriptName,
+					ScriptCommand: scriptCmd,
+					Timeout:       s.SandboxTimeout,
+					NetworkMode:   s.NetworkMode,
+					KeepSandbox:   s.KeepSandbox,
+					Policy:        pol,
+				}
+				sres, err := runner.RunLifecycleScript(ctx, req)
+				if err != nil {
+					scriptsExecuted = append(scriptsExecuted, types.SandboxScriptResult{
+						Name:     scriptName,
+						ExitCode: -1,
+						Runner:   runnerSelection.Meta.Name,
+						Isolated: runnerSelection.Meta.Isolated,
+						Error:    err.Error(),
+					})
+					continue
+				}
+
+				scriptsExecuted = append(scriptsExecuted, types.SandboxScriptResult{
+					Name:       sres.ScriptName,
+					ExitCode:   sres.ExitCode,
+					TimedOut:   sres.TimedOut,
+					DurationMs: sres.DurationMs,
+					Runner:     sres.Runner,
+					Isolated:   sres.Isolated,
+					Trace:      sres.Trace,
+					Findings:   sres.Findings,
+				})
+
+				for _, f := range sres.Findings {
+					sandboxFindings = append(sandboxFindings, types.Reason{
+						ID:          f.RuleID,
+						Severity:    f.Severity,
+						Description: f.Description,
+						ScoreImpact: f.Score,
+					})
+				}
+			}
+			res.Sandbox.ScriptsExecuted = scriptsExecuted
+			if len(scriptsExecuted) == 0 {
+				res.Sandbox.NotPerformed = true
+				res.Sandbox.NotPerfReason = "no setup.py install scripts found to analyze"
+			}
 		}
-		res.Artifact.SandboxNote = res.Sandbox.NotPerfReason
+	}
+
+	if len(sandboxFindings) > 0 {
+		findings = append(findings, sandboxFindings...)
+		// Re-evaluate with new sandbox findings
+		res = risk.Evaluate(res.Package, findings, nil, res.Suspicious, alts, pol)
+		res.Vulnerabilities = vulns
+		res.Artifact = analysis.Artifact
 	}
 	return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 }

@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -86,6 +88,11 @@ func updateDB(dbPath, ecosystem, source string, silent bool) error {
 		_ = d.SetMetadata(ctx, "last_update_"+bucket, time.Now().UTC().Format(time.RFC3339))
 	}
 
+	// Also sync popular packages
+	if err := syncPopularPackages(ctx, d); err != nil {
+		logging.Warn("failed to sync popular packages list", "error", err)
+	}
+
 	nowStr := time.Now().UTC().Format(time.RFC3339)
 	_ = d.SetMetadata(ctx, "last_update", nowStr)
 
@@ -166,4 +173,100 @@ func syncEcosystem(ctx context.Context, d *db.DB, bucket string) (int, error) {
 		return written, err
 	}
 	return written, nil
+}
+
+type popularJSON struct {
+	NPM  []struct {
+		Name      string `json:"name"`
+		Downloads int    `json:"downloads"`
+	} `json:"npm"`
+	PyPI []struct {
+		Name      string `json:"name"`
+		Downloads int    `json:"downloads"`
+	} `json:"pypi"`
+}
+
+var seedNPM = []db.PopularPackage{
+	{"npm", "react", 50000000},
+	{"npm", "vue", 10000000},
+	{"npm", "angular", 5000000},
+	{"npm", "axios", 40000000},
+	{"npm", "lodash", 60000000},
+	{"npm", "express", 30000000},
+	{"npm", "next", 15000000},
+	{"npm", "vite", 20000000},
+	{"npm", "webpack", 25000000},
+	{"npm", "typescript", 45000000},
+	{"npm", "eslint", 40000000},
+	{"npm", "prettier", 35000000},
+	{"npm", "jest", 20000000},
+	{"npm", "mocha", 8000000},
+	{"npm", "chalk", 50000000},
+	{"npm", "commander", 40000000},
+	{"npm", "yargs", 15000000},
+	{"npm", "moment", 20000000},
+	{"npm", "dayjs", 15000000},
+	{"npm", "uuid", 45000000},
+	{"npm", "mongoose", 5000000},
+	{"npm", "sequelize", 3000000},
+	{"npm", "nestjs", 4000000},
+	{"npm", "redux", 8000000},
+	{"npm", "rxjs", 12000000},
+	{"npm", "tailwindcss", 15000000},
+	{"npm", "socket.io", 6000000},
+	{"npm", "dotenv", 35000000},
+	{"npm", "debug", 40000000},
+	{"npm", "glob", 30000000},
+}
+
+var seedPyPI = []db.PopularPackage{
+	{"pypi", "requests", 100000000},
+	{"pypi", "flask", 30000000},
+	{"pypi", "django", 15000000},
+	{"pypi", "fastapi", 25000000},
+	{"pypi", "numpy", 80000000},
+	{"pypi", "pandas", 60000000},
+	{"pypi", "scipy", 40000000},
+	{"pypi", "scikit-learn", 35000000},
+	{"pypi", "tensorflow", 20000000},
+	{"pypi", "torch", 30000000},
+	{"pypi", "transformers", 15000000},
+	{"pypi", "langchain", 5000000},
+	{"pypi", "openai", 12000000},
+	{"pypi", "anthropic", 2000000},
+	{"pypi", "pydantic", 45000000},
+	{"pypi", "sqlalchemy", 25000000},
+	{"pypi", "pytest", 40000000},
+	{"pypi", "beautifulsoup4", 30000000},
+	{"pypi", "boto3", 70000000},
+	{"pypi", "azure-identity", 20000000},
+	{"pypi", "google-cloud-storage", 25000000},
+}
+
+func syncPopularPackages(ctx context.Context, d *db.DB) error {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://raw.githubusercontent.com/sairintechnologycom/pkgsafe/main/data/popular_packages.json")
+
+	var populars []db.PopularPackage
+
+	if err == nil && resp.StatusCode == http.StatusOK {
+		defer resp.Body.Close()
+		var data popularJSON
+		if json.NewDecoder(resp.Body).Decode(&data) == nil {
+			for _, p := range data.NPM {
+				populars = append(populars, db.PopularPackage{Ecosystem: "npm", Name: p.Name, DownloadsCount: p.Downloads})
+			}
+			for _, p := range data.PyPI {
+				populars = append(populars, db.PopularPackage{Ecosystem: "pypi", Name: p.Name, DownloadsCount: p.Downloads})
+			}
+		}
+	}
+
+	// Fallback to local seeds if we couldn't fetch any
+	if len(populars) == 0 {
+		populars = append(populars, seedNPM...)
+		populars = append(populars, seedPyPI...)
+	}
+
+	return d.SavePopularPackages(ctx, populars)
 }

@@ -1,6 +1,9 @@
 package cargo
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -157,6 +160,11 @@ func TestScanPackageOnline(t *testing.T) {
 			_, _ = w.Write([]byte(`{"version": {"num":"1.0.0","created_at":"2026-06-25T10:00:00Z","yanked":false}}`))
 			return
 		}
+		if strings.Contains(r.URL.Path, "/crates/serde/serde-1.0.0.crate") {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			_, _ = w.Write(makeMinimalTarGz())
+			return
+		}
 		http.Error(w, "not found", http.StatusNotFound)
 	}))
 	defer cratesSrv.Close()
@@ -209,6 +217,11 @@ func TestScanPackageOnlineOSVFailClosed(t *testing.T) {
 			_, _ = w.Write([]byte(`{"version": {"num":"1.0.0","created_at":"2026-06-25T10:00:00Z","yanked":false}}`))
 			return
 		}
+		if strings.Contains(r.URL.Path, "/crates/serde/serde-1.0.0.crate") {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			_, _ = w.Write(makeMinimalTarGz())
+			return
+		}
 		http.Error(w, "not found", http.StatusNotFound)
 	}))
 	defer cratesSrv.Close()
@@ -248,4 +261,24 @@ func TestScanPackageOnlineOSVFailClosed(t *testing.T) {
 	if res.Decision == types.DecisionAllow {
 		t.Fatalf("expected fail-closed decision (not allow) when OSV unavailable, got %s (score %d)", res.Decision, res.Score)
 	}
+}
+
+func makeMinimalTarGz() []byte {
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	
+	content := []byte("[package]\n")
+	header := &tar.Header{
+		Name:     "serde-1.0.0/Cargo.toml",
+		Size:     int64(len(content)),
+		Mode:     0644,
+		Typeflag: tar.TypeReg,
+	}
+	_ = tw.WriteHeader(header)
+	_, _ = tw.Write(content)
+	
+	_ = tw.Close()
+	_ = gw.Close()
+	return buf.Bytes()
 }

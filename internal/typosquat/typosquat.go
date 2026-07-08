@@ -1,6 +1,12 @@
 package typosquat
 
-import "strings"
+import (
+	"context"
+	"strings"
+	"sync"
+
+	"github.com/sairintechnologycom/pkgsafe/internal/db"
+)
 
 var PopularNPM = []string{
 	"react", "vue", "angular", "axios", "lodash", "express", "next", "vite", "webpack", "typescript",
@@ -18,12 +24,56 @@ var PopularPyPI = []string{
 	"sqlalchemy", "pytest", "beautifulsoup4", "boto3", "azure-identity", "google-cloud-storage",
 }
 
+var (
+	loadedPopularOnce sync.Once
+	popularNPMCache   []string
+	popularPyPICache  []string
+)
+
+func lazyLoadPopularFromDB() {
+	loadedPopularOnce.Do(func() {
+		// Open the default database path
+		d, err := db.Open("")
+		if err != nil {
+			return
+		}
+		defer d.Close()
+
+		ctx := context.Background()
+		npmPkgs, err := d.GetPopularPackages(ctx, "npm")
+		if err == nil && len(npmPkgs) > 0 {
+			var names []string
+			for _, p := range npmPkgs {
+				names = append(names, p.Name)
+			}
+			popularNPMCache = names
+		}
+
+		pypiPkgs, err := d.GetPopularPackages(ctx, "pypi")
+		if err == nil && len(pypiPkgs) > 0 {
+			var names []string
+			for _, p := range pypiPkgs {
+				names = append(names, p.Name)
+			}
+			popularPyPICache = names
+		}
+	})
+}
+
 func CheckEcosystem(ecosystem, name string) []string {
+	lazyLoadPopularFromDB()
+
 	clean := normalize(name)
 	var alts []string
 	baseline := PopularNPM
+	if len(popularNPMCache) > 0 {
+		baseline = popularNPMCache
+	}
 	if strings.EqualFold(ecosystem, "pypi") {
 		baseline = PopularPyPI
+		if len(popularPyPICache) > 0 {
+			baseline = popularPyPICache
+		}
 	}
 	for _, p := range baseline {
 		pp := normalize(p)
@@ -100,3 +150,11 @@ func unique(in []string) []string {
 	}
 	return out
 }
+
+// ResetCacheForTest clears the dynamic cache and sync.Once state for testing.
+func ResetCacheForTest(npm, pypi []string) {
+	popularNPMCache = npm
+	popularPyPICache = pypi
+	loadedPopularOnce = sync.Once{}
+}
+

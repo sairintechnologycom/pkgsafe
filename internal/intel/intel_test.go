@@ -116,6 +116,42 @@ func TestIsVersionAffected(t *testing.T) {
 			}
 		})
 	}
+
+	// Test ECOSYSTEM type with PyPI (PEP 440)
+	pypiVuln := db.Vulnerability{
+		ID:          "GHSA-pypi",
+		Ecosystem:   "pypi",
+		PackageName: "httpx",
+		AffectedRanges: []db.Range{
+			{
+				Type: "ECOSYSTEM",
+				Events: []db.Event{
+					{Introduced: "0.20.0", Fixed: "0.28.1"},
+				},
+			},
+		},
+	}
+
+	pypiTests := []struct {
+		version  string
+		expected bool
+	}{
+		{"0.19.0", false},
+		{"0.20.0", true},
+		{"0.25.0", true},
+		{"0.28.0", true},
+		{"0.28.1", false},
+		{"1.0.dev3", false},
+	}
+
+	for _, tt := range pypiTests {
+		t.Run("pypi_"+tt.version, func(t *testing.T) {
+			got := intel.IsVersionAffected(tt.version, pypiVuln)
+			if got != tt.expected {
+				t.Errorf("IsVersionAffected(%q) = %v, expected %v", tt.version, got, tt.expected)
+			}
+		})
+	}
 }
 
 func TestIsMalware(t *testing.T) {

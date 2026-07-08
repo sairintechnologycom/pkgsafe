@@ -4,17 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	agolang "github.com/sairintechnologycom/pkgsafe/internal/analyzer/golang"
 	"github.com/sairintechnologycom/pkgsafe/internal/cache"
 	"github.com/sairintechnologycom/pkgsafe/internal/db"
 	"github.com/sairintechnologycom/pkgsafe/internal/intel"
 	"github.com/sairintechnologycom/pkgsafe/internal/intel/osv"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/risk"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
@@ -163,13 +166,53 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		pkgVersion = version
 	}
 
+	// Download and extract zip file for static analysis
+	zipURL := fmt.Sprintf("%s/%s/@v/%s.zip", baseURL, escapedPath, pkgVersion)
+	tmpZip, err := os.CreateTemp("", "pkgsafe-go-*.zip")
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to create temp zip file: %w", err)
+	}
+	defer os.Remove(tmpZip.Name())
+	defer tmpZip.Close()
+
+	zipResp, err := httpClient.Get(zipURL)
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to download module zip: %w", err)
+	}
+	defer zipResp.Body.Close()
+	if zipResp.StatusCode != http.StatusOK {
+		return types.ScanResult{}, fmt.Errorf("failed to download module zip, status: %d", zipResp.StatusCode)
+	}
+
+	if _, err := io.Copy(tmpZip, zipResp.Body); err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to save module zip: %w", err)
+	}
+	_ = tmpZip.Close()
+
+	extractDir, err := os.MkdirTemp("", "pkgsafe-go-extracted-*")
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to create extraction dir: %w", err)
+	}
+	defer os.RemoveAll(extractDir)
+
+	if err := pypi.ExtractZip(tmpZip.Name(), extractDir); err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to extract module zip: %w", err)
+	}
+
+	var suspicious []string
+	var findings []types.Reason
+
+	analysis, err := agolang.AnalyzeDir(extractDir, name, pkgVersion, pol)
+	if err == nil {
+		findings = append(findings, analysis.Findings...)
+		suspicious = append(suspicious, analysis.Result.Suspicious...)
+	}
+
 	pkg := types.PackageIdentity{
 		Ecosystem: "go",
 		Name:      name,
 		Version:   pkgVersion,
 	}
-
-	var findings []types.Reason
 	if !info.Time.IsZero() {
 		ageDays := int(time.Since(info.Time).Hours() / 24)
 		if rule, ok := policy.RuleFor(pol, "new_package"); ok && rule.MaxAgeDays > 0 {
@@ -232,7 +275,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		}
 	}
 
-	res := risk.Evaluate(pkg, findings, nil, nil, nil, pol)
+	res := risk.Evaluate(pkg, findings, nil, suspicious, nil, pol)
 	res.Vulnerabilities = affectedVulns
 
 	return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil

@@ -179,3 +179,16 @@ func cmpOptionalInt(aHas bool, aN int, bHas bool, bN int, absentHigh bool) int {
 	}
 	return 0
 }
+
+// ComparePEP440Strings compares two PEP 440 version strings.
+// Returns -1 if a < b, 0 if a == b, and 1 if a > b.
+// If either version cannot be parsed under PEP 440, it falls back to standard string comparison.
+func ComparePEP440Strings(a, b string) int {
+	vA, okA := parsePEP440(a)
+	vB, okB := parsePEP440(b)
+	if !okA || !okB {
+		return strings.Compare(a, b)
+	}
+	return comparePEP440(vA, vB)
+}
+

@@ -1,6 +1,8 @@
 package golang
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -99,6 +101,16 @@ func TestScanPackageOnline(t *testing.T) {
 		if strings.Contains(r.URL.Path, "/github.com/foo/bar/@v/v1.0.0.info") {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"Version":"v1.0.0","Time":"2026-06-25T10:00:00Z"}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/github.com/foo/bar/@v/v1.0.0.zip") {
+			var buf bytes.Buffer
+			zw := zip.NewWriter(&buf)
+			f, _ := zw.Create("github.com/foo/bar@v1.0.0/main.go")
+			_, _ = f.Write([]byte("package main\nfunc main() {}\n"))
+			_ = zw.Close()
+			w.Header().Set("Content-Type", "application/zip")
+			_, _ = w.Write(buf.Bytes())
 			return
 		}
 		http.Error(w, "not found", http.StatusNotFound)

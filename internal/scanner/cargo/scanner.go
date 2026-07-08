@@ -4,16 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
+	acargo "github.com/sairintechnologycom/pkgsafe/internal/analyzer/cargo"
 	"github.com/sairintechnologycom/pkgsafe/internal/cache"
 	"github.com/sairintechnologycom/pkgsafe/internal/db"
 	"github.com/sairintechnologycom/pkgsafe/internal/intel"
 	"github.com/sairintechnologycom/pkgsafe/internal/intel/osv"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/risk"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
@@ -176,13 +180,63 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		pkgVersion = version
 	}
 
+	// Download and extract Cargo crate tarball (.crate)
+	downloadBase := "https://static.crates.io"
+	if s.BaseURL != "" && !strings.Contains(s.BaseURL, "crates.io") {
+		downloadBase = s.BaseURL
+	}
+	crateURL := fmt.Sprintf("%s/crates/%s/%s-%s.crate", downloadBase, name, name, pkgVersion)
+	tmpCrate, err := os.CreateTemp("", "pkgsafe-cargo-*.crate")
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to create temp crate file: %w", err)
+	}
+	defer os.Remove(tmpCrate.Name())
+	defer tmpCrate.Close()
+
+	crateReq, err := http.NewRequestWithContext(ctx, "GET", crateURL, nil)
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to create crate request: %w", err)
+	}
+	crateReq.Header.Set("User-Agent", "pkgsafe/0.1.0 (contact: info@pkgsafe.dev)")
+
+	crateResp, err := httpClient.Do(crateReq)
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to download crate: %w", err)
+	}
+	defer crateResp.Body.Close()
+	if crateResp.StatusCode != http.StatusOK {
+		return types.ScanResult{}, fmt.Errorf("failed to download crate, status: %d", crateResp.StatusCode)
+	}
+
+	if _, err := io.Copy(tmpCrate, crateResp.Body); err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to save crate tarball: %w", err)
+	}
+	_ = tmpCrate.Close()
+
+	extractDir, err := os.MkdirTemp("", "pkgsafe-cargo-extracted-*")
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to create extraction dir: %w", err)
+	}
+	defer os.RemoveAll(extractDir)
+
+	if err := pypi.ExtractTarGz(tmpCrate.Name(), extractDir); err != nil {
+		return types.ScanResult{}, fmt.Errorf("failed to extract crate tarball: %w", err)
+	}
+
+	var suspicious []string
+	var findings []types.Reason
+
+	analysis, err := acargo.AnalyzeDir(extractDir, name, pkgVersion, pol)
+	if err == nil {
+		findings = append(findings, analysis.Findings...)
+		suspicious = append(suspicious, analysis.Result.Suspicious...)
+	}
+
 	pkg := types.PackageIdentity{
 		Ecosystem: "cargo",
 		Name:      name,
 		Version:   pkgVersion,
 	}
-
-	var findings []types.Reason
 	if !info.Version.CreatedAt.IsZero() {
 		ageDays := int(time.Since(info.Version.CreatedAt).Hours() / 24)
 		if rule, ok := policy.RuleFor(pol, "new_package"); ok && rule.MaxAgeDays > 0 {
@@ -244,7 +298,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		}
 	}
 
-	res := risk.Evaluate(pkg, findings, nil, nil, nil, pol)
+	res := risk.Evaluate(pkg, findings, nil, suspicious, nil, pol)
 	res.Vulnerabilities = affectedVulns
 	res.Artifact.Yanked = info.Version.Yanked
 
