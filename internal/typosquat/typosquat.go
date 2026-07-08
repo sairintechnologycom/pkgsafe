@@ -156,5 +156,8 @@ func ResetCacheForTest(npm, pypi []string) {
 	popularNPMCache = npm
 	popularPyPICache = pypi
 	loadedPopularOnce = sync.Once{}
+	if npm != nil || pypi != nil {
+		loadedPopularOnce.Do(func() {})
+	}
 }
 
