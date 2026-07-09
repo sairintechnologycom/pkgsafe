@@ -17,18 +17,32 @@ func ParseInstallCommand(command string) ([]ParsedPackage, error) {
 	cmd := strings.TrimSpace(command)
 
 	var rest string
-	ecosystem := "npm"
+	var ecosystem string
+
 	if strings.HasPrefix(cmd, "npm install ") {
+		ecosystem = "npm"
 		rest = strings.TrimPrefix(cmd, "npm install ")
 	} else if strings.HasPrefix(cmd, "npm install") && len(cmd) == 11 {
 		return nil, errors.New("no packages specified")
 	} else if strings.HasPrefix(cmd, "npm i ") {
+		ecosystem = "npm"
 		rest = strings.TrimPrefix(cmd, "npm i ")
 	} else if strings.HasPrefix(cmd, "npm i") && len(cmd) == 5 {
 		return nil, errors.New("no packages specified")
 	} else if strings.HasPrefix(cmd, "npm add ") {
+		ecosystem = "npm"
 		rest = strings.TrimPrefix(cmd, "npm add ")
 	} else if strings.HasPrefix(cmd, "npm add") && len(cmd) == 7 {
+		return nil, errors.New("no packages specified")
+	} else if strings.HasPrefix(cmd, "pnpm add ") {
+		ecosystem = "npm"
+		rest = strings.TrimPrefix(cmd, "pnpm add ")
+	} else if strings.HasPrefix(cmd, "pnpm add") && len(cmd) == 8 {
+		return nil, errors.New("no packages specified")
+	} else if strings.HasPrefix(cmd, "yarn add ") {
+		ecosystem = "npm"
+		rest = strings.TrimPrefix(cmd, "yarn add ")
+	} else if strings.HasPrefix(cmd, "yarn add") && len(cmd) == 8 {
 		return nil, errors.New("no packages specified")
 	} else if strings.HasPrefix(cmd, "pip install ") {
 		ecosystem = "pypi"
@@ -39,15 +53,38 @@ func ParseInstallCommand(command string) ([]ParsedPackage, error) {
 	} else if strings.HasPrefix(cmd, "python3 -m pip install ") {
 		ecosystem = "pypi"
 		rest = strings.TrimPrefix(cmd, "python3 -m pip install ")
+	} else if strings.HasPrefix(cmd, "uv add ") {
+		ecosystem = "pypi"
+		rest = strings.TrimPrefix(cmd, "uv add ")
+	} else if strings.HasPrefix(cmd, "poetry add ") {
+		ecosystem = "pypi"
+		rest = strings.TrimPrefix(cmd, "poetry add ")
+	} else if strings.HasPrefix(cmd, "go get ") {
+		ecosystem = "go"
+		rest = strings.TrimPrefix(cmd, "go get ")
+	} else if strings.HasPrefix(cmd, "cargo add ") {
+		ecosystem = "cargo"
+		rest = strings.TrimPrefix(cmd, "cargo add ")
 	} else {
 		return nil, errors.New("unsupported or invalid install command")
 	}
 
 	fields := strings.Fields(rest)
 	var packages []ParsedPackage
-	for _, field := range fields {
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
 		if strings.HasPrefix(field, "-") {
-			// Skip flags like -D, --save-dev, -g, etc.
+			// If it's a flag that takes an argument, skip the argument too
+			if field == "--features" || field == "-F" ||
+				field == "--git" || field == "--branch" || field == "--path" ||
+				field == "--target" || field == "--registry" ||
+				field == "--index-url" || field == "-i" ||
+				field == "--extra-index-url" || field == "--requirement" || field == "-r" ||
+				field == "--constraint" || field == "-c" {
+				if i+1 < len(fields) && !strings.HasPrefix(fields[i+1], "-") {
+					i++
+				}
+			}
 			continue
 		}
 

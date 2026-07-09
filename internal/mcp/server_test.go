@@ -497,7 +497,7 @@ func TestMCPServer(t *testing.T) {
 	// 12. validate_install_command rejects unsupported commands
 	t.Run("validate_install_command unsupported", func(t *testing.T) {
 		res, err := callTool(t, "validate_install_command", map[string]any{
-			"command": "yarn add lodash",
+			"command": "apt-get install axios",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -703,6 +703,160 @@ func TestMCPServer(t *testing.T) {
 		}
 		if resp.Error == nil || resp.Error.Code != -32700 {
 			t.Fatalf("expected parse error response, got %+v", resp)
+		}
+	})
+
+	// 17. check_package tests (safe, warn, block)
+	t.Run("check_package safe", func(t *testing.T) {
+		res, err := callTool(t, "check_package", map[string]any{
+			"ecosystem": "npm",
+			"name":      "fixture",
+			"version":   "1.0.0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("expected success, got error: %s", res.Content[0].Text)
+		}
+		var agentRes AgentMCPResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &agentRes); err != nil {
+			t.Fatal(err)
+		}
+		if agentRes.Decision != "ALLOW" {
+			t.Errorf("expected ALLOW decision, got %s", agentRes.Decision)
+		}
+		if agentRes.AgentInstruction != "Package may be installed." {
+			t.Errorf("unexpected instruction: %s", agentRes.AgentInstruction)
+		}
+	})
+
+	t.Run("check_package warn", func(t *testing.T) {
+		res, err := callTool(t, "check_package", map[string]any{
+			"ecosystem": "npm",
+			"name":      "fixture",
+			"version":   "2.0.0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("expected success, got error: %s", res.Content[0].Text)
+		}
+		var agentRes AgentMCPResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &agentRes); err != nil {
+			t.Fatal(err)
+		}
+		if agentRes.Decision != "WARN" {
+			t.Errorf("expected WARN decision, got %s", agentRes.Decision)
+		}
+	})
+
+	t.Run("check_package block", func(t *testing.T) {
+		res, err := callTool(t, "check_package", map[string]any{
+			"ecosystem": "npm",
+			"name":      "fixture",
+			"version":   "3.0.0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("expected success, got error: %s", res.Content[0].Text)
+		}
+		var agentRes AgentMCPResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &agentRes); err != nil {
+			t.Fatal(err)
+		}
+		if agentRes.Decision != "BLOCK" {
+			t.Errorf("expected BLOCK decision, got %s", agentRes.Decision)
+		}
+	})
+
+	// 18. check_install_command tests
+	t.Run("check_install_command safe", func(t *testing.T) {
+		res, err := callTool(t, "check_install_command", map[string]any{
+			"command": "npm install fixture@1.0.0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("expected success, got error: %s", res.Content[0].Text)
+		}
+		var commandRes CheckInstallCommandResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &commandRes); err != nil {
+			t.Fatal(err)
+		}
+		if commandRes.Decision != "ALLOW" {
+			t.Errorf("expected ALLOW decision, got %s", commandRes.Decision)
+		}
+	})
+
+	t.Run("check_install_command block", func(t *testing.T) {
+		res, err := callTool(t, "check_install_command", map[string]any{
+			"command": "npm install fixture@3.0.0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("expected success, got error: %s", res.Content[0].Text)
+		}
+		var commandRes CheckInstallCommandResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &commandRes); err != nil {
+			t.Fatal(err)
+		}
+		if commandRes.Decision != "BLOCK" {
+			t.Errorf("expected BLOCK decision, got %s", commandRes.Decision)
+		}
+	})
+
+	// 19. explain_policy_decision tests
+	t.Run("explain_policy_decision", func(t *testing.T) {
+		res, err := callTool(t, "explain_policy_decision", map[string]any{
+			"package": "npm:fixture@3.0.0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("expected success, got error: %s", res.Content[0].Text)
+		}
+		var explainRes ExplainPolicyDecisionResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &explainRes); err != nil {
+			t.Fatal(err)
+		}
+		if explainRes.Decision != "BLOCK" {
+			t.Errorf("expected BLOCK, got %s", explainRes.Decision)
+		}
+		if len(explainRes.RuleIDs) == 0 {
+			t.Errorf("expected rule_ids to be populated")
+		}
+	})
+
+	// 20. record_agent_decision tests
+	t.Run("record_agent_decision", func(t *testing.T) {
+		res, err := callTool(t, "record_agent_decision", map[string]any{
+			"ecosystem":    "npm",
+			"name":         "fixture",
+			"version":      "1.0.0",
+			"decision":     "ALLOW",
+			"action_taken": "installed",
+			"agent":        "codex",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.IsError {
+			t.Fatalf("expected success, got error: %s", res.Content[0].Text)
+		}
+		var recordRes AgentMCPResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &recordRes); err != nil {
+			t.Fatal(err)
+		}
+		if recordRes.Decision != "ALLOW" {
+			t.Errorf("expected ALLOW decision, got %s", recordRes.Decision)
 		}
 	})
 }

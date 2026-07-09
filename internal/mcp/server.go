@@ -122,6 +122,16 @@ func (e *Executor) Handle(req Request) Response {
 			res = e.GetRecentPackageDecisions(p.Arguments)
 		case "get_policy_evidence":
 			res = e.GetPolicyEvidence(p.Arguments)
+		case "check_package":
+			res = e.CheckPackage(p.Arguments)
+		case "check_install_command":
+			res = e.CheckInstallCommand(p.Arguments)
+		case "review_dependency_diff":
+			res = e.ReviewDependencyDiff(p.Arguments)
+		case "explain_policy_decision":
+			res = e.ExplainPolicyDecision(p.Arguments)
+		case "record_agent_decision":
+			res = e.RecordAgentDecision(p.Arguments)
 		default:
 			return errResp(req.ID, -32601, "Tool not found: "+p.Name)
 		}

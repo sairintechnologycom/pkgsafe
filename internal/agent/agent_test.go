@@ -60,8 +60,15 @@ func TestParseInstallCommand(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "yarn add",
+			cmd:  "yarn add lodash",
+			want: []ParsedPackage{
+				{Ecosystem: "npm", Name: "lodash", Version: "latest"},
+			},
+		},
+		{
 			name:    "unsupported command",
-			cmd:     "yarn add lodash",
+			cmd:     "npm run build",
 			wantErr: true,
 		},
 	}
