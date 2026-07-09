@@ -65,6 +65,24 @@ func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor Pac
 	// 5. Parse command to extract target packages/files
 	cmd, err := ParseCommand(pm, cleanArgs)
 	if err != nil {
+		if ie, ok := err.(InterceptError); ok && ie.Code == ExitUnsupportedCommand {
+			// Transparent pass-through for unsupported/non-install commands to avoid breaking user workflows (e.g. npm run build, npm test)
+			if !sf.JSON {
+				fmt.Fprintf(os.Stderr, "PkgSafe: Pass-through for unsupported/non-install command: %s %s. Delegating to real package manager...\n", pm, strings.Join(cleanArgs, " "))
+			}
+			binaryPath, errResolve := executor.Resolve(pm, pol)
+			if errResolve != nil {
+				return InterceptError{Code: ExitPackageManagerNotFound, Err: errResolve}
+			}
+			exitCode, errExec := executor.Execute(ctx, binaryPath, cleanArgs, nil, ".")
+			if errExec != nil {
+				return InterceptError{Code: ExitInstallFailed, Err: errExec}
+			}
+			if exitCode != 0 {
+				return InterceptError{Code: exitCode, Err: fmt.Errorf("package manager exited with code %d", exitCode)}
+			}
+			return nil
+		}
 		if ie, ok := err.(InterceptError); ok {
 			return ie
 		}

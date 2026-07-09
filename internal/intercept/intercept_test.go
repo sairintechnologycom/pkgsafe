@@ -344,6 +344,22 @@ func TestRunInterceptPreventsSelfRecursion(t *testing.T) {
 	}
 }
 
+func TestRunInterceptPassesThroughUnsupportedCommands(t *testing.T) {
+	t.Setenv("PKGSAFE_INTERCEPT_ACTIVE", "")
+	mockExec := &mockExecutor{}
+	// npm run build is not supported, so it should pass through and execute
+	err := RunIntercept(context.Background(), "npm", []string{"run", "build"}, mockExec)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !mockExec.executed {
+		t.Error("expected execution to proceed via pass-through for unsupported command")
+	}
+	if len(mockExec.execArgs) != 2 || mockExec.execArgs[0] != "run" || mockExec.execArgs[1] != "build" {
+		t.Errorf("expected execArgs to be [run, build], got %v", mockExec.execArgs)
+	}
+}
+
 func TestAuditLogWriting(t *testing.T) {
 	tmp := t.TempDir()
 	pol := policy.Default()

@@ -20,6 +20,43 @@ PkgSafe inspects each package for:
 It runs locally as a single static binary. Nothing about your code leaves your
 machine.
 
+## How it Works: Visual Flow
+
+PkgSafe acts as a proxy/wrapper around your package managers (`npm` and `pip`) or as an MCP server for your AI agents. It intercepts command execution to run security checks before any package code runs or is written to disk.
+
+```mermaid
+graph TD
+    Start([Developer / AI Agent runs install command]) --> Intercept{PkgSafe Intercepts?}
+    
+    Intercept -- CLI Aliases --> ParseCmd[Parse packages & arguments]
+    Intercept -- MCP Integration --> ParseCmd
+    
+    ParseCmd --> IsInstall{Is command an installation?}
+    
+    IsInstall -- No (e.g. npm run build) --> PassThrough[Transparent Pass-Through] --> ExecuteReal[Execute real package manager command]
+    
+    IsInstall -- Yes --> CheckDeps[Scan packages: OSV, Heuristics, Policy]
+    
+    CheckDeps --> Decision{Security Decision?}
+    
+    Decision -- ALLOW --> ExecuteReal
+    Decision -- BLOCK --> Fail[Block command & log audit event]
+    Decision -- WARN --> Prompt{Is Interactive?}
+    
+    Prompt -- Yes --> AskUser[Prompt for confirmation y/N]
+    Prompt -- No --> Fail
+    
+    AskUser -- Yes --> ExecuteReal
+    AskUser -- No --> Fail
+```
+
+### Core Architecture & Key Features
+
+*   **Pre-Install Interception:** Unlike traditional Software Composition Analysis (SCA) or vulnerability scanners that run post-install or post-commit, PkgSafe blocks risky operations **before** dependencies can run setup hook scripts (`preinstall`, `postinstall`), shielding developer host environments.
+*   **Transparent Pass-Through:** Administration, test, and build commands (like `npm run build` or `npm test`) are automatically ignored and passed through to the real package manager, ensuring zero disruption to normal developer workflows.
+*   **AI Agent Guardrails:** Integrates natively as an Model Context Protocol (MCP) server with Cursor, Claude Code, and other AI agents to block malicious, suspicious, or hallucinated packages before they are executed.
+*   **Local-First Privacy:** Runs as a standalone Go binary using a local sqlite cache. Your code, policies, and files never leave your machine.
+
 ## Install
 
 ```bash

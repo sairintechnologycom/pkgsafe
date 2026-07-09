@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mattn/go-isatty"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
@@ -86,17 +87,54 @@ func CanProceed(results []types.ScanResult, overallDecision types.Decision, sf S
 }
 
 func PrintHumanOutput(cmd *InstallCommand, results []types.ScanResult, overallDecision types.Decision) {
+	var bold, green, red, yellow, reset string
+	color := false
+	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	}
+	if color {
+		bold = "\033[1m"
+		green = "\033[32m"
+		red = "\033[31m"
+		yellow = "\033[33m"
+		reset = "\033[0m"
+	}
+
 	fmt.Println("PkgSafe Install Guard")
 	fmt.Println()
 	fmt.Printf("Command: %s\n", strings.Join(RedactCommand(cmd.RawCommand), " "))
-	fmt.Printf("Decision: %s\n", strings.ToUpper(string(overallDecision)))
+
+	decisionStr := strings.ToUpper(string(overallDecision))
+	if color {
+		switch overallDecision {
+		case types.DecisionBlock:
+			decisionStr = red + bold + decisionStr + reset
+		case types.DecisionWarn:
+			decisionStr = yellow + bold + decisionStr + reset
+		default:
+			decisionStr = green + bold + decisionStr + reset
+		}
+	}
+	fmt.Printf("Decision: %s\n", decisionStr)
 	fmt.Printf("Packages checked: %d\n", len(results))
 	fmt.Println()
 
 	for _, res := range results {
 		fmt.Printf("- %s@%s\n", res.Package.Name, res.Package.Version)
 		fmt.Printf("  Score: %d/100\n", res.Score)
-		fmt.Printf("  Decision: %s\n", strings.ToUpper(string(res.Decision)))
+		
+		resDecisionStr := strings.ToUpper(string(res.Decision))
+		if color {
+			switch res.Decision {
+			case types.DecisionBlock:
+				resDecisionStr = red + bold + resDecisionStr + reset
+			case types.DecisionWarn:
+				resDecisionStr = yellow + bold + resDecisionStr + reset
+			default:
+				resDecisionStr = green + bold + resDecisionStr + reset
+			}
+		}
+		fmt.Printf("  Decision: %s\n", resDecisionStr)
 		if len(res.Reasons) > 0 {
 			fmt.Println("  Reasons:")
 			for _, reason := range res.Reasons {
