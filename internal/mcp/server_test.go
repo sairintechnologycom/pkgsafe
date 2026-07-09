@@ -861,6 +861,110 @@ func TestMCPServer(t *testing.T) {
 	})
 }
 
+func TestMCPAgentPolicy(t *testing.T) {
+	tmpHome := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", oldHome)
+
+	srv := testRegistryServer(t, map[string]string{
+		"1.0.0": testPackageJSON(t, "safe-package"),
+		"2.0.0": testPackageJSON(t, "postinstall-curl"),
+		"3.0.0": testPackageJSON(t, "reads-credentials"),
+	}, "1.0.0")
+	defer srv.Close()
+
+	oldURL := rnpm.DefaultRegistryURL
+	rnpm.DefaultRegistryURL = srv.URL
+	defer func() { rnpm.DefaultRegistryURL = oldURL }()
+
+	// Write custom policy with mode: block for agent
+	policyPath := filepath.Join(tmpHome, "policy_agent.yaml")
+	policyContent := `
+schema_version: "1.0"
+mode: warn
+thresholds:
+  allow_max_score: 29
+  warn_max_score: 69
+  block_min_score: 70
+agent_policy:
+  mode: block
+  warn_requires_human: true
+  block_install_commands: true
+  allow_agent_exceptions: false
+  require_pkg_safe_check_before_install: true
+`
+	if err := os.WriteFile(policyPath, []byte(policyContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	config := ServerConfig{
+		PolicyPath: policyPath,
+		LogLevel:   "debug",
+	}
+
+	callToolWithConfig := func(t *testing.T, toolName string, arguments any) CallToolResult {
+		t.Helper()
+		inReader, inWriter := io.Pipe()
+		outReader, outWriter := io.Pipe()
+		defer inWriter.Close()
+		defer outWriter.Close()
+
+		go func() {
+			_ = Serve(config, inReader, outWriter)
+		}()
+
+		argsBytes, err := json.Marshal(arguments)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := Request{
+			JSONRPC: "2.0",
+			ID:      1,
+			Method:  "tools/call",
+			Params:  json.RawMessage(fmtCallParams(toolName, argsBytes)),
+		}
+		writeReq(t, inWriter, req)
+
+		var resp Response
+		readResp(t, outReader, &resp)
+
+		if resp.Error != nil {
+			t.Fatalf("unexpected RPC error: %v", resp.Error)
+		}
+
+		var res CallToolResult
+		b, _ := json.Marshal(resp.Result)
+		if err := json.Unmarshal(b, &res); err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+
+	// Under mode: block, the warn package fixture@2.0.0 must be promoted to BLOCK
+	t.Run("promote warn to block", func(t *testing.T) {
+		res := callToolWithConfig(t, "check_package", map[string]any{
+			"ecosystem": "npm",
+			"name":      "fixture",
+			"version":   "2.0.0",
+			"repo_path": tmpHome,
+		})
+		if res.IsError {
+			t.Fatalf("unexpected check_package error: %s", res.Content[0].Text)
+		}
+		var mcpRes AgentMCPResult
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &mcpRes); err != nil {
+			t.Fatal(err)
+		}
+		if mcpRes.Decision != "BLOCK" {
+			t.Errorf("expected warn to be promoted to BLOCK, got %s", mcpRes.Decision)
+		}
+		if !strings.Contains(mcpRes.AgentInstruction, "strictly required") {
+			t.Errorf("expected instruction to warn about pre-install check requirement, got: %s", mcpRes.AgentInstruction)
+		}
+	})
+}
+
 func fmtCallParams(toolName string, args []byte) string {
 	return `{"name":"` + toolName + `","arguments":` + string(args) + `}`
 }

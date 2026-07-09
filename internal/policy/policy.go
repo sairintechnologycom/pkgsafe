@@ -92,6 +92,14 @@ type PackageManagersSettings struct {
 	PythonPip PackageManagerSetting
 }
 
+type AgentPolicy struct {
+	Mode                             string `yaml:"mode"`
+	WarnRequiresHuman                bool   `yaml:"warn_requires_human"`
+	BlockInstallCommands             bool   `yaml:"block_install_commands"`
+	AllowAgentExceptions             bool   `yaml:"allow_agent_exceptions"`
+	RequirePkgSafeCheckBeforeInstall bool   `yaml:"require_pkg_safe_check_before_install"`
+}
+
 type Policy struct {
 	SchemaVersion       string
 	Mode                Mode
@@ -108,6 +116,7 @@ type Policy struct {
 	CI                  CISettings
 	InstallInterception InstallInterceptionSettings
 	PackageManagers     PackageManagersSettings
+	AgentPolicy         AgentPolicy
 
 	// Enterprise fields
 	PolicyPackName      string
@@ -133,6 +142,13 @@ func Default() Policy {
 			AllowMaxScore: 29,
 			WarnMaxScore:  69,
 			BlockMinScore: 70,
+		},
+		AgentPolicy: AgentPolicy{
+			Mode:                             "warn",
+			WarnRequiresHuman:                true,
+			BlockInstallCommands:             true,
+			AllowAgentExceptions:             false,
+			RequirePkgSafeCheckBeforeInstall: false,
 		},
 		ProtectedPaths: []string{
 			"~/.aws", "~/.azure", "~/.gcp", "~/.ssh", "~/.kube",
@@ -290,7 +306,9 @@ func Load(path string) (Policy, error) {
 		BlockedPackageRules []BlockedPackageRule                 `yaml:"blocked_package_rules"`
 		Exceptions          []Exception                          `yaml:"exceptions"`
 		ScopedRules         []ScopedRule                         `yaml:"scoped_rules"`
+		AgentPolicy         AgentPolicy                          `yaml:"agent_policy"`
 	}
+	ent.AgentPolicy = pol.AgentPolicy
 	if err := yaml.Unmarshal(b, &ent); err == nil {
 		if len(ent.Registries) > 0 {
 			pol.Registries.Registries = ent.Registries
@@ -307,6 +325,7 @@ func Load(path string) (Policy, error) {
 		if len(ent.ScopedRules) > 0 {
 			pol.ScopedRules = ent.ScopedRules
 		}
+		pol.AgentPolicy = ent.AgentPolicy
 	}
 
 	if err := Validate(pol); err != nil {
@@ -548,7 +567,7 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 				pol.SchemaVersion = unquote(val)
 			case "mode":
 				pol.Mode = ParseMode(unquote(val))
-			case "thresholds", "rules", "mcp", "sandbox", "ci", "ecosystems", "install_interception", "package_managers", "registries", "scoped_rules", "exceptions", "trusted_package_rules", "blocked_package_rules":
+			case "thresholds", "rules", "mcp", "sandbox", "ci", "ecosystems", "install_interception", "package_managers", "registries", "scoped_rules", "exceptions", "trusted_package_rules", "blocked_package_rules", "agent_policy":
 			case "protected_paths":
 				pol.ProtectedPaths = nil
 				pol.BlockPatterns = nil
@@ -781,7 +800,7 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 			default:
 				return fmt.Errorf("line %d: unsupported package manager %q", lineNo+1, subsection)
 			}
-		case "registries", "scoped_rules", "exceptions", "trusted_package_rules", "blocked_package_rules":
+		case "registries", "scoped_rules", "exceptions", "trusted_package_rules", "blocked_package_rules", "agent_policy":
 			continue
 		default:
 			return fmt.Errorf("line %d: unsupported section %q", lineNo+1, section)

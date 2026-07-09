@@ -185,3 +185,36 @@ func writeTempPolicy(t *testing.T, body string) string {
 	}
 	return path
 }
+
+func TestLoadAgentPolicy(t *testing.T) {
+	path := writeTempPolicy(t, `
+schema_version: "1.0"
+mode: warn
+agent_policy:
+  mode: block
+  warn_requires_human: true
+  block_install_commands: true
+  allow_agent_exceptions: false
+  require_pkg_safe_check_before_install: true
+`)
+	pol, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ap := pol.AgentPolicy
+	if ap.Mode != "block" {
+		t.Errorf("expected Mode 'block', got %q", ap.Mode)
+	}
+	if !ap.WarnRequiresHuman {
+		t.Errorf("expected WarnRequiresHuman to be true")
+	}
+	if !ap.BlockInstallCommands {
+		t.Errorf("expected BlockInstallCommands to be true")
+	}
+	if ap.AllowAgentExceptions {
+		t.Errorf("expected AllowAgentExceptions to be false")
+	}
+	if !ap.RequirePkgSafeCheckBeforeInstall {
+		t.Errorf("expected RequirePkgSafeCheckBeforeInstall to be true")
+	}
+}

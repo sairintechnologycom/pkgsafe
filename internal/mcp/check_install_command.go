@@ -188,23 +188,10 @@ func (e *Executor) CheckInstallCommand(args json.RawMessage) CallToolResult {
 
 	evidenceID := fmt.Sprintf("pkg-%s-%03d", time.Now().Format("20060102"), time.Now().UnixNano()%1000)
 
-	var instruction string
-	var allowedActions []string
-	var prohibitedActions []string
-
-	switch overallDecision {
-	case "ALLOW":
+	// Build guidance instructions with agent policy overrides
+	overallDecision, instruction, allowedActions, prohibitedActions := ApplyAgentPolicyOverrides(overallDecision, pol.AgentPolicy)
+	if overallDecision == "ALLOW" {
 		instruction = "Command may be run."
-		allowedActions = []string{"proceed"}
-		prohibitedActions = []string{}
-	case "WARN":
-		instruction = "Do not run the install command automatically. Ask the user for approval or choose an existing dependency."
-		allowedActions = []string{"ask_user", "suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
-	case "BLOCK":
-		instruction = "Do not install this package. The policy decision is BLOCK."
-		allowedActions = []string{"suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
 	}
 
 	if len(topReasons) == 0 {

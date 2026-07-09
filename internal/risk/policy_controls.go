@@ -153,7 +153,11 @@ func ApplyEnterpriseControls(
 	}
 
 	// 5. Apply Exception rules (reduces BLOCK to WARN if allowed)
-	exc, excMatched := policy.FindActiveException(pol, res.Package, env)
+	var exc policy.Exception
+	var excMatched bool
+	if !(env == "ai_agent" && !pol.AgentPolicy.AllowAgentExceptions) {
+		exc, excMatched = policy.FindActiveException(pol, res.Package, env)
+	}
 	if excMatched && res.Decision == types.DecisionBlock {
 		// Exceptions cannot override known malware unless policy explicitly permits
 		if !hasMalware {

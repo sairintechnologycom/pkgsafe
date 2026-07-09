@@ -121,5 +121,8 @@ func Merge(base, override Policy) Policy {
 	if len(override.ScopedRules) > 0 {
 		base.ScopedRules = override.ScopedRules
 	}
+	if override.AgentPolicy.Mode != "" {
+		base.AgentPolicy = override.AgentPolicy
+	}
 	return base
 }

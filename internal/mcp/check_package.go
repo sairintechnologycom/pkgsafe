@@ -177,29 +177,8 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 	// Generate evidence ID
 	evidenceID := fmt.Sprintf("pkg-%s-%03d", time.Now().Format("20060102"), time.Now().UnixNano()%1000)
 
-	// Build guidance instructions
-	var instruction string
-	var allowedActions []string
-	var prohibitedActions []string
-
-	switch decision {
-	case "ALLOW":
-		instruction = "Package may be installed."
-		allowedActions = []string{"proceed"}
-		prohibitedActions = []string{}
-	case "WARN":
-		instruction = "Do not install automatically. Ask the user for approval or choose an existing dependency."
-		allowedActions = []string{"ask_user", "suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
-	case "BLOCK":
-		instruction = "Do not install this package. The policy decision is BLOCK."
-		allowedActions = []string{"suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
-	default:
-		instruction = "Do not install automatically. The policy does not allow installation."
-		allowedActions = []string{"suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
-	}
+	// Build guidance instructions with agent policy overrides
+	decision, instruction, allowedActions, prohibitedActions := ApplyAgentPolicyOverrides(decision, pol.AgentPolicy)
 
 	toolRes := AgentMCPResult{
 		Decision:           decision,
@@ -233,4 +212,81 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 		}},
 		IsError: false,
 	}
+}
+
+// ApplyAgentPolicyOverrides enforces agent_policy configuration overrides.
+func ApplyAgentPolicyOverrides(decision string, ap policy.AgentPolicy) (string, string, []string, []string) {
+	var instruction string
+	var allowedActions []string
+	var prohibitedActions []string
+
+	// 1. Enforce agent_policy.mode override
+	if ap.Mode == "block" && (decision == "WARN" || decision == "REVIEW_REQUIRED") {
+		decision = "BLOCK"
+	} else if ap.Mode == "observe" {
+		instruction = fmt.Sprintf("Decision is %s but agent policy is in observe mode. You may proceed.", decision)
+		if ap.RequirePkgSafeCheckBeforeInstall {
+			instruction += " A pre-install check is strictly required before proceeding."
+		}
+		allowedActions = []string{"proceed"}
+		prohibitedActions = []string{}
+		return decision, instruction, allowedActions, prohibitedActions
+	}
+
+	// 2. Base mapping for modes
+	switch decision {
+	case "ALLOW":
+		instruction = "Package may be installed."
+		allowedActions = []string{"proceed"}
+		prohibitedActions = []string{}
+	case "WARN":
+		if ap.WarnRequiresHuman {
+			instruction = "Do not install automatically. Ask the user for approval or choose an existing dependency. Human confirmation is REQUIRED."
+			allowedActions = []string{"ask_user", "suggest_alternative", "remove_dependency"}
+			prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
+		} else {
+			instruction = "Warning detected, but policy allows proceeding under exception."
+			allowedActions = []string{"proceed", "suggest_alternative", "remove_dependency"}
+			prohibitedActions = []string{}
+		}
+	case "BLOCK":
+		instruction = "Do not install this package. The policy decision is BLOCK."
+		allowedActions = []string{"suggest_alternative", "remove_dependency"}
+		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
+	default:
+		instruction = "Do not install automatically. The policy does not allow installation."
+		allowedActions = []string{"suggest_alternative", "remove_dependency"}
+		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
+	}
+
+	// 3. Enforce block_install_commands
+	if ap.BlockInstallCommands && decision != "ALLOW" {
+		prohibitedActions = append(prohibitedActions, "run_install")
+		var cleanAllowed []string
+		for _, a := range allowedActions {
+			if a != "proceed" {
+				cleanAllowed = append(cleanAllowed, a)
+			}
+		}
+		allowedActions = cleanAllowed
+	}
+
+	if ap.RequirePkgSafeCheckBeforeInstall {
+		instruction += " A pre-install check is strictly required before proceeding."
+	}
+
+	// Deduplicate
+	dedup := func(lst []string) []string {
+		seen := make(map[string]bool)
+		var out []string
+		for _, item := range lst {
+			if !seen[item] {
+				seen[item] = true
+				out = append(out, item)
+			}
+		}
+		return out
+	}
+
+	return decision, instruction, dedup(allowedActions), dedup(prohibitedActions)
 }

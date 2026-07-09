@@ -236,19 +236,16 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 
 	evidenceID := fmt.Sprintf("pkg-%s-%03d", time.Now().Format("20060102"), time.Now().UnixNano()%1000)
 
-	var instruction string
-	var allowedActions []string
-	var prohibitedActions []string
-
-	switch overallDecision {
-	case "ALLOW":
+	// Build guidance instructions with agent policy overrides
+	overallDecision, instruction, allowedActions, prohibitedActions := ApplyAgentPolicyOverrides(overallDecision, pol.AgentPolicy)
+	if overallDecision == "ALLOW" {
 		instruction = "Dependency diff is clean. No risk found."
-		allowedActions = []string{"proceed"}
-		prohibitedActions = []string{}
-	case "REVIEW_REQUIRED":
+	} else if overallDecision == "REVIEW_REQUIRED" {
 		instruction = "Do not open PR as ready. Mark PR as requiring security review."
 		allowedActions = []string{"mark_review", "proceed_coding"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
+	} else if overallDecision == "BLOCK" {
+		instruction = "Do not open PR as ready. The dependency review has failed with decision BLOCK."
+		allowedActions = []string{"suggest_alternative", "remove_dependency"}
 	}
 
 	if len(topReasons) == 0 {
