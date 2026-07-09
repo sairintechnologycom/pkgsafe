@@ -6,3 +6,10 @@ pkgsafe-team-evidence.zip
 
 # Internal launch/marketing copy — kept local, not published
 docs/launch-kit.md
+
+# Ignore local benchmark and production readiness outputs
+*-benchmark*.json
+production-readiness*.json
+
+# Ignore local evidence zip archives in root
+/*.zip
