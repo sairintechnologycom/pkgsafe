@@ -1,12 +1,13 @@
 # PkgSafe GitHub Action
 
-The PkgSafe GitHub Action detects risky npm dependency changes before they are
-merged. PkgSafe v1.0.0 is npm-first GA: package-lock scanning, policy gates,
-SARIF, and Markdown summaries are the production path. PyPI, Go, and Cargo
-coverage remains preview and is not npm-equivalent yet.
+Stop risky dependency changes before they merge. The action runs
+`pkgsafe ci scan`, can upload SARIF to GitHub Code Scanning, and can post a
+pull request summary.
 
-The action runs `pkgsafe ci scan`, uploads SARIF findings to GitHub Code
-Scanning when enabled, and can post or update a pull request Markdown summary.
+**GA:** npm and PyPI. **Preview:** Go and Cargo (not full GA depth).
+
+Also see [ci-cd.md](ci-cd.md) for the raw CLI on any runner, and
+[getting-started.md](getting-started.md) for first-time setup.
 
 ## Inputs
 

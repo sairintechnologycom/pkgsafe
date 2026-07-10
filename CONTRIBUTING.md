@@ -1,6 +1,11 @@
-# Contributing To PkgSafe
+# Contributing to PkgSafe
 
-PkgSafe is maintained as an open-core project. The public repository contains the OSS core and implementation-free extension contracts.
+Thanks for helping. **User docs** live under [`docs/`](docs/README.md)
+(start at [getting started](docs/getting-started.md)). This file is for
+contributors and the open-core boundary.
+
+PkgSafe is open-core: the public repo has the OSS core plus implementation-free
+extension contracts.
 
 ## Public/private Feature Boundary
 

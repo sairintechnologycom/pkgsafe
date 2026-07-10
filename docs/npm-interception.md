@@ -1,42 +1,49 @@
-# NPM Command Interception
+# npm interception
 
-## Supported Commands (P0)
+How `pkgsafe npm …` treats common npm commands.
 
-PkgSafe parses and intercepts the following NPM commands:
+## Install-style commands (scanned)
 
-- `npm install <package>`
-- `npm i <package>`
-- `npm add <package>`
-- `npm install <package>@<version>`
-- `npm install --save-dev <package>`
-- `npm install -D <package>`
-- `npm install` (project-level scan)
-- `npm ci` (lockfile scan)
+- `npm install` / `npm i` / `npm add` (with or without package names)
+- Versioned installs: `npm install lodash@4`
+- Dev deps: `--save-dev` / `-D`
+- Project install: `npm install` (no args) → lockfile or `package.json`
+- Clean install: `npm ci` → `package-lock.json`
 
-## Scanning Behaviors
+```bash
+pkgsafe npm install axios
+pkgsafe npm install -D typescript
+pkgsafe npm ci
+```
 
-### 1. Explicit Package Additions
+### Behavior
 
-When running `pkgsafe npm install <package>`, PkgSafe:
-- Detects the requested version (resolves caret/tilde specifiers to target packages).
-- Blocks installation if package name matches blocklists or exceeds risk scores.
-- Automatically handles dev dependencies (`--save-dev`, `-D`) by flagging them accordingly in safety logs.
+| Case | What PkgSafe does |
+|------|-------------------|
+| Named package | Resolve version, scan, then allow/warn/block |
+| Bare `npm install` | Prefer `package-lock.json`; else scan `package.json` deps |
+| `npm ci` | Scan lockfile; only then run real `npm ci` |
 
-### 2. Project Installation (`npm install` with no args)
+## Non-install commands (pass-through)
 
-If no package name is specified:
-1. PkgSafe looks for `package-lock.json` in the current working directory.
-   - If present, it scans the exact pinned versions of all locked dependencies.
-2. If `package-lock.json` is missing, PkgSafe reads `package.json` and scans all dependencies listed under `dependencies` and `devDependencies`.
-3. If risk thresholds are violated, the command blocks execution of the real `npm install`.
+Commands that are not installs (for example `npm run build`, `npm test`,
+`npm publish`) are **passed through** to the real npm binary so normal
+workflows keep working.
 
-### 3. CI Installation (`npm ci`)
+```bash
+pkgsafe npm run build   # no package scan; real npm runs
+```
 
-When executing `pkgsafe npm ci`:
-- PkgSafe scans `package-lock.json` directly.
-- The installation only proceeds if the lockfile conforms fully to security policies.
+## Advanced inputs
 
-## Unsupported Commands
+Local paths, tarballs, and git URLs may be treated as unsupported advanced
+inputs and fail closed rather than half-scanned. Prefer registry package names
+or scan the project lockfile.
 
-Unsupported commands (like `npm run build`, `npm publish`, `npm test`) are detected and rejected with exit code 7 (`ExitUnsupportedCommand`) to prevent accidental bypass.
-To run normal NPM tasks when shims are active, temporarily bypass using `unalias npm` or set `PKGSAFE_INTERCEPT_ACTIVE=1` environment variable.
+## Shims
+
+```bash
+alias npm="pkgsafe npm"
+```
+
+See [shell-shims.md](shell-shims.md) and [install-interception.md](install-interception.md).

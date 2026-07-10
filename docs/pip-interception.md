@@ -1,34 +1,40 @@
-# Pip Command Interception
+# pip interception
 
-## Supported Commands (P0)
+How `pkgsafe pip …` and `pkgsafe python -m pip …` treat common pip installs.
 
-PkgSafe intercepts and validates the following Pip command formats:
+## Supported install forms
 
-- `pip install <package>`
-- `pip install <package>==<version>`
-- `pip install "package>=version"`
-- `pip install -r requirements.txt`
-- `python -m pip install <package>`
-- `python -m pip install -r requirements.txt`
+```bash
+pkgsafe pip install requests
+pkgsafe pip install requests==2.31.0
+pkgsafe pip install "requests>=2.28"
+pkgsafe pip install -r requirements.txt
+pkgsafe python -m pip install Django
+pkgsafe python -m pip install -r requirements.txt
+```
 
-## Scanning Behaviors
+## Behavior
 
-### 1. Version Specifiers Parsing
+| Case | What PkgSafe does |
+|------|-------------------|
+| Exact pin (`==`) | Scans that version |
+| Ranges | Resolves a concrete candidate when possible; may check latest suitable release |
+| `-r requirements.txt` | Parses the file and validates each package; unpinned names may warn |
 
-Pip supports complex version comparison operators: `==`, `>=`, `<=`, `>`, `<`, `!=`, `~=`.
-PkgSafe extracts the package name and cleans range specifiers to resolve targets:
-- Exact bounds like `requests==2.31.0` evaluate the exact version.
-- Complex ranges fallback to checking the latest version if they cannot be reduced to a single exact version candidate.
+If any package **BLOCK**s under policy, the real pip install does not run.
 
-### 2. Requirements File Parsing
+## Advanced inputs
 
-When running `pkgsafe pip install -r requirements.txt`:
-1. PkgSafe parses the file (supporting standard python requirement file formats).
-2. It validates every defined package.
-3. **Unpinned dependencies warning**: If a dependency is unpinned (e.g. `requests` instead of `requests==2.31.0`), PkgSafe prints a warning to `stderr` recommending pinning.
-4. The installation is blocked if any package violates security policies.
+These often fail closed as unsupported advanced inputs (not half-scanned):
 
-## Unsupported Advanced Inputs
+- `--index-url` / `--extra-index-url` (use [private-registry.md](private-registry.md) policy routing instead)
+- VCS URLs (`git+https://…`)
+- Local paths and editable installs
+- Arbitrary local wheels outside normal registry flow
 
-Advanced Pip options, alternative index registries (e.g. `--index-url`, `--extra-index-url`), VCS links (`git+https://`), or local wheels are classified as unsupported advanced inputs.
-PkgSafe warns the user and fails safely with exit code 7 (`ExitUnsupportedCommand`).
+## Related
+
+- [Install interception](install-interception.md)
+- [Shell shims](shell-shims.md)
+- [Policy guide](policy-guide.md)
+- [PyPI limitations](known-limitations.md)

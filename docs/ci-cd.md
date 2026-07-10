@@ -1,51 +1,82 @@
-# PkgSafe CI/CD Integration
+# CI/CD integration
 
-PkgSafe can be run as a package gate inside any CI/CD environment (such as GitHub Actions, GitLab CI, or Azure Pipelines) using the `pkgsafe ci scan` subcommand.
+Use PkgSafe as a dependency gate in any CI system. Preferred options:
 
-## CI Scan Subcommand
+1. **GitHub Action** — [github-action.md](github-action.md) (PR comments, SARIF upload).
+2. **CLI** — `pkgsafe ci scan` on GitHub, GitLab, Azure Pipelines, Jenkins, etc.
 
-Usage:
+## Command
 
 ```bash
 pkgsafe ci scan [flags]
 ```
 
-### Options
+### Useful flags
 
-* `--lockfile <path>`: Path to lockfile to scan. Defaults to `package-lock.json`.
-* `--policy <path>`: Path to policy file. Defaults to `.pkgsafe/policy.yaml` if present.
-* `--mode <mode>`: PkgSafe decision mode (`audit`, `warn`, or `block`).
-* `--fail-on <threshold>`: Minimum decision that fails the scan (`none`, `warn`, or `block`). Defaults to `block`.
-* `--changed-only`: Scan only direct or transitive package changes between the current branch and a baseline branch.
-* `--baseline <branch>`: Baseline branch name. Defaults to `main`.
-* `--behavior disabled|heuristic|isolated`: Select behavior analysis mode. The default is `disabled`.
-* `--sandbox`: Deprecated compatibility alias for `--behavior heuristic`. Heuristic mode executes scripts on the host without OS isolation (no container/namespace/network sandbox) and is not a security sandbox. Use only in a disposable environment.
-* `--offline`: Scan using the cached vulnerability database and locally cached metadata only.
-* `--json-output <path>`: Path to write the JSON findings report.
-* `--sarif-output <path>`: Path to write the SARIF (Static Analysis Results Interchange Format) version 2.1.0 file.
-* `--summary-output <path>`: Path to write the Markdown summary report.
+| Flag | Purpose |
+|------|---------|
+| `--lockfile <path>` | Lockfile to scan (default often `package-lock.json`) |
+| `--policy <path>` | Policy file (defaults to `.pkgsafe/policy.yaml` if present) |
+| `--mode audit\|warn\|block` | Decision mode |
+| `--fail-on none\|warn\|block` | Minimum decision that fails the job (default: `block`) |
+| `--changed-only` | Only packages changed vs baseline |
+| `--baseline <branch>` | Baseline branch (default: `main`) |
+| `--ecosystem npm\|pypi\|…` | When the project is not npm-default |
+| `--behavior disabled\|heuristic\|isolated` | Default `disabled` |
+| `--offline` | Local DB / cache only |
+| `--json-output <path>` | Write JSON report |
+| `--sarif-output <path>` | Write SARIF 2.1.0 |
+| `--summary-output <path>` | Write Markdown summary |
 
-## Deterministic Exit Codes
+`--sandbox` is deprecated; it means `--behavior heuristic` (host execution, not a sandbox).
 
-The `pkgsafe ci scan` command exits with one of the following code ranges:
+## Exit codes
 
-* `0`: Scan completed successfully and no policy failure threshold was reached.
-* `1`: Failure threshold reached (warn/block package findings matching `--fail-on`).
-* `2`: Command line usage or configuration error.
-* `3`: Scanner internal error or runtime issue.
-* `4`: Policy file syntax validation error.
-* `5`: Lockfile or package JSON parsing error.
+| Code | Meaning |
+|------|---------|
+| 0 | OK — fail-on threshold not reached |
+| 1 | Findings at fail-on threshold |
+| 2 | Usage or config error |
+| 3 | Scanner runtime error |
+| 4 | Policy validation error |
+| 5 | Lockfile / manifest parse error |
 
 ## Examples
 
-### Scan Only PR Changes Against main and Fail on Block Decisions
+**PR-style gate (changed deps only, fail on BLOCK):**
 
 ```bash
 pkgsafe ci scan --changed-only --baseline main --fail-on block
 ```
 
-### Scan Lockfile Offline and Write SARIF Report
+**Offline + SARIF for code scanning upload:**
 
 ```bash
 pkgsafe ci scan --offline --sarif-output pkgsafe-results.sarif
 ```
+
+**PyPI project:**
+
+```bash
+pkgsafe ci scan --ecosystem pypi --lockfile poetry.lock --fail-on block
+```
+
+## Minimal GitHub workflow (without the Action)
+
+```yaml
+- uses: actions/checkout@v4
+- name: Install PkgSafe
+  run: curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash
+- name: Scan
+  run: pkgsafe ci scan --changed-only --fail-on block --sarif-output results.sarif
+```
+
+For the packaged Action (comments + Code Scanning wiring), use
+[github-action.md](github-action.md).
+
+## Related
+
+- [Policy guide](policy-guide.md)
+- [Commands](commands.md)
+- [Troubleshooting](troubleshooting.md)
+- [Known limitations](known-limitations.md)

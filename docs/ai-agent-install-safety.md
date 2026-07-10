@@ -1,27 +1,48 @@
-# AI Agent Install Safety
+# AI agent install safety
 
-AI coding agents and background processes should not install dependencies blindly. PkgSafe enforces strict guardrails for automated agents.
+AI coding agents should not install dependencies without a safety check.
+PkgSafe is that check — via MCP tools or the CLI.
 
-## Stricter AI Agent Enforcement Rules
+## Rules for agents
 
-When PkgSafe is run by an AI agent (e.g. MCP call or tool use):
-1. **Warn decisions block by default**: If a package receives a WARN decision, the installation is automatically blocked unless an explicit override flag (`--force-risk-accept` with `--reason`) is passed.
-2. **Block decisions always block**: AI agents cannot install blocked dependencies.
+1. **WARN blocks by default** for AI-requested installs unless a human confirms
+   or a logged override is used.
+2. **BLOCK always blocks.** Agents must not install blocked packages.
+3. Prefer MCP tools (`validate_package_install`, `validate_install_command`) over
+   raw shell installs.
 
-## Environment Variable Integration
-
-AI coding tools and agents should set the following environment variable during session executions:
+## Mark the request as agent-driven
 
 ```bash
 export PKGSAFE_REQUESTED_BY=ai_agent
 ```
 
-When this flag is active:
-- Warnings are treated strictly as block thresholds.
-- Interactive prompts are skipped, and execution fails with exit code 1 or 2 to ensure safety.
+With this set, interactive prompts are skipped and WARN is treated strictly so
+automation fails closed.
 
-## Best Practices for Agent Workflows
+## Good agent workflow
 
-- Run installation validation with the `--dry-run` flag first to parse the installation request and check warnings.
-- Integrate PkgSafe commands directly into agent command validation pipelines before running the actual installations.
-- Use `--json` output formats for structured parser checks.
+```bash
+# 1) Validate first
+pkgsafe scan-npm-package some-pkg --json
+# or MCP: validate_package_install
+
+# 2) Only then install (if ALLOW, or WARN after human approval)
+pkgsafe npm-install some-pkg
+```
+
+Tips:
+
+- Use `--dry-run` when available to validate without installing.
+- Parse `--json` for structured decisions and rule IDs.
+- On hallucinated names, use `suggest_safe_alternative` (MCP) before inventing installs.
+
+## Setup by client
+
+See [docs/integrations/](integrations/) and [mcp-generic-client.md](mcp-generic-client.md).
+
+## Related
+
+- [Install interception](install-interception.md)
+- [Policy guide](policy-guide.md) (`mcp` section)
+- [Troubleshooting](troubleshooting.md)

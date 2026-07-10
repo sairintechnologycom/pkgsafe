@@ -1,16 +1,15 @@
-# Shell Aliases and Shims
+# Shell aliases and shims
 
-To make package command validation seamless, developers can alias `npm` and `pip` commands to route through PkgSafe automatically.
+Route everyday `npm` and `pip` commands through PkgSafe so installs are checked
+automatically.
 
-## Initializing Shell Guidance
-
-Run the initialization command to display setup guidance:
+## Setup
 
 ```bash
 pkgsafe init shell
 ```
 
-This outputs standard alias commands to insert into your shell profile:
+That prints aliases you can add to `~/.zshrc`, `~/.bashrc`, or `~/.profile`:
 
 ```bash
 # PkgSafe package install guard
@@ -18,17 +17,27 @@ alias npm="pkgsafe npm"
 alias pip="pkgsafe pip"
 ```
 
-Copy and paste these commands into your active profile (e.g. `~/.zshrc`, `~/.bashrc`, or `~/.profile`).
-
-## Disabling Interception Temporarily
-
-If you need to bypass interception (for example, to run administrative package tasks or unsupported commands):
+Reload the shell (or `source` the profile), then:
 
 ```bash
-# Temporarily disable aliases
+npm install lodash    # scanned, then real npm if allowed
+npm run build         # passes through (not an install)
+```
+
+Details: [install-interception.md](install-interception.md).
+
+## Temporary bypass
+
+```bash
 unalias npm
 unalias pip
-
-# Or set the active environment variable to bypass
-export PKGSAFE_INTERCEPT_ACTIVE=1
 ```
+
+Or call the real binary by full path when you must skip the guard for a one-off
+admin task. Prefer fixing policy over long-term bypass.
+
+## Related
+
+- [Getting started](getting-started.md)
+- [npm interception](npm-interception.md)
+- [pip interception](pip-interception.md)

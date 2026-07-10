@@ -1,99 +1,76 @@
-# PkgSafe MCP Generic Client Integration
+# MCP: generic client
 
-This document describes how to configure any generic MCP-compatible client to use **PkgSafe** as a local package safety guardrail.
+Use PkgSafe as a local MCP server so any agent can get **allow / warn / block**
+before installing packages.
 
-## 1. Overview
-PkgSafe acts as a local package safety oracle. Before an AI coding assistant suggests or runs `npm install <package>`, it should call PkgSafe and receive a clear decision (`allow`, `warn`, or `block`) with explainable reasons.
+## Run the server
 
-## 2. Running PkgSafe MCP Serve
-To run PkgSafe as an MCP server, use:
 ```bash
 pkgsafe mcp serve
-```
-Optional flags can be passed to configure policy and mode:
-```bash
 pkgsafe mcp serve --policy /path/to/policy.yaml --mode warn
 ```
 
-## 3. Generic Client Configuration
-MCP servers running over stdio communicate using JSON-RPC 2.0 messages framed by newline (`\n`) characters. 
+Stdio JSON-RPC (newline-framed). The binary must be on `PATH` for the host
+process.
 
-Add the following definition to your client's MCP server configuration (e.g. VS Code Extension settings, custom Python agent script, etc.):
+## Client config
 
 ```json
 {
   "mcpServers": {
     "pkgsafe": {
       "command": "pkgsafe",
-      "args": ["mcp", "serve"],
-      "enabled": true
+      "args": ["mcp", "serve"]
     }
   }
 }
 ```
 
-## 4. Example Request
+## Core tools
+
+| Tool | Use |
+|------|-----|
+| `validate_package_install` | Decide allow/warn/block for one package |
+| `validate_install_command` | Parse a full `npm install` / `pip install` line |
+| `suggest_safe_alternative` | Real packages for risky or hallucinated names |
+| `explain_package_risk` | Human reasons for a decision |
+| `score_lockfile` | Score lockfile dependencies |
+
+Call tools with MCP `tools/call` (not as top-level methods). Run `tools/list`
+for the live schema. Governance tools may also appear depending on build.
+
+## Agent rules
+
+- **BLOCK** → never install.
+- **WARN** → ask a human (default MCP policy).
+- Do not expose a generic shell or “run install” tool from the same server
+  surface — only check / explain tools.
+
+## Example call
+
 ```json
 {
-  "name": "validate_package_install",
-  "arguments": {
-    "ecosystem": "npm",
-    "name": "react-markdown-renderer-plus",
-    "version": "latest",
-    "requested_by": "ai_agent"
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "validate_package_install",
+    "arguments": {
+      "ecosystem": "npm",
+      "name": "axios",
+      "requested_by": "ai_agent"
+    }
   }
 }
 ```
 
-## 5. Expected Response
-```json
-{
-  "ecosystem": "npm",
-  "package": "react-markdown-renderer-plus",
-  "version": "1.0.1",
-  "requested_by": "ai_agent",
-  "decision": "warn",
-  "risk_score": 68,
-  "install_allowed": false,
-  "mode": "warn",
-  "reasons": [
-    {
-      "rule_id": "new_package",
-      "severity": "medium",
-      "score": 15,
-      "message": "Package was recently published"
-    },
-    {
-      "rule_id": "missing_repository",
-      "severity": "low",
-      "score": 10,
-      "message": "Package metadata does not include a source repository"
-    },
-    {
-      "rule_id": "ai_package_squatting_candidate",
-      "severity": "high",
-      "score": 25,
-      "message": "Package name resembles an AI-generated package name with low ecosystem reputation"
-    }
-  ],
-  "vulnerabilities": [],
-  "safe_alternatives": [
-    "react-markdown",
-    "markdown-it"
-  ],
-  "recommended_action": "Review package before installing. Prefer established alternatives if functionality matches."
-}
-```
+## Per-client guides
 
-## 6. Recommended Agent Instruction
-Add the following instruction to your agent's system prompt or context instructions:
+- [Claude Code](integrations/claude-code.md)
+- [Codex](integrations/codex.md)
+- [Cursor](mcp-cursor.md)
+- [Gemini CLI](integrations/gemini-cli.md)
+- [GitHub Copilot agent](integrations/github-copilot-agent.md)
+- [Slash commands / skills](integrations/slash-commands.md)
 
-```text
-Before installing, suggesting, or adding any npm package, call the PkgSafe MCP tool `validate_package_install`.
-
-If PkgSafe returns `block` or if `install_allowed` is false, do not install or suggest the package. Suggest safe alternatives instead.
-
-If PkgSafe returns `warn`, explain the warning to the user and ask for explicit confirmation before suggesting or installing.
-
-If PkgSafe returns `allow`, proceed normally.
-```
+Also: [ai-agent-install-safety.md](ai-agent-install-safety.md).

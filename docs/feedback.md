@@ -1,14 +1,16 @@
 # Feedback
 
-PkgSafe feedback collection is focused on adoption, verification, and
-scanner tuning. npm and PyPI are GA ecosystems. Go and Cargo are preview
-ecosystems and should be reported as preview gaps when they differ from GA
-depth.
+Help improve PkgSafe with clear, safe reports.
 
-Do not paste secrets, tokens, private registry credentials, `.npmrc` auth
-values, proprietary source code, or unreleased package contents into public
-issues. Redact hostnames, scopes, package names, and paths when needed, but keep
-rule IDs, decisions, risk scores, and sanitized command output.
+- **GA ecosystems:** npm, PyPI  
+- **Preview:** Go, Cargo (label gaps as `ecosystem_preview_gap`)
+
+**Never paste** secrets, tokens, private registry credentials, `.npmrc` auth,
+proprietary source, or unreleased package contents. Redact hostnames and scopes
+when needed. **Do keep** rule IDs, decisions, risk scores, and sanitized
+command output.
+
+Docs index: [README.md](README.md) · Troubleshooting: [troubleshooting.md](troubleshooting.md)
 
 ## Taxonomy
 

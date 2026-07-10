@@ -1,58 +1,77 @@
-# Behavior Analysis
+# Behavior analysis
 
-PkgSafe behavior analysis has three explicit modes:
+By default PkgSafe **does not run** package install scripts. It only inspects
+metadata, lockfiles, and package artifacts statically.
 
-| Mode | Status | Notes |
-| --- | --- | --- |
-| `disabled` | Default | Static, registry, policy, inventory, and OSV checks only. |
-| `heuristic` | Opt-in | Runs lifecycle scripts on the host with fake HOME, cleaned environment, and timeout. This is not sandboxing. |
-| `isolated` | Supported on Linux, opt-in | Uses the Linux bubblewrap backend when available. It reports unavailable and does not execute scripts on unsupported hosts or when isolation setup fails. |
+Optional behavior modes execute lifecycle scripts to watch what they do. Use
+them only when you understand the risk.
 
-## Required Wording
+## Modes
 
-Use "heuristic behavior analysis" for host execution.
+| Mode | Default? | What it does |
+|------|----------|--------------|
+| `disabled` | Yes | Static + registry + policy + OSV only. **Recommended.** |
+| `heuristic` | Opt-in | Runs scripts **on the host** with a fake HOME, cleaned env, and timeout. **Not a sandbox.** |
+| `isolated` | Opt-in, Linux | Runs scripts inside bubblewrap namespaces when available. |
 
-Do not describe heuristic mode as containment, isolation, or a protected execution environment.
+## How to enable
 
-## Execution Rules
+```bash
+# Host execution — disposable machine only
+pkgsafe scan-npm-package some-pkg --behavior heuristic
 
-- Behavior analysis is disabled by default.
-- Static `BLOCK` packages are never executed.
-- PyPI behavior analysis is disabled unless an isolated backend is available and explicitly supported for that package flow.
-- AI-agent and CI workflows should not automatically use heuristic mode.
-- `--sandbox` is a deprecated compatibility alias for `--behavior heuristic`.
+# Linux isolation (bubblewrap + unprivileged user namespaces)
+pkgsafe scan-npm-package some-pkg --behavior isolated
+```
 
-## Isolated Backend
+Policy default (usually leave alone):
 
-The isolated backend is Linux-only and requires `bwrap` from bubblewrap plus
-unprivileged user namespaces (on Ubuntu 23.10+ the AppArmor restriction
-`kernel.apparmor_restrict_unprivileged_userns` must permit them). It is opt-in
-through `--behavior isolated` or policy configuration and is validated
-end-to-end in CI on Linux.
+```yaml
+sandbox:
+  enabled: false
+  behavior_mode: disabled
+```
 
-The backend executes each lifecycle script as uid 65534 inside private user,
-mount, pid, ipc, uts, cgroup, and network namespaces with:
+`--sandbox` is a **deprecated** alias for `--behavior heuristic`.
 
-- a disposable workspace and a private HOME seeded with credential canaries;
-  the host HOME and credential directories are never mounted
-- a fully cleared environment (`--clearenv`) with a fixed `PATH`; host
-  environment values are never forwarded
-- system directories (`/usr`, `/bin`, `/lib`, ...) mounted read-only, and
-  synthetic `/etc/passwd` / `/etc/group` files so the host account database is
-  not exposed
-- **network disabled by default** via an unshared network namespace — this is
-  enforced, not merely declared. `network_mode=host` explicitly opts in to host
-  networking (and mounts `/etc/resolv.conf` and CA certificates read-only so
-  DNS/TLS work); any other value fails closed to disabled
-- wall-clock timeout enforcement with process-group kill, plus in-sandbox
-  `ulimit` caps on file descriptors, process count, and file size
-- clean teardown: the temporary workspace is force-removed even if the script
-  strips permissions from files it created
+## Rules
 
-A non-zero script exit or a timeout is an observed behavior and is recorded in
-the result; only an isolation-infrastructure failure is an error, and such
-failures are recorded per script (`error` field) rather than silently skipped.
+- Behavior analysis is **off** by default.
+- Packages that already **BLOCK** on static analysis are **not** executed.
+- AI agents and CI should **not** turn on `heuristic` automatically.
+- Unsupported hosts report isolation as unavailable and **do not** fall back to
+  host execution.
 
-Isolation reduces host exposure but shares the host kernel; it is not a
-hypervisor boundary. When the backend is unavailable, PkgSafe reports
-`not_performed` and does not fall back to heuristic host execution.
+## Isolated backend (Linux)
+
+Requires `bwrap` (bubblewrap) and unprivileged user namespaces. Each script runs
+as a low-privilege user in private namespaces with:
+
+- disposable workspace and private HOME (credential canaries; host HOME not mounted)
+- cleared environment and fixed `PATH`
+- read-only system mounts
+- **network off by default** (unshared net namespace)
+- wall-clock timeout and resource caps
+- force-remove of the temp workspace after the run
+
+`network_mode=host` is an explicit opt-in. Isolation still **shares the host
+kernel** — it is not a VM.
+
+Inspect profiles when available:
+
+```bash
+pkgsafe sandbox profile ...
+```
+
+## Honest wording
+
+| Say this | Do not say this |
+|----------|-----------------|
+| Heuristic behavior analysis | Sandbox, containment, protected environment |
+| Isolated namespace backend (Linux) | Hypervisor isolation, full VM security |
+
+## Related
+
+- [Known limitations](known-limitations.md)
+- [Policy guide](policy-guide.md)
+- [Troubleshooting](troubleshooting.md)

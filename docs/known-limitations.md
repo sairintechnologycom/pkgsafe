@@ -1,60 +1,68 @@
-# Known Limitations
+# Known limitations
 
-## GA candidate scope
+Honest scope for PkgSafe GA. Read this before treating results as complete
+security coverage.
 
-PkgSafe GA v1 is scoped as **npm-first**. Core npm scanning, CI gating, MCP
-tooling, local policy, OSV intelligence, and evidence reporting are gated by
-`pkgsafe test production-readiness`. The following are explicitly *not* claimed
-until their GA gates are verified:
+## GA scope
 
-- Production GA hardening is incomplete while signed-release, provenance,
-  checksum, SBOM, online-benchmark, and real-repo evidence gates remain
-  unverified.
-- Accuracy is validated against deterministic fixtures plus optional online and
-  real-repo checks; GA requires 15 executable real-repo validations.
-- Connected-environment behavior (npm/PyPI/OSV reachability) is checked by
-  `pkgsafe doctor` but may vary by network and registry availability.
+**In scope (GA):** npm and PyPI package and lockfile scanning, local policy,
+OSV intelligence, CI gating, MCP tools, evidence-style reports.
 
-## General limitations
+**Preview (not GA-depth):** Go modules and Cargo — metadata and OSV, not full
+artifact analysis equivalent to npm/PyPI.
 
-- Behavior analysis is disabled by default. `heuristic` mode is best-effort: it
-  redirects home, temp, and XDG paths and drops secret-like environment variables,
-  but still runs scripts on the host and is not a container, namespace, or VM
-  sandbox. `isolated` mode is Linux-only and requires bubblewrap with
-  unprivileged user namespaces; it enforces namespace isolation with network
-  disabled by default, but shares the host kernel and is not a hypervisor
-  boundary. Unsupported hosts report unavailable and do not fall back to
-  heuristic host execution.
-- npm has the deepest artifact and lifecycle analysis coverage. npm and PyPI
-  are the GA production scope; Go and Cargo are preview coverage and are not
-  GA-equivalent across every package format.
-- GA requires real repository validation. `production-readiness --json` reports
-  `ga_ready=false` and explicit `ga_blockers` while repo counts, npm validation,
-  scan duration, signing, provenance, checksum, SBOM, or release verification
-  are below threshold.
-- Offline scans require advisory and registry metadata to be synced or cached
-  first. Missing advisory data fails closed rather than silently allowing a
-  package.
-- PyPI is GA (gates closed 2026-07-04, see
-  `evidence/pypi/pypi-ga-gates-closed.md`). Dependency inventory covers
-  `requirements.txt` (including `--hash` digests and line continuations),
-  `pyproject.toml`, `poetry.lock`, `uv.lock`, `Pipfile`, and `Pipfile.lock`
-  with per-`name@version` dedup; lockfile-recorded hashes, registries, and
-  git/url sources are captured, and direct URL/VCS dependencies surface as
-  UNKNOWN rather than being scanned under a same-named index package.
-  Version resolution is pip-parity (PEP 440 ordering; pre-releases are
-  selected only when pinned explicitly or when no stable release exists).
-  Artifact static analysis covers setup/build, network, credential,
-  environment-secret, cloud-metadata, encoded-exec, native-extension,
-  orphaned-bytecode, wheel RECORD, and build-backend (in-tree
-  `backend-path`, direct-URL build requires) signals. Remaining PyPI
-  limitations: artifacts above the extraction budgets (40,000 files / 2 GiB
-  uncompressed per artifact, sized ~2-3x above the top of PyPI by
-  downloads) still fail closed as unscannable rather than being partially
-  analyzed, conda `environment.yml` is unimplemented, no behavior execution
-  exists for Python packages (static analysis only), and `ci scan` requires
-  `--ecosystem pypi`.
-- The local REST API is designed for loopback developer tooling and should not
-  be exposed as a public service.
-- Generated release artifacts must be produced by the release pipeline or
-  `make package` before packaging readiness can pass.
+**Not a full SCA platform:** PkgSafe is a **pre-install firewall**. It
+complements post-commit SCA, SBOM, and enterprise dashboards; it does not
+replace them.
+
+## Behavior analysis
+
+- Off by default. Static scans never execute package code.
+- `heuristic` runs scripts **on the host**. It is not a container, namespace, or
+  VM sandbox.
+- `isolated` is **Linux-only** (bubblewrap + unprivileged user namespaces). It
+  shares the host kernel. Network is off by default. Unsupported hosts report
+  unavailable and do **not** fall back to heuristic execution.
+- See [behavior-analysis.md](behavior-analysis.md).
+
+## Accuracy and evidence
+
+- Fixture and real-repo benchmarks guide quality; no scanner is zero false
+  positive / false negative.
+- Report false results with rule IDs via [feedback.md](feedback.md).
+- Connected behavior depends on registry and OSV reachability (`pkgsafe doctor`).
+
+## Offline mode
+
+- Needs a prior advisory sync or a verified offline bundle.
+- Missing intelligence **fails closed** — packages are not silently allowed.
+- See [offline-intelligence-bundle.md](offline-intelligence-bundle.md).
+
+## PyPI specifics
+
+Supported inventory includes `requirements.txt` (with hashes where present),
+`pyproject.toml`, `poetry.lock`, `uv.lock`, `Pipfile` / `Pipfile.lock`.
+
+Still limited or out of scope:
+
+- Artifacts over extraction budgets fail closed as unscannable (not partial
+  scan).
+- No conda `environment.yml` yet.
+- No full Python behavior execution path equivalent to npm lifecycle isolation
+  in all environments.
+- Direct URL / VCS deps may surface as unknown rather than scanned as a registry
+  package of the same name.
+
+## Other surfaces
+
+- Local REST API is for **loopback** developer use, not a public service.
+- Windows is supported for the binary; some isolation features remain Linux-only.
+- Generated release artifacts and signing proofs must come from the official
+  release pipeline when you verify production installs.
+
+## Related
+
+- [Getting started](getting-started.md)
+- [Policy guide](policy-guide.md)
+- [Troubleshooting](troubleshooting.md)
+- [Architecture](architecture.md)

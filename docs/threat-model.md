@@ -1,37 +1,47 @@
-# Threat Model
+# Threat model
 
-PkgSafe is a local-first supply-chain security tool for dependency installation, repository scans, CI gates, and AI-agent guardrails.
+PkgSafe is a **local-first** supply-chain guardrail for installs, repo scans, CI
+gates, and AI-agent package checks.
 
 ## Assets
 
-- Developer machines and CI runners
-- Package manifests and lockfiles
-- Private registry credentials
-- Policy packs and exception records
-- Vulnerability cache and scan evidence
+- Developer machines and CI runners  
+- Manifests and lockfiles  
+- Private registry credentials  
+- Policy files and exceptions  
+- Vulnerability cache and scan evidence  
 
-## Primary Threats
+## Main threats
 
-- Malicious package install scripts
-- Typosquatting and dependency confusion
-- Known vulnerable package versions
-- Credential and environment secret access
-- Registry fallback from private to public
-- AI coding agents installing risky packages without review
-- Secret leakage through reports, SARIF, logs, or evidence packs
+| Threat | Example |
+|--------|---------|
+| Malicious install hooks | `postinstall` that steals credentials |
+| Typosquat / slopsquat | `axois` instead of `axios`; AI-invented names |
+| Known vulnerable versions | OSV critical/high CVEs |
+| Secret access | Scripts reading `~/.aws`, `.env`, SSH keys |
+| Dependency confusion | Private name resolved from public registry |
+| Agent auto-install | Coding agent installs without review |
+| Secret leakage | Tokens in SARIF, logs, or evidence packs |
 
 ## Controls
 
-- Static manifest and source-import inventory
-- npm tarball and PyPI artifact scanning with safe extraction controls
-- OSV vulnerability lookup and local SQLite cache
-- Fail-closed CI and MCP guardrails
-- Private registry routing and public fallback controls
-- Secret redaction in generated evidence
-- Release checksums, SBOM, and signing/provenance-ready workflow
+- Pre-install static analysis (metadata, lifecycle, artifacts where supported)
+- OSV lookup + local sqlite cache; fail closed when intel is missing
+- Policy modes, hard-block rules, private registry routing
+- MCP and CI fail-closed defaults for agents / non-interactive WARN
+- Redaction of secrets in reports
+- Signed releases, checksums, SBOM, attestations
 
-## Non-Goals
+## Non-goals
 
-- PkgSafe is not a hosted registry proxy.
-- PkgSafe is not a malware ML classifier.
-- Behavior analysis is best-effort and currently labelled as such.
+- Not a hosted registry proxy  
+- Not a full enterprise SCA platform  
+- Not a malware ML classifier  
+- Behavior analysis is **opt-in** and must be described honestly (heuristic ≠ sandbox)  
+
+## Related
+
+- [Architecture](architecture.md)
+- [Known limitations](known-limitations.md)
+- [Behavior analysis](behavior-analysis.md)
+- [Open-core boundary](architecture/open-core-boundary.md)

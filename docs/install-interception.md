@@ -1,54 +1,72 @@
-# PkgSafe Multi-Ecosystem Install Interception
+# Install interception
 
-## Purpose
+PkgSafe can sit in front of `npm` and `pip` so packages are checked **before**
+the real package manager runs.
 
-PkgSafe is designed to act as a proactive safety guardrail for developers, CI/CD pipelines, and AI coding agents. Intercepting package installation commands ensures that malicious or high-risk dependencies are analyzed and validated against security policies *before* they are installed on the local system or in execution environments.
+Non-install commands (for example `npm run build`, `npm test`) pass through to
+the real binary with no scan.
 
-## Architecture
+## How it works
 
-PkgSafe intercepts commands through explicit wrapped execution or shell aliases/shims. When a command is run, PkgSafe:
+1. Parse the package manager and arguments.
+2. If the command installs packages, extract names and versions.
+3. Scan against policy, OSV, typosquat rules, and static analysis.
+4. Apply the decision:
+   - **ALLOW** → run the real install
+   - **WARN** → prompt (interactive) or block (non-interactive / AI by default)
+   - **BLOCK** → stop install, audit log, non-zero exit
 
-1. **Parses the Input**: Resolves which package manager (`npm`, `pip`, `python -m pip`) and subcommands/arguments are targeted.
-2. **Identifies Target Packages**: Extracts requested packages, version specifiers, and locks.
-3. **Checks Policy Rules**: Compares against local rules, known vulnerability intelligence (OSV), typosquatting targets, and optionally runs heuristic behavior analysis of lifecycle scripts.
-4. **Applies Enforcement Matrix**:
-   - **ALLOW**: Installs the dependency safely via delegation to the real package manager.
-   - **WARN**: Prompts the developer in interactive sessions, or rejects in non-interactive/AI agent environments unless explicit override flags are passed.
-   - **BLOCK**: Halts the installation entirely, logging a security audit event and returning exit code 1.
-
-## Explicit Interception Commands
-
-Instead of calling the package manager directly, prepend `pkgsafe`:
+## Commands
 
 ```bash
-# NPM package installation
+# Prefer these
 pkgsafe npm install axios
 pkgsafe npm add lodash
-
-# Pip package installation
 pkgsafe pip install requests
 pkgsafe python -m pip install Django
-```
 
-## Generic Subcommand Interception
+# Or the dedicated helpers
+pkgsafe npm-install axios
+pkgsafe pip install requests
 
-You can also run interception using the generic command gate:
-
-```bash
+# Generic gate
 pkgsafe run -- npm install lodash
 pkgsafe run -- pip install requests
 ```
 
-## Safety Settings and Flags
+Shell aliases / shims can point `npm` and `pip` at PkgSafe. See
+[shell-shims.md](shell-shims.md) and ecosystem notes:
+[npm-interception.md](npm-interception.md), [pip-interception.md](pip-interception.md).
 
-You can customize runtime behavior by adding safety flags at command invocation:
+## Useful flags
 
-- `--mode <warn|block|audit>`: Overrides current enforcement mode.
-- `--policy <path>`: Uses a custom YAML policy file.
-- `--behavior disabled|heuristic|isolated`: Select behavior analysis mode. The default is `disabled`.
-- `--sandbox`: Deprecated compatibility alias for `--behavior heuristic`. Heuristic mode runs lifecycle scripts on the host without OS isolation — not a security sandbox.
-- `--offline`: Runs checks offline using the local cache and threat DB.
-- `--dry-run`: Completes security checks and prints recommendations without invoking the real package manager.
-- `--yes`: Answers "Yes" to warnings (for non-interactive shell executions).
-- `--json`: Outputs validation details in structured JSON formats.
-- `--force-risk-accept --reason "text"`: Bypasses policy blocks under strict conditions (logged in local audit logs).
+| Flag | Purpose |
+|------|---------|
+| `--mode audit\|warn\|block` | Override enforcement mode |
+| `--policy <path>` | Custom policy |
+| `--behavior disabled\|heuristic\|isolated` | Optional script execution (default: disabled) |
+| `--offline` | Local cache / DB only |
+| `--dry-run` | Scan only; do not install |
+| `--yes` | Auto-confirm WARN in non-interactive use (use carefully) |
+| `--json` | Structured output |
+| `--force-risk-accept --reason "…"` | Override under policy rules; always logged |
+
+`--sandbox` is deprecated; it means `--behavior heuristic` (host execution).
+
+## Policy defaults that matter
+
+From the default policy:
+
+- AI agents should not install on WARN without confirmation.
+- Non-interactive WARN often **blocks** by default.
+- Force accept requires a reason and is audited.
+- Known malware and credential-access findings always block.
+
+Tune only with care: [policy-guide.md](policy-guide.md).
+
+## Related
+
+- [Getting started](getting-started.md)
+- [Commands](commands.md)
+- [AI agent install safety](ai-agent-install-safety.md)
+- [Troubleshooting](troubleshooting.md)

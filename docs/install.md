@@ -1,12 +1,25 @@
 # Install PkgSafe
 
-PkgSafe is distributed as a single static binary. PkgSafe v1.6.0 is GA for npm
-and PyPI: package and lockfile scanning, CI gating, policies, OSV intelligence,
-and evidence reports are the production scope. Go and Cargo coverage is preview
-and should not be treated as GA-equivalent.
+PkgSafe is one static binary. **GA:** npm and PyPI. **Preview:** Go and Cargo.
 
-Use the published release artifacts for normal installs. The examples below pin
-v1.6.0; replace `VERSION` only when intentionally installing a newer release.
+New users: [getting-started.md](getting-started.md) · full docs index:
+[README.md](README.md).
+
+Use official release artifacts for production. Examples below pin **v1.6.0**;
+change `VERSION` only when you mean to.
+
+### Fast path
+
+```bash
+curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash
+pkgsafe doctor
+```
+
+Optional: `PKGSAFE_VERSION=1.6.0` · `PKGSAFE_BIN_DIR=$HOME/.local/bin`.
+
+---
+
+## Manual install by platform
 
 ## macOS arm64
 

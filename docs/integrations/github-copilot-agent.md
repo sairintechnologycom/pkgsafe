@@ -1,88 +1,56 @@
-# PkgSafe GitHub Copilot Agent Integration Guide
+# GitHub Copilot agent + PkgSafe
 
-PkgSafe acts as the package safety guardrail layer for GitHub Copilot cloud agent and code review, preventing the autonomous installation of risky, typosquatted, or malicious dependencies.
+Use PkgSafe MCP tools with GitHub Copilot cloud agent / code review so
+dependency changes are checked before install.
 
-## Purpose
+## Constraints
 
-GitHub allows repository administrators to configure MCP servers for Copilot cloud agent and code review. Because Copilot can use configured MCP tools autonomously, PkgSafe provides strict, narrow, safe MCP tools to guard the dependency path.
+- Copilot MCP support focuses on **tools** (not resources/prompts in all modes).
+- Expose **check / review / explain** tools only — never a broad shell or
+  unrestricted install tool.
+- Prefer **local stdio** (`pkgsafe mcp serve`) when the agent host can run a
+  binary. Remote URL endpoints are environment-specific; do not invent public
+  SaaS URLs.
 
-## Important Constraints
+## Local stdio configuration (recommended)
 
-* **Tools Only**: GitHub Copilot currently supports MCP tools, not MCP resources or prompts. Expose tools only.
-* **No Broad Shell Execution**: Ensure the Copilot MCP configurations do not expose broad shell execution or install execution. Allowlist read/check tools only.
-
-## MCP Configuration
-
-Repository administrators can configure the PkgSafe MCP server in the repository's `.github/copilot-mcp.json` or through the GitHub repository settings page:
+Where the host can spawn a process:
 
 ```json
 {
-  "servers": [
-    {
-      "id": "pkgsafe",
-      "name": "PkgSafe Agent Guardrail",
-      "url": "https://mcp.pkgsafe.local/stdio",
-      "tools": [
-        "check_package",
-        "check_install_command",
-        "review_dependency_diff",
-        "explain_policy_decision"
-      ]
+  "mcpServers": {
+    "pkgsafe": {
+      "command": "pkgsafe",
+      "args": ["mcp", "serve"]
     }
-  ]
-}
-```
-
-## Allowlisted PkgSafe Tools
-
-Expose only the following safe read/check tools:
-
-* `check_package`: Checks package safety against configured repo security policies.
-* `check_install_command`: Checks install command syntax and package contents.
-* `review_dependency_diff`: Performs a dependency diff review in PR workflows.
-* `explain_policy_decision`: Provides remediation recommendations for failed rules.
-
-## Example Dependency Diff Review
-
-When Copilot review parses modifications in `package.json`:
-
-```json
-{
-  "name": "review_dependency_diff",
-  "arguments": {
-    "repo_path": ".",
-    "base_ref": "main",
-    "head_ref": "agent-branch"
   }
 }
 ```
 
-### Expected Output
+Repository admins may also configure MCP in GitHub settings or
+`.github/` config files — follow current GitHub Copilot MCP docs for the exact
+file shape (it changes by product surface).
 
-```json
-{
-  "decision": "REVIEW_REQUIRED",
-  "risk_score": 75,
-  "confidence": "high",
-  "top_reasons": [
-    "[risky-dep:npm] Warning: 75 risk score"
-  ],
-  "agent_instruction": "Do not open PR as ready. Mark PR as requiring security review.",
-  "allowed_next_actions": [
-    "mark_review",
-    "proceed_coding"
-  ],
-  "prohibited_actions": [
-    "run_install",
-    "execute_lifecycle_script"
-  ],
-  "new_dependencies": 1,
-  "blocked_dependencies": 0,
-  "warn_dependencies": 1
-}
-```
+## Tools to allowlist
 
-## Copilot-Specific Guardrail
+| Tool | Purpose |
+|------|---------|
+| `check_package` / `validate_package_install` | Package safety |
+| `check_install_command` / `validate_install_command` | Install command guard |
+| `review_dependency_diff` | Manifest/lockfile review |
+| `explain_policy_decision` / `explain_package_risk` | Explain findings |
 
-* **Hard BLOCK**: If `check_package` or `review_dependency_diff` returns `BLOCK` or `REVIEW_REQUIRED`, Copilot must mark the PR as requiring security review and must not execute the install.
-* **PR Readiness Check**: The `review_dependency_diff` tool is run automatically on PR branch commits to prevent insecure dependencies from merging.
+Confirm names with `tools/list` on your PkgSafe version.
+
+## Agent rules
+
+1. Call a check tool before recommending or applying dependency installs.
+2. **BLOCK** → do not install or merge blindly.
+3. **WARN** → require human review.
+4. Pair with the [GitHub Action](../github-action.md) for PR gates in CI.
+
+## Related
+
+- [Generic MCP](../mcp-generic-client.md)
+- [CI/CD](../ci-cd.md)
+- [AI agent install safety](../ai-agent-install-safety.md)

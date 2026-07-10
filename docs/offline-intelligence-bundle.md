@@ -1,13 +1,17 @@
-# Offline Intelligence Bundles
+# Offline intelligence bundles
 
-PkgSafe OSS can export the local SQLite advisory database into a checksum-
-verified ZIP bundle. This keeps the workflow local-first: one connected machine
-updates the database, exports a bundle, and offline machines verify and import
-that bundle before running offline scans.
+Keep scans working without the public internet.
 
-## Connected Export
+1. On a **connected** machine: update the local advisory DB and export a ZIP.
+2. On an **offline** machine: verify the ZIP, import it, scan with `--offline`.
 
-On a connected machine:
+Missing advisory data **fails closed** — PkgSafe will not treat unknown packages
+as clean.
+
+PkgSafe OSS bundles are checksum-verified ZIPs of the local SQLite DB. Signed
+enterprise intelligence feeds live in the private enterprise distribution.
+
+## Connected export
 
 ```bash
 pkgsafe update-db --ecosystem all
@@ -15,19 +19,13 @@ pkgsafe db status
 pkgsafe db export-bundle --output ./pkgsafe-offline-intelligence.zip
 ```
 
-The bundle contains:
+Bundle contents:
 
-- `manifest.json`: schema version, PkgSafe version, generation time, DB
-  checksum, advisory counts, ecosystem counts, and freshness metadata.
-- `db/pkgsafe.db`: the SQLite advisory database snapshot.
-- `checksums.txt`: SHA-256 checksums for every payload file.
+- `manifest.json` — version, times, DB checksum, counts, freshness
+- `db/pkgsafe.db` — SQLite advisory snapshot
+- `checksums.txt` — SHA-256 of payload files
 
-Signed enterprise intelligence bundles are implemented in the private
-`pkgsafe-enterprise` distribution.
-
-## Offline Verify And Import
-
-On the offline machine:
+## Offline verify and import
 
 ```bash
 pkgsafe db verify-bundle ./pkgsafe-offline-intelligence.zip
@@ -48,7 +46,7 @@ Both commands accept `--json` where noted in `pkgsafe --help`; `db status
 --json` and `db verify-bundle --json` emit machine-readable reports for CI
 and fleet tooling.
 
-## Trust Model
+## Trust model
 
 `verify-bundle` and `import-bundle` always verify `checksums.txt` against the
 bundle contents and check the database SHA-256 recorded in `manifest.json`.
