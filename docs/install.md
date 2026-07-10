@@ -8,7 +8,15 @@ New users: [getting-started.md](getting-started.md) · full docs index:
 Use official release artifacts for production. Examples below pin **v1.6.0**;
 change `VERSION` only when you mean to.
 
-### Fast path
+### Homebrew (macOS & Linux — recommended)
+
+```bash
+brew install sairintechnologycom/pkgsafe/pkgsafe
+```
+
+Upgrade later with `brew upgrade pkgsafe`.
+
+### One-line installer
 
 ```bash
 curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash

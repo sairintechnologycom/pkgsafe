@@ -61,11 +61,19 @@ graph TD
 
 ## Install
 
+**Homebrew** (macOS & Linux):
+
+```bash
+brew install sairintechnologycom/pkgsafe/pkgsafe
+```
+
+**One-line installer** (macOS, Linux, any shell):
+
 ```bash
 curl -fsSL https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh | bash
 ```
 
-That's it — one binary, no runtime dependencies. Confirm it's working:
+Confirm it's working:
 
 ```bash
 pkgsafe doctor
@@ -74,9 +82,15 @@ pkgsafe doctor
 Works on **macOS and Linux** (Intel & Apple Silicon) and **Windows**.
 
 <details>
-<summary>Other ways to install &amp; verifying the download</summary>
+<summary>Other install methods &amp; verifying the download</summary>
 
-**Homebrew / manual** — download a release archive for your platform:
+**Upgrade via Homebrew:**
+
+```bash
+brew upgrade pkgsafe
+```
+
+**Manual download** — grab a release archive for your platform:
 
 ```bash
 VERSION=1.6.0
