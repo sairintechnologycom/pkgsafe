@@ -307,6 +307,56 @@ rules:
     severity: high
     score: 25
 
+  # Cargo / Rust analyzer rules
+  shell_execution_in_build:
+    enabled: true
+    severity: high
+    score: 50
+    block_in_strict_mode: true
+
+  direct_url_dependency:
+    enabled: true
+    severity: high
+    score: 30
+
+  suspicious_build_dependency:
+    enabled: true
+    severity: medium
+    score: 20
+
+  env_secret_exfil:
+    enabled: true
+    severity: critical
+    score: 100
+
+  encoded_payload:
+    enabled: true
+    severity: high
+    score: 40
+
+  unsafe_memory_operation:
+    enabled: true
+    severity: low
+    score: 15
+
+  artifact_oversized:
+    enabled: true
+    severity: medium
+    score: 20
+
+  # Go module analyzer rules
+  shell_execution:
+    enabled: true
+    severity: high
+    score: 40
+    block_in_strict_mode: true
+
+  init_side_effect:
+    enabled: true
+    severity: high
+    score: 40
+    block_in_strict_mode: true
+
 mcp:
   enabled: true
   default_mode: warn

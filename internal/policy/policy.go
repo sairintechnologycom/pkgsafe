@@ -224,6 +224,17 @@ func Default() Policy {
 			"private_scope_public_registry":          {Enabled: true, Severity: "critical", Score: 100},
 			"http_registry_warning":                  {Enabled: true, Severity: "high", Score: 40},
 			"unapproved_registry_url":                {Enabled: true, Severity: "critical", Score: 100},
+			// Cargo / Rust analyzer rules
+			"shell_execution_in_build":   {Enabled: true, Severity: "high", Score: 50, BlockInStrictMode: true},
+			"direct_url_dependency":      {Enabled: true, Severity: "high", Score: 30},
+			"suspicious_build_dependency": {Enabled: true, Severity: "medium", Score: 20},
+			"env_secret_exfil":           {Enabled: true, Severity: "critical", Score: 100},
+			"encoded_payload":            {Enabled: true, Severity: "high", Score: 40},
+			"unsafe_memory_operation":    {Enabled: true, Severity: "low", Score: 15},
+			"artifact_oversized":         {Enabled: true, Severity: "medium", Score: 20},
+			// Go module analyzer rules
+			"shell_execution": {Enabled: true, Severity: "high", Score: 40, BlockInStrictMode: true},
+			"init_side_effect": {Enabled: true, Severity: "high", Score: 40, BlockInStrictMode: true},
 		},
 		BlockPatterns: []string{
 			"~/.aws", "~/.azure", "~/.gcp", "~/.ssh", "~/.kube", "~/.npmrc", "~/.pypirc",
