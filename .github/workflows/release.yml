@@ -47,6 +47,10 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Fine-grained PAT with contents:write on sairintechnologycom/homebrew-pkgsafe.
+          # Create at: github.com/settings/tokens → Fine-grained tokens
+          # Then add as a repo secret: Settings → Secrets → Actions → HOMEBREW_TAP_TOKEN
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
       # GitHub artifact attestations are unavailable for user-owned private
       # repositories. Beta tags may still ship signed artifacts, but GA tags

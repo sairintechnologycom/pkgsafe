@@ -74,6 +74,34 @@ release:
     - glob: ./scripts/install-remote.sh
       name_template: install.sh
 
+# ── Homebrew tap ─────────────────────────────────────────────────────────────
+# On every tagged release GoReleaser pushes an updated formula to the tap.
+# Required secret: HOMEBREW_TAP_TOKEN — fine-grained PAT with:
+#   - Repository: sairintechnologycom/homebrew-pkgsafe
+#   - Permissions: Contents (read & write)
+# Add it at: Settings → Secrets → Actions in the pkgsafe repo.
+brews:
+  - name: pkgsafe
+    repository:
+      owner: sairintechnologycom
+      name: homebrew-pkgsafe
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_author:
+      name: pkgsafe-bot
+      email: bot@sairintechnology.com
+    commit_msg_template: "feat: bump pkgsafe to {{ .Tag }}"
+    directory: Formula
+    homepage: "https://github.com/sairintechnologycom/pkgsafe"
+    description: "Supply-chain security scanner for npm, PyPI, Cargo, and Go packages"
+    license: "Apache-2.0"
+    test: |
+      output = shell_output("#{bin}/pkgsafe version 2>&1")
+      assert_match version.to_s, output
+    install: |
+      bin.install "pkgsafe"
+
+
 changelog:
   use: github
   sort: asc
