@@ -82,7 +82,7 @@ jobs:
             pkgsafe-${{ runner.os }}-
 
       - name: Run PkgSafe
-        uses: sairintechnologycom/pkgsafe@v1.0.0
+        uses: sairintechnologycom/pkgsafe@v1.6.0
         with:
           lockfile: package-lock.json
           mode: warn
@@ -138,7 +138,7 @@ jobs:
             pkgsafe-${{ runner.os }}-
 
       - name: Run PkgSafe with policy
-        uses: sairintechnologycom/pkgsafe@v1.0.0
+        uses: sairintechnologycom/pkgsafe@v1.6.0
         with:
           lockfile: package-lock.json
           policy: .pkgsafe/policy.yaml
@@ -186,7 +186,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run PkgSafe against baseline file
-        uses: sairintechnologycom/pkgsafe@v1.0.0
+        uses: sairintechnologycom/pkgsafe@v1.6.0
         with:
           lockfile: package-lock.json
           changed-only: true
