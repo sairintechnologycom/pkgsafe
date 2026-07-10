@@ -450,6 +450,46 @@ func GetToolsList() ToolListResult {
 				},
 			},
 			{
+				Name:        "get_agent_guidance",
+				Description: "Evaluate a package and return structured agent guidance: a plain-English instruction, allowed next actions, and prohibited actions — all shaped by the active policy's AgentPolicy configuration. This is the preferred tool for agent orchestrators (Claude Code, Cursor, etc.) that need deterministic, policy-driven next-action guidance.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"ecosystem": map[string]any{
+							"type":        "string",
+							"enum":        []string{"npm", "pypi", "go", "cargo"},
+							"description": "Package ecosystem",
+							"default":     "npm",
+						},
+						"name": map[string]any{
+							"type":        "string",
+							"description": "The name of the package to evaluate",
+						},
+						"version": map[string]any{
+							"type":        "string",
+							"description": "Package version (e.g. latest, 1.0.0)",
+							"default":     "latest",
+						},
+						"requested_by": map[string]any{
+							"type":        "string",
+							"enum":        []string{"human", "ai_agent"},
+							"description": "Who is requesting the evaluation",
+							"default":     "ai_agent",
+						},
+						"repo_path": map[string]any{
+							"type":        "string",
+							"description": "Optional absolute path to the local project (used to resolve a project-level policy)",
+						},
+						"offline": map[string]any{
+							"type":        "boolean",
+							"description": "Run the evaluation offline using locally cached data",
+							"default":     false,
+						},
+					},
+					"required": []string{"name"},
+				},
+			},
+			{
 				Name:        "record_agent_decision",
 				Description: "Record an AI-agent dependency decision to the audit log.",
 				InputSchema: map[string]any{

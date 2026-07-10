@@ -130,6 +130,8 @@ func (e *Executor) Handle(req Request) Response {
 			res = e.ReviewDependencyDiff(p.Arguments)
 		case "explain_policy_decision":
 			res = e.ExplainPolicyDecision(p.Arguments)
+		case "get_agent_guidance":
+			res = e.GetAgentGuidanceTool(p.Arguments)
 		case "record_agent_decision":
 			res = e.RecordAgentDecision(p.Arguments)
 		default:
