@@ -1,0 +1,16 @@
+# pnpm lockfile version 6 (slash-prefixed entries)
+lockfileVersion: '6.0'
+
+packages:
+
+  /lodash@4.17.21:
+    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZOFeAAbSAsYExHDiAA==}
+    dev: false
+
+  /express@4.18.2:
+    resolution: {integrity: sha512-5/PsL6iGPdfQ/lKM1UuielYgv3BUoJfz1ENVdU0BAXMHKG/RJgJv3xLZO8gD7Vc8PjGHJ2pAUL3zrBEDVGNg==}
+    dev: false
+
+  /axios@1.4.0:
+    resolution: {integrity: sha512-S4XCWMEmzvo64T9GfvQDOXgYRDJ/wsSZc7Jvdgx5u1sd0JwsuPLqb3SYMusefSquJ6zvgNd/Sn9t3zaqsDow==}
+    dev: false

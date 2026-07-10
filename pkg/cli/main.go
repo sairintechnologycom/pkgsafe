@@ -706,12 +706,23 @@ func cmdScanLockfile(args []string) error {
 	if err != nil {
 		return err
 	}
-	res, err := anpm.AnalyzeLockfile(fs.Arg(0), pol)
+
+	lockPath := fs.Arg(0)
+	base := strings.ToLower(filepath.Base(lockPath))
+	var res types.ScanResult
+	switch {
+	case base == "yarn.lock":
+		res, err = anpm.AnalyzeYarnLockfile(lockPath, pol)
+	case base == "pnpm-lock.yaml":
+		res, err = anpm.AnalyzePnpmLockfile(lockPath, pol)
+	default:
+		res, err = anpm.AnalyzeLockfile(lockPath, pol)
+	}
 	if err != nil {
 		return err
 	}
 	res = stripEnterprise(res, false)
-	logLockfileToAudit(pol, fs.Arg(0), res)
+	logLockfileToAudit(pol, lockPath, res)
 	return output.Write(os.Stdout, res, *asJSON)
 }
 
@@ -2144,6 +2155,62 @@ func cmdScan(args []string) error {
 					findings: findings,
 				})
 			}
+		}
+	}
+
+	// 1b. yarn.lock
+	yarnPath := filepath.Join(dir, "yarn.lock")
+	if _, err := os.Stat(yarnPath); err == nil {
+		res, err := anpm.AnalyzeYarnLockfile(yarnPath, pol)
+		if err == nil {
+			res = stripEnterprise(res, false)
+			logLockfileToAudit(pol, yarnPath, res)
+			jsonResults = append(jsonResults, res)
+			findings := "clean"
+			var fList []string
+			for _, r := range res.Reasons {
+				if r.ID != "lockfile_summary" && r.ID != "score_clamped" && r.ID != "large_dependency_graph" && r.ID != "empty_lockfile" {
+					fList = append(fList, r.ID)
+				}
+			}
+			if len(fList) > 0 {
+				findings = strings.Join(unique(fList), ", ")
+			}
+			results = append(results, fileScanResult{
+				file:     "yarn.lock",
+				eco:      "npm",
+				decision: string(res.Decision),
+				score:    res.Score,
+				findings: findings,
+			})
+		}
+	}
+
+	// 1c. pnpm-lock.yaml
+	pnpmPath := filepath.Join(dir, "pnpm-lock.yaml")
+	if _, err := os.Stat(pnpmPath); err == nil {
+		res, err := anpm.AnalyzePnpmLockfile(pnpmPath, pol)
+		if err == nil {
+			res = stripEnterprise(res, false)
+			logLockfileToAudit(pol, pnpmPath, res)
+			jsonResults = append(jsonResults, res)
+			findings := "clean"
+			var fList []string
+			for _, r := range res.Reasons {
+				if r.ID != "lockfile_summary" && r.ID != "score_clamped" && r.ID != "large_dependency_graph" && r.ID != "empty_lockfile" {
+					fList = append(fList, r.ID)
+				}
+			}
+			if len(fList) > 0 {
+				findings = strings.Join(unique(fList), ", ")
+			}
+			results = append(results, fileScanResult{
+				file:     "pnpm-lock.yaml",
+				eco:      "pnpm",
+				decision: string(res.Decision),
+				score:    res.Score,
+				findings: findings,
+			})
 		}
 	}
 

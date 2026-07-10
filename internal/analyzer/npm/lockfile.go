@@ -11,6 +11,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/sairintechnologycom/pkgsafe/internal/db"
+	dnpm "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
 	"github.com/sairintechnologycom/pkgsafe/internal/intel"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 	"github.com/sairintechnologycom/pkgsafe/internal/risk"
@@ -247,4 +248,164 @@ func dedupeVulnerabilities(in []types.Vulnerability) []types.Vulnerability {
 		}
 	}
 	return out
+}
+
+// ── pnpm / yarn lockfile analyzers ──────────────────────────────────────────
+
+// AnalyzePnpmLockfile parses a pnpm-lock.yaml file and runs the same
+// typosquat, blocked-package, and vulnerability-DB checks as AnalyzeLockfile.
+// It supports both the v5/v6 slash-prefixed format and the v8+ "@name@ver:"
+// format used by pnpm >= 8.
+func AnalyzePnpmLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+	deps, err := dnpm.ParsePnpmLock(b)
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("parse pnpm-lock.yaml: %w", err)
+	}
+	pkg := types.PackageIdentity{Ecosystem: "pnpm-lock", Name: path}
+	return analyzeLockDeps(pkg, "npm", deps, pol)
+}
+
+// AnalyzeYarnLockfile parses a yarn.lock file (v1 classic or v2+ Berry) and
+// runs the same checks as AnalyzeLockfile.
+func AnalyzeYarnLockfile(path string, pol policy.Policy) (types.ScanResult, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return types.ScanResult{}, err
+	}
+	deps, err := dnpm.ParseYarnLock(b)
+	if err != nil {
+		return types.ScanResult{}, fmt.Errorf("parse yarn.lock: %w", err)
+	}
+	pkg := types.PackageIdentity{Ecosystem: "yarn-lock", Name: path}
+	return analyzeLockDeps(pkg, "npm", deps, pol)
+}
+
+// analyzeLockDeps runs the shared typosquat + blocked-package + vuln-DB
+// pipeline for any set of LockfileDependency entries. This is the common
+// implementation shared by AnalyzeLockfile, AnalyzePnpmLockfile, and
+// AnalyzeYarnLockfile.
+func analyzeLockDeps(
+	pkg types.PackageIdentity,
+	ecosystem string,
+	rawDeps []dnpm.LockfileDependency,
+	pol policy.Policy,
+) (types.ScanResult, error) {
+	var reasons []types.Reason
+	var alts []string
+
+	// Deduplicate and index by name→version.
+	seenNames := make(map[string]bool)
+	deps := make(map[string]string) // name → version
+	var names []string
+	for _, d := range rawDeps {
+		if !seenNames[d.Name] {
+			seenNames[d.Name] = true
+			names = append(names, d.Name)
+		}
+		if d.Version != "" {
+			deps[d.Name] = d.Version
+		}
+	}
+	sort.Strings(names)
+
+	if len(names) == 0 {
+		reasons = append(reasons, types.Reason{ID: "empty_lockfile", Description: "No dependencies found in lockfile"})
+	}
+	if len(names) > 500 {
+		reasons = append(reasons, types.Reason{
+			ID:          "large_dependency_graph",
+			Description: "Large dependency graph increases transitive supply-chain exposure",
+			Evidence:    fmt.Sprintf("%d packages", len(names)),
+		})
+	}
+
+	blockedDeps := make(map[string]bool)
+	warnedDeps := make(map[string]bool)
+
+	for _, name := range names {
+		if policy.IsBlocked(pol, ecosystem, name) {
+			blockedDeps[name] = true
+			reasons = append(reasons, types.Reason{
+				ID:          "blocked_package",
+				Description: fmt.Sprintf("Lockfile contains blocked dependency %q", name),
+				Evidence:    name,
+			})
+		}
+		if matches := typosquat.Check(name); len(matches) > 0 {
+			alts = append(alts, matches...)
+			warnedDeps[name] = true
+			reasons = append(reasons, types.Reason{ID: "typosquat_candidate", Description: "Lockfile contains dependency resembling a popular package", Evidence: name})
+			reasons = append(reasons, types.Reason{ID: "missing_repository", Description: "Lockfile dependency metadata does not include a source repository", Evidence: name})
+		}
+	}
+
+	// Vulnerability DB lookup.
+	d, err := db.Open("")
+	var resultVulns []types.Vulnerability
+	if err == nil {
+		defer d.Close()
+		ctx := context.Background()
+		interactive := isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())
+		totalDeps := len(deps)
+		processed := 0
+		for name, ver := range deps {
+			processed++
+			if interactive && processed%10 == 0 {
+				percent := (processed * 100) / totalDeps
+				barLen := percent / 5
+				bar := strings.Repeat("■", barLen) + strings.Repeat(" ", 20-barLen)
+				fmt.Fprintf(os.Stderr, "\rScanning dependencies: [%s] %d%% (%d/%d)   ", bar, percent, processed, totalDeps)
+			}
+			vulns, err := d.GetVulnerabilitiesForPackage(ctx, ecosystem, name)
+			if err != nil {
+				continue
+			}
+			for _, v := range vulns {
+				if intel.IsVersionAffected(ver, v) {
+					resultVulns = append(resultVulns, typeVuln(v))
+					if intel.IsMalware(v) {
+						blockedDeps[name] = true
+						reasons = append(reasons, types.Reason{
+							ID:          "known_malware_indicator",
+							Description: fmt.Sprintf("Lockfile contains dependency %q with malware", name),
+							Evidence:    name + "@" + ver,
+						})
+					} else {
+						if v.Severity == "high" || v.Severity == "critical" {
+							blockedDeps[name] = true
+						} else {
+							warnedDeps[name] = true
+						}
+						reasons = append(reasons, types.Reason{
+							ID:          "known_vulnerability_" + v.Severity,
+							Description: fmt.Sprintf("Lockfile contains dependency %q with a %s severity advisory", name, v.Severity),
+							Evidence:    name + "@" + ver,
+						})
+					}
+				}
+			}
+		}
+		if interactive {
+			fmt.Fprintf(os.Stderr, "\rScanning dependencies: [%s] 100%% (%d/%d) Done!\n", strings.Repeat("■", 20), totalDeps, totalDeps)
+		}
+	}
+
+	blockedCount := len(blockedDeps)
+	warnedCount := 0
+	for name := range warnedDeps {
+		if !blockedDeps[name] {
+			warnedCount++
+		}
+	}
+	allowedCount := len(names) - blockedCount - warnedCount
+
+	evalRes := risk.Evaluate(pkg, reasons, nil,
+		[]string{fmt.Sprintf("lockfile_summary:total:%d,allowed:%d,blocked:%d,warned:%d", len(names), allowedCount, blockedCount, warnedCount)},
+		unique(alts), pol)
+	evalRes.Vulnerabilities = dedupeVulnerabilities(resultVulns)
+	return evalRes, nil
 }
