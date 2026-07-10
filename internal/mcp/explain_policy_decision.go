@@ -5,13 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
-	scargo "github.com/sairintechnologycom/pkgsafe/internal/scanner/cargo"
-	sgolang "github.com/sairintechnologycom/pkgsafe/internal/scanner/golang"
-	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
-	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
@@ -91,42 +86,13 @@ func (e *Executor) ExplainPolicyDecision(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	var res types.ScanResult
-	var scanErr error
-
-	switch ecosystem {
-	case "pypi":
-		scanner := spypi.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline
-		scanner.RequestedBy = "ai_agent"
-		scanner.Environment = "ai_agent"
-		res, scanErr = scanner.ScanPackage(name, version)
-	case "cargo":
-		scanner := scargo.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline
-		scanner.RequestedBy = "ai_agent"
-		scanner.Environment = "ai_agent"
-		res, scanErr = scanner.ScanPackage(name, version)
-	case "go", "golang":
-		scanner := sgolang.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline
-		scanner.RequestedBy = "ai_agent"
-		scanner.Environment = "ai_agent"
-		res, scanErr = scanner.ScanPackage(name, version)
-	default: // npm
-		scanner := snpm.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline
-		scanner.RequestedBy = "ai_agent"
-		scanner.Environment = "ai_agent"
-		res, scanErr = scanner.ScanPackage(name, version)
+	opts := ScanOpts{
+		RequestedBy: "ai_agent",
+		Environment: "ai_agent",
 	}
-
-	if scanErr != nil {
-		te := MapScanError(scanErr, ecosystem, name, version)
+	res, _, err := e.evaluatePackage(ecosystem, name, version, pol, e.Offline, "ai_agent", opts)
+	if err != nil {
+		te := MapScanError(err, ecosystem, name, version)
 		b, _ := json.MarshalIndent(te, "", "  ")
 		return CallToolResult{
 			Content: []ToolContent{{
@@ -137,70 +103,41 @@ func (e *Executor) ExplainPolicyDecision(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	decision := "ALLOW"
-	switch res.Decision {
-	case types.DecisionBlock:
-		decision = "BLOCK"
-	case types.DecisionWarn:
-		decision = "WARN"
-	case types.DecisionAllow:
-		decision = "ALLOW"
-	default:
-		decision = "BLOCK"
-	}
-
 	var ruleIDs []string
 	var topReasons []string
 	for _, r := range res.Reasons {
 		ruleIDs = append(ruleIDs, r.ID)
 		topReasons = append(topReasons, r.Description)
 	}
-
 	if len(topReasons) == 0 {
 		topReasons = []string{"No critical safety findings."}
 	}
 
+	decStr := decisionString(res.Decision)
+
 	var remediation []string
-	switch decision {
-	case "BLOCK":
+	switch types.Decision(decStr) {
+	case types.DecisionBlock:
 		remediation = []string{"Remove dependency", "Use approved internal package", "Request security exception"}
-	case "WARN":
+	case types.DecisionWarn:
 		remediation = []string{"Request human approval", "Request policy exception", "Use a safer alternative"}
 	default:
 		remediation = []string{"No remediation required"}
 	}
 
-	evidenceID := fmt.Sprintf("pkg-%s-%03d", time.Now().Format("20060102"), time.Now().UnixNano()%1000)
-
-	var instruction string
-	var allowedActions []string
-	var prohibitedActions []string
-
-	switch decision {
-	case "ALLOW":
-		instruction = "Package may be installed."
-		allowedActions = []string{"proceed"}
-		prohibitedActions = []string{}
-	case "WARN":
-		instruction = "Do not install automatically. Ask the user for approval or choose an existing dependency."
-		allowedActions = []string{"ask_user", "suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
-	case "BLOCK":
-		instruction = "Do not install this package. The policy decision is BLOCK."
-		allowedActions = []string{"suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
-	}
+	evidenceID := generateEvidenceID(ecosystem, name, version)
+	guidance := GetAgentGuidance(res.Decision, pol.AgentPolicy, pol.Mode)
 
 	toolRes := ExplainPolicyDecisionResult{
-		Decision:           decision,
+		Decision:           guidance.Decision,
 		RiskScore:          res.Score,
 		Confidence:         "high",
 		TopReasons:         topReasons,
 		PolicyResult:       fmt.Sprintf("mode: %s, scan_decision: %s", pol.Mode, res.Decision),
 		EvidenceID:         evidenceID,
-		AgentInstruction:   instruction,
-		AllowedNextActions: allowedActions,
-		ProhibitedActions:  prohibitedActions,
+		AgentInstruction:   guidance.Instruction,
+		AllowedNextActions: guidance.AllowedNextActions,
+		ProhibitedActions:  guidance.ProhibitedActions,
 		RuleIDs:            ruleIDs,
 		Remediation:        remediation,
 	}

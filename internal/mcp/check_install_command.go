@@ -4,14 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/sairintechnologycom/pkgsafe/internal/agent"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
-	scargo "github.com/sairintechnologycom/pkgsafe/internal/scanner/cargo"
-	sgolang "github.com/sairintechnologycom/pkgsafe/internal/scanner/golang"
-	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
-	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
@@ -103,41 +98,13 @@ func (e *Executor) CheckInstallCommand(args json.RawMessage) CallToolResult {
 	hasWarn := false
 	var topReasons []string
 
+	opts := ScanOpts{
+		RequestedBy: "ai_agent",
+		Environment: "ai_agent",
+	}
+
 	for _, pp := range parsedPkgs {
-		var res types.ScanResult
-		var err error
-
-		switch pp.Ecosystem {
-		case "pypi":
-			scanner := spypi.New()
-			scanner.Policy = pol
-			scanner.Offline = e.Offline || p.Offline
-			scanner.RequestedBy = "ai_agent"
-			scanner.Environment = "ai_agent"
-			res, err = scanner.ScanPackage(pp.Name, pp.Version)
-		case "cargo":
-			scanner := scargo.New()
-			scanner.Policy = pol
-			scanner.Offline = e.Offline || p.Offline
-			scanner.RequestedBy = "ai_agent"
-			scanner.Environment = "ai_agent"
-			res, err = scanner.ScanPackage(pp.Name, pp.Version)
-		case "go", "golang":
-			scanner := sgolang.New()
-			scanner.Policy = pol
-			scanner.Offline = e.Offline || p.Offline
-			scanner.RequestedBy = "ai_agent"
-			scanner.Environment = "ai_agent"
-			res, err = scanner.ScanPackage(pp.Name, pp.Version)
-		default: // npm
-			scanner := snpm.New()
-			scanner.Policy = pol
-			scanner.Offline = e.Offline || p.Offline
-			scanner.RequestedBy = "ai_agent"
-			scanner.Environment = "ai_agent"
-			res, err = scanner.ScanPackage(pp.Name, pp.Version)
-		}
-
+		res, _, err := e.evaluatePackage(pp.Ecosystem, pp.Name, pp.Version, pol, p.Offline, "ai_agent", opts)
 		if err != nil {
 			te := MapScanError(err, pp.Ecosystem, pp.Name, pp.Version)
 			bErr, _ := json.MarshalIndent(te, "", "  ")
@@ -150,16 +117,12 @@ func (e *Executor) CheckInstallCommand(args json.RawMessage) CallToolResult {
 			}
 		}
 
-		pkgDecision := "ALLOW"
+		pkgDecision := decisionString(res.Decision)
 		switch res.Decision {
 		case types.DecisionBlock:
-			pkgDecision = "BLOCK"
 			hasBlock = true
 		case types.DecisionWarn:
-			pkgDecision = "WARN"
 			hasWarn = true
-		default:
-			pkgDecision = "ALLOW"
 		}
 
 		if res.Score > maxScore {
@@ -179,18 +142,20 @@ func (e *Executor) CheckInstallCommand(args json.RawMessage) CallToolResult {
 		})
 	}
 
-	overallDecision := "ALLOW"
+	overallDecision := types.DecisionAllow
 	if hasBlock {
-		overallDecision = "BLOCK"
+		overallDecision = types.DecisionBlock
 	} else if hasWarn {
-		overallDecision = "WARN"
+		overallDecision = types.DecisionWarn
 	}
 
-	evidenceID := fmt.Sprintf("pkg-%s-%03d", time.Now().Format("20060102"), time.Now().UnixNano()%1000)
+	evidenceID := generateEvidenceID("cmd", p.Command, "")
 
-	// Build guidance instructions with agent policy overrides
-	overallDecision, instruction, allowedActions, prohibitedActions := ApplyAgentPolicyOverrides(overallDecision, pol.AgentPolicy)
-	if overallDecision == "ALLOW" {
+	// Unified guidance via GetAgentGuidance
+	guidance := GetAgentGuidance(overallDecision, pol.AgentPolicy, pol.Mode)
+
+	instruction := guidance.Instruction
+	if guidance.Decision == string(types.DecisionAllow) {
 		instruction = "Command may be run."
 	}
 
@@ -199,15 +164,15 @@ func (e *Executor) CheckInstallCommand(args json.RawMessage) CallToolResult {
 	}
 
 	toolRes := CheckInstallCommandResult{
-		Decision:           overallDecision,
+		Decision:           guidance.Decision,
 		RiskScore:          maxScore,
 		Confidence:         "high",
 		TopReasons:         topReasons,
 		PolicyResult:       fmt.Sprintf("mode: %s", pol.Mode),
 		EvidenceID:         evidenceID,
 		AgentInstruction:   instruction,
-		AllowedNextActions: allowedActions,
-		ProhibitedActions:  prohibitedActions,
+		AllowedNextActions: guidance.AllowedNextActions,
+		ProhibitedActions:  guidance.ProhibitedActions,
 		PackagesDetected:   detected,
 		SafeCommand:        nil,
 	}

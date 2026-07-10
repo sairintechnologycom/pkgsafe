@@ -4,16 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/sairintechnologycom/pkgsafe/internal/agent"
 	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
 	"github.com/sairintechnologycom/pkgsafe/internal/output"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
-	"github.com/sairintechnologycom/pkgsafe/internal/registry"
-	"github.com/sairintechnologycom/pkgsafe/internal/risk"
-	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
-	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
@@ -170,54 +165,15 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		netMode = "disabled"
 	}
 
-	env := "developer"
-	if p.RequestedBy == "ai_agent" {
-		env = "ai_agent"
+	opts := ScanOpts{
+		RequestedBy:    p.RequestedBy,
+		SandboxEnabled: sandboxEnabled,
+		BehaviorMode:   behaviorMode,
+		TimeoutSecs:    timeoutSecs,
+		NetworkMode:    netMode,
+		RegistryName:   p.Registry,
 	}
-
-	var regName string
-	var regCfg policy.RegistryConfig
-	if p.Registry != "" {
-		if cfg, ok := pol.Registries.Registries[p.Ecosystem][p.Registry]; ok {
-			regName = p.Registry
-			regCfg = cfg
-		} else {
-			regName = ""
-			regCfg = policy.RegistryConfig{
-				URL:     "",
-				Type:    "unknown",
-				Enabled: false,
-			}
-		}
-	} else {
-		regName, regCfg = registry.ResolveRegistry(p.Ecosystem, p.Name, pol)
-	}
-
-	var res types.ScanResult
-	var scanErr error
-	if p.Ecosystem == "pypi" {
-		scanner := spypi.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline || p.Offline
-		scanner.SandboxEnabled = sandboxEnabled
-		scanner.BehaviorMode = behaviorMode
-		scanner.RequestedBy = p.RequestedBy
-		scanner.Environment = env
-		scanner.RegistryName = p.Registry
-		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
-	} else {
-		scanner := snpm.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline || p.Offline
-		scanner.SandboxEnabled = sandboxEnabled
-		scanner.BehaviorMode = behaviorMode
-		scanner.SandboxTimeout = time.Duration(timeoutSecs) * time.Second
-		scanner.NetworkMode = netMode
-		scanner.RequestedBy = p.RequestedBy
-		scanner.Environment = env
-		scanner.RegistryName = p.Registry
-		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
-	}
+	res, installAllowed, scanErr := e.evaluatePackage(p.Ecosystem, p.Name, p.Version, pol, p.Offline, p.RequestedBy, opts)
 	if scanErr != nil {
 		te := MapScanError(scanErr, p.Ecosystem, p.Name, p.Version)
 		b, _ := json.MarshalIndent(te, "", "  ")
@@ -244,50 +200,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 			}
 		}
 	}
-
-	// Handle ai_agent requested risk increases
-	if p.RequestedBy == "ai_agent" && len(res.Reasons) > 0 {
-		hasRisks := false
-		for _, r := range res.Reasons {
-			if r.ID != "trusted_package_reduction" {
-				hasRisks = true
-				break
-			}
-		}
-		if hasRisks {
-			if _, ok := policy.RuleFor(pol, "ai_agent_requested_suspicious_package"); ok {
-				findings := append(stripPolicyGenerated(res.Reasons), types.Reason{
-					ID:          "ai_agent_requested_suspicious_package",
-					Description: "AI agent requested suspicious package installation",
-					Evidence:    res.Package.Name,
-				})
-				oldSandbox := res.Sandbox
-				res = risk.Evaluate(res.Package, findings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
-				res.Sandbox = oldSandbox
-				res = risk.ApplyEnterpriseControls(res, pol, regName, regCfg, p.RequestedBy, env)
-			}
-		}
-	}
-
-	installAllowed := true
-	if res.Decision == types.DecisionBlock {
-		installAllowed = false
-	} else if res.Decision == types.DecisionWarn {
-		if pol.Mode == policy.ModeAudit {
-			installAllowed = true
-		} else if pol.Mode == policy.ModeBlock {
-			installAllowed = false
-		} else { // ModeWarn
-			if p.RequestedBy == "ai_agent" {
-				installAllowed = pol.MCP.AIAgentDefaultInstallAllowedOnWarn
-			} else {
-				installAllowed = pol.MCP.HumanDefaultInstallAllowedOnWarn
-			}
-		}
-	}
-	if p.RequestedBy == "ai_agent" && hasCriticalSandboxFinding {
-		installAllowed = false
-	}
+	_ = hasCriticalSandboxFinding // evaluated inside evaluatePackage; kept for sandbox result counts
 
 	instruction := agentInstruction(res.Decision, installAllowed, p.RequestedBy, pol.Mode)
 	var safeAlts []string

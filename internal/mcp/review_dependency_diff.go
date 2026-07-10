@@ -1,23 +1,19 @@
 package mcp
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/sairintechnologycom/pkgsafe/internal/ci"
+	depscargo "github.com/sairintechnologycom/pkgsafe/internal/deps/cargo"
 	goinventory "github.com/sairintechnologycom/pkgsafe/internal/deps/golang"
+	depsnpm "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
+	depspython "github.com/sairintechnologycom/pkgsafe/internal/deps/python"
 	"github.com/sairintechnologycom/pkgsafe/internal/git"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
-	scargo "github.com/sairintechnologycom/pkgsafe/internal/scanner/cargo"
-	sgolang "github.com/sairintechnologycom/pkgsafe/internal/scanner/golang"
-	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
-	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
@@ -80,10 +76,9 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	// 2. Identify repository changes using git
+	// 2. Confirm we are inside a git repository
 	_, err = git.RunGit(p.RepoPath, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
-		// Not in a git repo or git not available, return empty result or mock/fallback
 		return CallToolResult{
 			Content: []ToolContent{{
 				Type: "text",
@@ -93,19 +88,15 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	// Fetch diff files
+	// 3. Obtain list of changed manifest/lockfiles
 	diffOutput, err := git.RunGit(p.RepoPath, "diff", "--name-only", p.BaseRef+"..."+p.HeadRef)
 	if err != nil {
-		// Fallback to direct ref diff
 		diffOutput, err = git.RunGit(p.RepoPath, "diff", "--name-only", p.BaseRef, p.HeadRef)
 		if err != nil {
-			// Fallback to simple local diff
 			diffOutput, _ = git.RunGit(p.RepoPath, "diff", "--name-only")
 		}
 	}
 
-	lines := strings.Split(diffOutput, "\n")
-	var manifestFiles []string
 	manifestSet := map[string]bool{
 		"package.json":      true,
 		"package-lock.json": true,
@@ -120,13 +111,13 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 		"Cargo.lock":        true,
 	}
 
-	for _, line := range lines {
+	var manifestFiles []string
+	for _, line := range strings.Split(diffOutput, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		baseName := filepath.Base(line)
-		if manifestSet[baseName] {
+		if manifestSet[filepath.Base(line)] {
 			manifestFiles = append(manifestFiles, line)
 		}
 	}
@@ -144,26 +135,22 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 	}
 	var packagesToCheck []targetPackage
 
+	// 4. Parse each manifest with real parsers, compute diff of new/changed deps
 	for _, relPath := range manifestFiles {
 		baseName := filepath.Base(relPath)
 		ecosystem := getEcosystemForFile(baseName)
 
-		// Get content at base ref
 		baseBytes, _ := git.RunGit(p.RepoPath, "show", p.BaseRef+":"+relPath)
-		// Get content at head ref (or fallback to local file)
 		headBytes, err := git.RunGit(p.RepoPath, "show", p.HeadRef+":"+relPath)
 		if err != nil {
-			// Read from filesystem directly
-			localPath := filepath.Join(p.RepoPath, relPath)
-			if data, err := os.ReadFile(localPath); err == nil {
+			if data, ferr := os.ReadFile(filepath.Join(p.RepoPath, relPath)); ferr == nil {
 				headBytes = string(data)
 			}
 		}
 
-		baseDeps, _ := parseDeps(baseName, []byte(baseBytes))
-		headDeps, _ := parseDeps(baseName, []byte(headBytes))
+		baseDeps, _ := parseDepsWithRealParsers(baseName, []byte(baseBytes), p.RepoPath)
+		headDeps, _ := parseDepsWithRealParsers(baseName, []byte(headBytes), p.RepoPath)
 
-		// Find new/updated dependencies
 		for name, headVer := range headDeps {
 			baseVer, exists := baseDeps[name]
 			if !exists {
@@ -175,51 +162,22 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	// 3. Scan each added/updated package
+	// 5. Scan each new/updated package
+	opts := ScanOpts{
+		RequestedBy: "ai_agent",
+		Environment: "ai_agent",
+	}
 	for _, pkg := range packagesToCheck {
-		var res types.ScanResult
-		var err error
-
-		switch pkg.ecosystem {
-		case "pypi":
-			scanner := spypi.New()
-			scanner.Policy = pol
-			scanner.Offline = e.Offline
-			scanner.RequestedBy = "ai_agent"
-			scanner.Environment = "ai_agent"
-			res, err = scanner.ScanPackage(pkg.name, pkg.version)
-		case "cargo":
-			scanner := scargo.New()
-			scanner.Policy = pol
-			scanner.Offline = e.Offline
-			scanner.RequestedBy = "ai_agent"
-			scanner.Environment = "ai_agent"
-			res, err = scanner.ScanPackage(pkg.name, pkg.version)
-		case "go", "golang":
-			scanner := sgolang.New()
-			scanner.Policy = pol
-			scanner.Offline = e.Offline
-			scanner.RequestedBy = "ai_agent"
-			scanner.Environment = "ai_agent"
-			res, err = scanner.ScanPackage(pkg.name, pkg.version)
-		default: // npm
-			scanner := snpm.New()
-			scanner.Policy = pol
-			scanner.Offline = e.Offline
-			scanner.RequestedBy = "ai_agent"
-			scanner.Environment = "ai_agent"
-			res, err = scanner.ScanPackage(pkg.name, pkg.version)
-		}
-
+		res, _, err := e.evaluatePackage(pkg.ecosystem, pkg.name, pkg.version, pol, e.Offline, "ai_agent", opts)
 		if err != nil {
-			// Skip packages that fail to scan or log warning
-			continue
+			continue // skip unresolvable packages; log could go here
 		}
 
-		if res.Decision == types.DecisionBlock {
+		switch res.Decision {
+		case types.DecisionBlock:
 			blockedCount++
 			topReasons = append(topReasons, fmt.Sprintf("[%s:%s] Blocked: %d risk score", pkg.name, pkg.ecosystem, res.Score))
-		} else if res.Decision == types.DecisionWarn {
+		case types.DecisionWarn:
 			warnCount++
 			topReasons = append(topReasons, fmt.Sprintf("[%s:%s] Warning: %d risk score", pkg.name, pkg.ecosystem, res.Score))
 		}
@@ -229,23 +187,39 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	overallDecision := "ALLOW"
-	if blockedCount > 0 || warnCount > 0 {
-		overallDecision = "REVIEW_REQUIRED"
+	// 6. Determine overall decision.
+	// If any dep is blocked, the overall decision is BLOCK (not REVIEW_REQUIRED).
+	var overallDecision types.Decision
+	switch {
+	case blockedCount > 0:
+		overallDecision = types.DecisionBlock
+	case warnCount > 0:
+		overallDecision = types.DecisionWarn
+	default:
+		overallDecision = types.DecisionAllow
 	}
 
-	evidenceID := fmt.Sprintf("pkg-%s-%03d", time.Now().Format("20060102"), time.Now().UnixNano()%1000)
+	evidenceID := generateEvidenceID("diff", p.BaseRef, p.HeadRef)
 
-	// Build guidance instructions with agent policy overrides
-	overallDecision, instruction, allowedActions, prohibitedActions := ApplyAgentPolicyOverrides(overallDecision, pol.AgentPolicy)
-	if overallDecision == "ALLOW" {
+	guidance := GetAgentGuidance(overallDecision, pol.AgentPolicy, pol.Mode)
+
+	instruction := guidance.Instruction
+	allowedActions := guidance.AllowedNextActions
+	prohibitedActions := guidance.ProhibitedActions
+
+	// Semantic overrides for diff context
+	switch overallDecision {
+	case types.DecisionAllow:
 		instruction = "Dependency diff is clean. No risk found."
-	} else if overallDecision == "REVIEW_REQUIRED" {
+		allowedActions = []string{"proceed"}
+		prohibitedActions = []string{}
+	case types.DecisionWarn:
+		// Keep guidance, but surface the review action
 		instruction = "Do not open PR as ready. Mark PR as requiring security review."
-		allowedActions = []string{"mark_review", "proceed_coding"}
-	} else if overallDecision == "BLOCK" {
+		allowedActions = dedup(append([]string{"mark_review", "proceed_coding"}, guidance.AllowedNextActions...))
+	case types.DecisionBlock:
 		instruction = "Do not open PR as ready. The dependency review has failed with decision BLOCK."
-		allowedActions = []string{"suggest_alternative", "remove_dependency"}
+		allowedActions = dedup(append([]string{"suggest_alternative", "remove_dependency"}, guidance.AllowedNextActions...))
 	}
 
 	if len(topReasons) == 0 {
@@ -253,7 +227,7 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 	}
 
 	toolRes := ReviewDependencyDiffResult{
-		Decision:            overallDecision,
+		Decision:            guidance.Decision,
 		RiskScore:           maxScore,
 		Confidence:          "high",
 		TopReasons:          topReasons,
@@ -291,9 +265,11 @@ func getEcosystemForFile(filename string) string {
 	return "npm"
 }
 
-// parseDeps delegates parsing of dependency files using inline/utility code.
-func parseDeps(filename string, content []byte) (map[string]string, error) {
+// parseDepsWithRealParsers delegates to real internal/deps parsers for each manifest type.
+// It returns a name→version map suitable for diffing.
+func parseDepsWithRealParsers(filename string, content []byte, repoPath string) (map[string]string, error) {
 	filename = filepath.Base(filename)
+
 	switch filename {
 	case "package.json":
 		var pj struct {
@@ -311,248 +287,105 @@ func parseDeps(filename string, content []byte) (map[string]string, error) {
 			res[k] = v
 		}
 		return res, nil
+
 	case "package-lock.json":
-		deps, _, err := ci.DiffLockfilesDetailed(content, []byte(`{"lockfileVersion":2,"packages":{},"dependencies":{}}`))
+		added, _, err := ci.DiffLockfilesDetailed(content, []byte(`{"lockfileVersion":2,"packages":{},"dependencies":{}}`))
 		if err != nil {
 			return nil, err
 		}
 		res := make(map[string]string)
-		for _, d := range deps {
+		for _, d := range added {
 			res[d.Name] = d.Version
 		}
 		return res, nil
-	case "requirements.txt":
-		res := make(map[string]string)
-		scanner := bufio.NewScanner(bytes.NewReader(content))
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
-				continue
-			}
-			if idx := strings.Index(line, "#"); idx >= 0 {
-				line = strings.TrimSpace(line[:idx])
-			}
-			if idx := strings.Index(line, ";"); idx >= 0 {
-				line = strings.TrimSpace(line[:idx])
-			}
-			if line == "" {
-				continue
-			}
-			name := line
-			version := "latest"
-			for _, op := range []string{"===", "==", "~=", ">=", "<=", "!=", ">", "<"} {
-				if idx := strings.Index(line, op); idx > 0 {
-					name = strings.TrimSpace(line[:idx])
-					version = strings.TrimSpace(line[idx+len(op):])
-					if cidx := strings.IndexAny(version, ", ;<>="); cidx >= 0 {
-						version = version[:cidx]
-					}
-					break
-				}
-			}
-			if name != "" {
-				res[name] = version
-			}
-		}
-		return res, nil
-	case "go.mod":
-		deps, err := goinventory.ParseGoMod(content)
-		if err != nil {
-			return nil, err
-		}
-		res := make(map[string]string)
-		for _, d := range deps {
-			res[d.Name] = d.Version
-		}
-		return res, nil
-	case "Cargo.toml":
-		res := make(map[string]string)
-		scanner := bufio.NewScanner(bytes.NewReader(content))
-		inDeps := false
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if strings.HasPrefix(line, "[dependencies]") || strings.HasPrefix(line, "[dev-dependencies]") || strings.HasPrefix(line, "[build-dependencies]") {
-				inDeps = true
-				continue
-			}
-			if strings.HasPrefix(line, "[") {
-				inDeps = false
-				continue
-			}
-			if inDeps && line != "" && !strings.HasPrefix(line, "#") {
-				parts := strings.SplitN(line, "=", 2)
-				if len(parts) == 2 {
-					name := strings.Trim(strings.TrimSpace(parts[0]), `"'`)
-					val := strings.TrimSpace(parts[1])
-					version := "latest"
-					if strings.HasPrefix(val, `"`) {
-						version = strings.Trim(val, `"`)
-					} else if strings.HasPrefix(val, `{`) {
-						if vIdx := strings.Index(val, `version`); vIdx >= 0 {
-							sub := val[vIdx:]
-							if eqIdx := strings.Index(sub, `=[ \t]*"`); eqIdx >= 0 {
-								verSub := sub[eqIdx:]
-								firstQuote := strings.Index(verSub, `"`)
-								if firstQuote >= 0 {
-									secondQuote := strings.Index(verSub[firstQuote+1:], `"`)
-									if secondQuote >= 0 {
-										version = verSub[firstQuote+1 : firstQuote+1+secondQuote]
-									}
-								}
-							}
-						}
-					}
-					res[name] = version
-				}
-			}
-		}
-		return res, nil
-	case "Cargo.lock", "poetry.lock", "uv.lock":
-		res := make(map[string]string)
-		scanner := bufio.NewScanner(bytes.NewReader(content))
-		var currentName string
-		var currentVersion string
-		inPackage := false
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "[[package]]" {
-				if inPackage && currentName != "" && currentVersion != "" {
-					res[currentName] = currentVersion
-				}
-				currentName = ""
-				currentVersion = ""
-				inPackage = true
-				continue
-			}
-			if strings.HasPrefix(line, "[") && !strings.HasPrefix(line, "[[package]]") {
-				if inPackage && currentName != "" && currentVersion != "" {
-					res[currentName] = currentVersion
-				}
-				inPackage = false
-				currentName = ""
-				currentVersion = ""
-				continue
-			}
-			if inPackage {
-				if strings.HasPrefix(line, "name =") {
-					currentName = strings.Trim(strings.TrimPrefix(line, "name ="), ` "`)
-				} else if strings.HasPrefix(line, "version =") {
-					currentVersion = strings.Trim(strings.TrimPrefix(line, "version ="), ` "`)
-				}
-			}
-		}
-		if inPackage && currentName != "" && currentVersion != "" {
-			res[currentName] = currentVersion
-		}
-		return res, nil
-	case "pyproject.toml":
-		res := make(map[string]string)
-		scanner := bufio.NewScanner(bytes.NewReader(content))
-		inDeps := false
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if strings.HasPrefix(line, "[project.dependencies]") || strings.HasPrefix(line, "[tool.poetry.dependencies]") || strings.HasPrefix(line, "[tool.poetry.dev-dependencies]") {
-				inDeps = true
-				continue
-			}
-			if strings.HasPrefix(line, "[") {
-				inDeps = false
-				continue
-			}
-			if inDeps && line != "" && !strings.HasPrefix(line, "#") {
-				parts := strings.SplitN(line, "=", 2)
-				if len(parts) == 2 {
-					name := strings.Trim(strings.TrimSpace(parts[0]), `"'`)
-					val := strings.Trim(strings.TrimSpace(parts[1]), `"'`)
-					version := "latest"
-					if strings.HasPrefix(val, `"`) || strings.HasPrefix(val, `'`) {
-						version = strings.Trim(val, `"'`)
-					} else if strings.HasPrefix(val, `{`) {
-						if vIdx := strings.Index(val, `version`); vIdx >= 0 {
-							sub := val[vIdx:]
-							if eqIdx := strings.Index(sub, `=[ \t]*"`); eqIdx >= 0 {
-								verSub := sub[eqIdx:]
-								firstQuote := strings.Index(verSub, `"`)
-								if firstQuote >= 0 {
-									secondQuote := strings.Index(verSub[firstQuote+1:], `"`)
-									if secondQuote >= 0 {
-										version = verSub[firstQuote+1 : firstQuote+1+secondQuote]
-									}
-								}
-							}
-						}
-					}
-					res[name] = version
-				} else {
-					name := strings.Trim(strings.TrimSpace(line), `", '`)
-					if name != "" {
-						res[name] = "latest"
-					}
-				}
-			}
-		}
-		return res, nil
-	case "pnpm-lock.yaml":
-		res := make(map[string]string)
-		scanner := bufio.NewScanner(bytes.NewReader(content))
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if strings.HasPrefix(line, "/") || (strings.Contains(line, "@") && strings.HasSuffix(line, ":")) {
-				line = strings.TrimSuffix(line, ":")
-				line = strings.Trim(line, `'"`)
-				if strings.HasPrefix(line, "/") {
-					line = line[1:]
-				}
-				idx := strings.LastIndex(line, "@")
-				if idx > 0 {
-					name := line[:idx]
-					version := line[idx+1:]
-					res[name] = version
-				} else {
-					idxSlash := strings.LastIndex(line, "/")
-					if idxSlash > 0 {
-						name := line[:idxSlash]
-						version := line[idxSlash+1:]
-						res[name] = version
-					}
-				}
-			}
-		}
-		return res, nil
+
 	case "yarn.lock":
+		lockDeps, err := depsnpm.ParseYarnLock(content)
+		if err != nil {
+			return nil, err
+		}
 		res := make(map[string]string)
-		scanner := bufio.NewScanner(bytes.NewReader(content))
-		var currentNames []string
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || strings.HasPrefix(line, "#") {
+		for _, d := range lockDeps {
+			res[d.Name] = d.Version
+		}
+		return res, nil
+
+	case "pnpm-lock.yaml":
+		lockDeps, err := depsnpm.ParsePnpmLock(content)
+		if err != nil {
+			return nil, err
+		}
+		res := make(map[string]string)
+		for _, d := range lockDeps {
+			res[d.Name] = d.Version
+		}
+		return res, nil
+
+	case "go.mod":
+		goDeps, err := goinventory.ParseGoMod(content)
+		if err != nil {
+			return nil, err
+		}
+		res := make(map[string]string)
+		for _, d := range goDeps {
+			res[d.Name] = d.Version
+		}
+		return res, nil
+
+	case "Cargo.lock":
+		cargoDeps, err := depscargo.ParseCargoLock(content)
+		if err != nil {
+			return nil, err
+		}
+		res := make(map[string]string)
+		for _, d := range cargoDeps {
+			res[d.Name] = d.Version
+		}
+		return res, nil
+
+	case "Cargo.toml":
+		cargoDeps, err := depscargo.ParseCargoToml(content)
+		if err != nil {
+			return nil, err
+		}
+		res := make(map[string]string)
+		for _, d := range cargoDeps {
+			res[d.Name] = d.Version
+		}
+		return res, nil
+
+	case "requirements.txt", "pyproject.toml", "poetry.lock", "uv.lock":
+		// Write to temp file so the Python parser's path-based dispatch works
+		tmpDir, err := os.MkdirTemp("", "pkgsafe-diff-*")
+		if err != nil {
+			return nil, err
+		}
+		defer os.RemoveAll(tmpDir)
+
+		tmpFile := filepath.Join(tmpDir, filename)
+		if err := os.WriteFile(tmpFile, content, 0600); err != nil {
+			return nil, err
+		}
+		pyDeps, err := depspython.ParseFile(tmpFile)
+		if err != nil {
+			return nil, err
+		}
+		res := make(map[string]string)
+		for _, d := range pyDeps {
+			if d.LocalSource {
 				continue
 			}
-			if strings.HasSuffix(line, ":") {
-				currentNames = nil
-				header := strings.TrimSuffix(line, ":")
-				parts := strings.Split(header, ",")
-				for _, p := range parts {
-					p = strings.Trim(strings.TrimSpace(p), `'"`)
-					idx := strings.LastIndex(p, "@")
-					if idx > 0 {
-						name := p[:idx]
-						currentNames = append(currentNames, name)
-					} else if p != "" {
-						currentNames = append(currentNames, p)
-					}
-				}
-				continue
+			version := d.Version
+			if version == "" {
+				version = d.Specifier
 			}
-			if strings.HasPrefix(line, "version ") {
-				version := strings.Trim(strings.TrimPrefix(line, "version "), `'"`)
-				for _, name := range currentNames {
-					res[name] = version
-				}
-				currentNames = nil
+			if version == "" {
+				version = "latest"
 			}
+			res[d.Name] = version
 		}
 		return res, nil
 	}
+
 	return nil, nil
 }

@@ -1,18 +1,14 @@
 package mcp
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/sairintechnologycom/pkgsafe/internal/agent"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
-	scargo "github.com/sairintechnologycom/pkgsafe/internal/scanner/cargo"
-	sgolang "github.com/sairintechnologycom/pkgsafe/internal/scanner/golang"
-	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
-	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
@@ -38,6 +34,13 @@ type AgentMCPResult struct {
 	AgentInstruction   string   `json:"agent_instruction"`
 	AllowedNextActions []string `json:"allowed_next_actions"`
 	ProhibitedActions  []string `json:"prohibited_actions"`
+}
+
+// generateEvidenceID returns a collision-resistant evidence ID.
+func generateEvidenceID(ecosystem, name, version string) string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("pkg-%s-%s-%s-%x", ecosystem, name, version, b)
 }
 
 // CheckPackage evaluates a package before an agent recommends or installs it.
@@ -97,45 +100,14 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	// Run scan based on ecosystem
-	var res types.ScanResult
-	var scanErr error
-
-	switch p.Ecosystem {
-	case "pypi":
-		scanner := spypi.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline || p.Offline
-		scanner.RequestedBy = "ai_agent"
-		scanner.Environment = "ai_agent"
-		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
-	case "cargo":
-		scanner := scargo.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline || p.Offline
-		scanner.RequestedBy = "ai_agent"
-		scanner.Environment = "ai_agent"
-		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
-	case "go", "golang":
-		scanner := sgolang.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline || p.Offline
-		scanner.RequestedBy = "ai_agent"
-		scanner.Environment = "ai_agent"
-		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
-	default: // npm
-		scanner := snpm.New()
-		scanner.Policy = pol
-		scanner.Offline = e.Offline || p.Offline
-		scanner.RequestedBy = "ai_agent"
-		scanner.Environment = "ai_agent"
-
-		behaviorMode := types.NormalizeBehaviorMode(pol.Sandbox.BehaviorMode, pol.Sandbox.Enabled)
-		scanner.BehaviorMode = behaviorMode
-		scanner.SandboxEnabled = behaviorMode != types.BehaviorDisabled
-		res, scanErr = scanner.ScanPackage(p.Name, p.Version)
+	// Use the canonical scanPackage core (no enterprise risk amplification,
+	// matching the original CheckPackage lightweight pre-check behavior)
+	opts := ScanOpts{
+		RequestedBy:  "ai_agent",
+		Environment:  "ai_agent",
+		RegistryName: "",
 	}
-
+	res, scanErr := e.scanPackage(p.Ecosystem, p.Name, p.Version, pol, p.Offline, opts)
 	if scanErr != nil {
 		te := MapScanError(scanErr, p.Ecosystem, p.Name, p.Version)
 		b, _ := json.MarshalIndent(te, "", "  ")
@@ -148,37 +120,25 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	// Decision mapping
-	decision := "ALLOW"
-	switch res.Decision {
-	case types.DecisionBlock:
-		decision = "BLOCK"
-	case types.DecisionWarn:
-		decision = "WARN"
-	case types.DecisionAllow:
-		decision = "ALLOW"
-	default:
-		decision = "BLOCK"
-	}
+	// Map internal decision to string
+	decision := decisionString(res.Decision)
 
-	// Format top reasons
+	// Format top reasons; do not fabricate safety assumptions when empty
 	var reasons []string
 	for _, r := range res.Reasons {
 		reasons = append(reasons, r.Description)
 	}
 	if len(reasons) == 0 {
-		reasons = []string{
-			"No critical vulnerabilities found",
-			"No lifecycle scripts detected",
-			"Package age and project health acceptable",
-		}
+		reasons = []string{"No findings recorded"}
 	}
 
-	// Generate evidence ID
-	evidenceID := fmt.Sprintf("pkg-%s-%03d", time.Now().Format("20060102"), time.Now().UnixNano()%1000)
+	evidenceID := generateEvidenceID(p.Ecosystem, p.Name, p.Version)
 
-	// Build guidance instructions with agent policy overrides
-	decision, instruction, allowedActions, prohibitedActions := ApplyAgentPolicyOverrides(decision, pol.AgentPolicy)
+	// Build guidance from the unified GetAgentGuidance
+	guidance := GetAgentGuidance(res.Decision, pol.AgentPolicy, pol.Mode)
+
+	// Override decision string with guidance's potentially-escalated value
+	decision = guidance.Decision
 
 	toolRes := AgentMCPResult{
 		Decision:           decision,
@@ -187,20 +147,16 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 		TopReasons:         reasons,
 		PolicyResult:       fmt.Sprintf("mode: %s, scan_decision: %s", pol.Mode, res.Decision),
 		EvidenceID:         evidenceID,
-		AgentInstruction:   instruction,
-		AllowedNextActions: allowedActions,
-		ProhibitedActions:  prohibitedActions,
+		AgentInstruction:   guidance.Instruction,
+		AllowedNextActions: guidance.AllowedNextActions,
+		ProhibitedActions:  guidance.ProhibitedActions,
 	}
 
-	// Try to get safe alternatives if not allowed
-	if decision != "ALLOW" {
+	// Append suggest_alternative action when alternatives exist
+	if decision != string(types.DecisionAllow) {
 		alts := agent.GetSafeAlternatives(p.Name)
 		if len(alts) > 0 {
-			var altNames []string
-			for _, alt := range alts {
-				altNames = append(altNames, alt.Name)
-			}
-			toolRes.AllowedNextActions = append(toolRes.AllowedNextActions, "suggest_alternative")
+			toolRes.AllowedNextActions = dedup(append(toolRes.AllowedNextActions, "suggest_alternative"))
 		}
 	}
 
@@ -214,79 +170,35 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 	}
 }
 
-// ApplyAgentPolicyOverrides enforces agent_policy configuration overrides.
+// ApplyAgentPolicyOverrides is kept for backward compatibility with external callers.
+// New code should call GetAgentGuidance directly.
 func ApplyAgentPolicyOverrides(decision string, ap policy.AgentPolicy) (string, string, []string, []string) {
-	var instruction string
-	var allowedActions []string
-	var prohibitedActions []string
-
-	// 1. Enforce agent_policy.mode override
-	if ap.Mode == "block" && (decision == "WARN" || decision == "REVIEW_REQUIRED") {
-		decision = "BLOCK"
-	} else if ap.Mode == "observe" {
-		instruction = fmt.Sprintf("Decision is %s but agent policy is in observe mode. You may proceed.", decision)
-		if ap.RequirePkgSafeCheckBeforeInstall {
-			instruction += " A pre-install check is strictly required before proceeding."
-		}
-		allowedActions = []string{"proceed"}
-		prohibitedActions = []string{}
-		return decision, instruction, allowedActions, prohibitedActions
-	}
-
-	// 2. Base mapping for modes
+	// Map string decision back to types.Decision for GetAgentGuidance
+	var d types.Decision
 	switch decision {
 	case "ALLOW":
-		instruction = "Package may be installed."
-		allowedActions = []string{"proceed"}
-		prohibitedActions = []string{}
+		d = types.DecisionAllow
 	case "WARN":
-		if ap.WarnRequiresHuman {
-			instruction = "Do not install automatically. Ask the user for approval or choose an existing dependency. Human confirmation is REQUIRED."
-			allowedActions = []string{"ask_user", "suggest_alternative", "remove_dependency"}
-			prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
-		} else {
-			instruction = "Warning detected, but policy allows proceeding under exception."
-			allowedActions = []string{"proceed", "suggest_alternative", "remove_dependency"}
-			prohibitedActions = []string{}
-		}
+		d = types.DecisionWarn
 	case "BLOCK":
-		instruction = "Do not install this package. The policy decision is BLOCK."
-		allowedActions = []string{"suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
+		d = types.DecisionBlock
 	default:
-		instruction = "Do not install automatically. The policy does not allow installation."
-		allowedActions = []string{"suggest_alternative", "remove_dependency"}
-		prohibitedActions = []string{"run_install", "execute_lifecycle_script"}
+		d = types.DecisionBlock
 	}
+	guidance := GetAgentGuidance(d, ap, "")
+	return guidance.Decision, guidance.Instruction, guidance.AllowedNextActions, guidance.ProhibitedActions
+}
 
-	// 3. Enforce block_install_commands
-	if ap.BlockInstallCommands && decision != "ALLOW" {
-		prohibitedActions = append(prohibitedActions, "run_install")
-		var cleanAllowed []string
-		for _, a := range allowedActions {
-			if a != "proceed" {
-				cleanAllowed = append(cleanAllowed, a)
-			}
-		}
-		allowedActions = cleanAllowed
+// decisionString maps a types.Decision to its uppercase string form.
+func decisionString(d types.Decision) string {
+	switch d {
+	case types.DecisionBlock:
+		return "BLOCK"
+	case types.DecisionWarn:
+		return "WARN"
+	case types.DecisionAllow:
+		return "ALLOW"
+	default:
+		return "BLOCK"
 	}
-
-	if ap.RequirePkgSafeCheckBeforeInstall {
-		instruction += " A pre-install check is strictly required before proceeding."
-	}
-
-	// Deduplicate
-	dedup := func(lst []string) []string {
-		seen := make(map[string]bool)
-		var out []string
-		for _, item := range lst {
-			if !seen[item] {
-				seen[item] = true
-				out = append(out, item)
-			}
-		}
-		return out
-	}
-
-	return decision, instruction, dedup(allowedActions), dedup(prohibitedActions)
 }

@@ -9,22 +9,33 @@ import (
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 )
 
+// delegate runs the real package manager binary with the given args.
+// It centralizes the resolve → execute → error-wrap pattern used across
+// three places in RunIntercept.
+func delegate(ctx context.Context, executor PackageManagerExecutor, pm string, args []string, pol policy.Policy) error {
+	binaryPath, err := executor.Resolve(pm, pol)
+	if err != nil {
+		return InterceptError{Code: ExitPackageManagerNotFound, Err: err}
+	}
+	exitCode, err := executor.Execute(ctx, binaryPath, args, nil, ".")
+	if err != nil {
+		return InterceptError{Code: ExitInstallFailed, Err: err}
+	}
+	if exitCode != 0 {
+		return InterceptError{Code: exitCode, Err: fmt.Errorf("package manager exited with code %d", exitCode)}
+	}
+	return nil
+}
+
+// debugEnabled reports whether PKGSAFE_DEBUG=1 is set.
+func debugEnabled() bool {
+	return os.Getenv("PKGSAFE_DEBUG") == "1"
+}
+
 func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor PackageManagerExecutor) error {
 	// 1. Prevent infinite recursion
 	if os.Getenv("PKGSAFE_INTERCEPT_ACTIVE") == "1" {
-		// Bypass validation and delegate directly to avoid recursion loops
-		binaryPath, err := executor.Resolve(pm, policy.Default())
-		if err != nil {
-			return InterceptError{Code: ExitPackageManagerNotFound, Err: err}
-		}
-		exitCode, err := executor.Execute(ctx, binaryPath, rawArgs, nil, ".")
-		if err != nil {
-			return InterceptError{Code: ExitInstallFailed, Err: err}
-		}
-		if exitCode != 0 {
-			return InterceptError{Code: exitCode, Err: fmt.Errorf("package manager exited with code %d", exitCode)}
-		}
-		return nil
+		return delegate(ctx, executor, pm, rawArgs, policy.Default())
 	}
 
 	// 2. Extract PkgSafe safety flags from arguments
@@ -36,52 +47,25 @@ func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor Pac
 		return InterceptError{Code: ExitPolicyError, Err: err}
 	}
 
-	// 4. Handle bypassed interception situations (global disable or per-ecosystem disable)
-	bypassed := false
-	if !pol.InstallInterception.Enabled {
-		bypassed = true
-	} else if pm == "npm" && !pol.PackageManagers.NPM.Enabled {
-		bypassed = true
-	} else if (pm == "pip" || pm == "python") && !pol.PackageManagers.Pip.Enabled {
-		bypassed = true
-	}
+	// 4. Handle bypassed interception (global or per-ecosystem disable)
+	bypassed := !pol.InstallInterception.Enabled ||
+		(pm == "npm" && !pol.PackageManagers.NPM.Enabled) ||
+		((pm == "pip" || pm == "python") && !pol.PackageManagers.Pip.Enabled)
 
 	if bypassed {
-		// Directly delegate to real package manager without scanning
-		binaryPath, err := executor.Resolve(pm, pol)
-		if err != nil {
-			return InterceptError{Code: ExitPackageManagerNotFound, Err: err}
-		}
-		exitCode, err := executor.Execute(ctx, binaryPath, cleanArgs, nil, ".")
-		if err != nil {
-			return InterceptError{Code: ExitInstallFailed, Err: err}
-		}
-		if exitCode != 0 {
-			return InterceptError{Code: exitCode, Err: fmt.Errorf("package manager exited with code %d", exitCode)}
-		}
-		return nil
+		return delegate(ctx, executor, pm, cleanArgs, pol)
 	}
 
 	// 5. Parse command to extract target packages/files
 	cmd, err := ParseCommand(pm, cleanArgs)
 	if err != nil {
 		if ie, ok := err.(InterceptError); ok && ie.Code == ExitUnsupportedCommand {
-			// Transparent pass-through for unsupported/non-install commands to avoid breaking user workflows (e.g. npm run build, npm test)
-			if !sf.JSON {
+			// Transparent pass-through for unsupported/non-install commands
+			// Only log when debug mode is on to avoid spamming user stderr
+			if debugEnabled() {
 				fmt.Fprintf(os.Stderr, "PkgSafe: Pass-through for unsupported/non-install command: %s %s. Delegating to real package manager...\n", pm, strings.Join(cleanArgs, " "))
 			}
-			binaryPath, errResolve := executor.Resolve(pm, pol)
-			if errResolve != nil {
-				return InterceptError{Code: ExitPackageManagerNotFound, Err: errResolve}
-			}
-			exitCode, errExec := executor.Execute(ctx, binaryPath, cleanArgs, nil, ".")
-			if errExec != nil {
-				return InterceptError{Code: ExitInstallFailed, Err: errExec}
-			}
-			if exitCode != 0 {
-				return InterceptError{Code: exitCode, Err: fmt.Errorf("package manager exited with code %d", exitCode)}
-			}
-			return nil
+			return delegate(ctx, executor, pm, cleanArgs, pol)
 		}
 		if ie, ok := err.(InterceptError); ok {
 			return ie
@@ -111,7 +95,7 @@ func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor Pac
 			RiskScore: res.Score,
 		}
 	}
-	auditEntry := AuditEntry{
+	_ = LogAudit(pol, AuditEntry{
 		Command:         strings.Join(rawArgs, " "),
 		Ecosystem:       cmd.Ecosystem,
 		Packages:        auditPackages,
@@ -119,10 +103,9 @@ func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor Pac
 		InstallExecuted: canProceed && !sf.DryRun,
 		OverrideUsed:    sf.ForceRiskAccept && canProceed,
 		Reason:          sf.Reason,
-	}
-	_ = LogAudit(pol, auditEntry)
+	})
 
-	// 9. Format outputs (JSON vs Human readable formats)
+	// 9. Format outputs (JSON vs human-readable)
 	if sf.JSON {
 		if err := PrintJSONOutput(os.Stdout, cmd, results, overallDecision, sf, canProceed && !sf.DryRun); err != nil {
 			return InterceptError{Code: ExitInternalError, Err: err}
@@ -145,19 +128,6 @@ func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor Pac
 	}
 
 	// 11. Execute real package manager
-	binaryPath, err := executor.Resolve(cmd.PackageManager, pol)
-	if err != nil {
-		return InterceptError{Code: ExitPackageManagerNotFound, Err: err}
-	}
-
 	fmt.Printf("Proceeding with %s %s...\n", cmd.PackageManager, strings.Join(cmd.RawCommand, " "))
-	exitCode, err := executor.Execute(ctx, binaryPath, cmd.RawCommand, nil, ".")
-	if err != nil {
-		return InterceptError{Code: ExitInstallFailed, Err: err}
-	}
-	if exitCode != 0 {
-		return InterceptError{Code: exitCode, Err: fmt.Errorf("package manager exited with code %d", exitCode)}
-	}
-
-	return nil
+	return delegate(ctx, executor, cmd.PackageManager, cmd.RawCommand, pol)
 }

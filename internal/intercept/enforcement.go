@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mattn/go-isatty"
+	"github.com/sairintechnologycom/pkgsafe/internal/output"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
@@ -87,18 +87,7 @@ func CanProceed(results []types.ScanResult, overallDecision types.Decision, sf S
 }
 
 func PrintHumanOutput(cmd *InstallCommand, results []types.ScanResult, overallDecision types.Decision) {
-	var bold, green, red, yellow, reset string
-	color := false
-	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
-		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
-	}
-	if color {
-		bold = "\033[1m"
-		green = "\033[32m"
-		red = "\033[31m"
-		yellow = "\033[33m"
-		reset = "\033[0m"
-	}
+	bold, green, red, yellow, reset, color := output.GetColorTheme(os.Stdout)
 
 	fmt.Println("PkgSafe Install Guard")
 	fmt.Println()

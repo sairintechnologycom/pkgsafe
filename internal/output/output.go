@@ -255,6 +255,25 @@ func emptyLatest(v string) string {
 	return v
 }
 
+// GetColorTheme returns ANSI escape sequences for bold/green/red/yellow/reset
+// when the writer is a terminal with color support; all strings are empty when
+// colors are disabled (NO_COLOR, dumb terminal, or non-tty writer).
+func GetColorTheme(w io.Writer) (bold, green, red, yellow, reset string, enabled bool) {
+	if f, ok := w.(*os.File); ok {
+		if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+			enabled = isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
+		}
+	}
+	if enabled {
+		bold = "\033[1m"
+		green = "\033[32m"
+		red = "\033[31m"
+		yellow = "\033[33m"
+		reset = "\033[0m"
+	}
+	return
+}
+
 func RecommendedAction(result types.ScanResult) string {
 	if result.Decision == types.DecisionBlock {
 		return "Do not install this package."
