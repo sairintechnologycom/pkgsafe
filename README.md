@@ -20,7 +20,9 @@ PkgSafe inspects each package for:
 It runs locally as a single static binary. Nothing about your code leaves your
 machine.
 
-## How it Works: Visual Flow
+**Docs:** [Getting started](docs/getting-started.md) · [Full index](docs/README.md)
+
+## How it works
 
 PkgSafe acts as a proxy/wrapper around your package managers (`npm` and `pip`) or as an MCP server for your AI agents. It intercepts command execution to run security checks before any package code runs or is written to disk.
 
@@ -54,7 +56,7 @@ graph TD
 
 *   **Pre-Install Interception:** Unlike traditional Software Composition Analysis (SCA) or vulnerability scanners that run post-install or post-commit, PkgSafe blocks risky operations **before** dependencies can run setup hook scripts (`preinstall`, `postinstall`), shielding developer host environments.
 *   **Transparent Pass-Through:** Administration, test, and build commands (like `npm run build` or `npm test`) are automatically ignored and passed through to the real package manager, ensuring zero disruption to normal developer workflows.
-*   **AI Agent Guardrails:** Integrates natively as an Model Context Protocol (MCP) server with Cursor, Claude Code, and other AI agents to block malicious, suspicious, or hallucinated packages before they are executed.
+*   **AI Agent Guardrails:** Integrates natively as a Model Context Protocol (MCP) server with Cursor, Claude Code, and other AI agents to block malicious, suspicious, or hallucinated packages before they are executed.
 *   **Local-First Privacy:** Runs as a standalone Go binary using a local sqlite cache. Your code, policies, and files never leave your machine.
 
 ## Install
@@ -259,11 +261,17 @@ package when it invents a name that doesn't exist.
 
 | Tool | What it does |
 |------|--------------|
-| `validate_package_install` | Allow / warn / block a single package |
-| `validate_install_command` | Validate every package in a full `npm install …` / `pip install …` command |
+| `validate_package_install` / `check_package` | Allow / warn / block a single package |
+| `validate_install_command` / `check_install_command` | Validate every package in a full `npm install …` / `pip install …` command |
 | `suggest_safe_alternative` | Suggest real packages for risky, unknown, or **hallucinated** names |
-| `explain_package_risk` | Explain why a package is safe, suspicious, or blocked |
+| `explain_package_risk` / `explain_policy_decision` | Explain why a package is safe, suspicious, or blocked |
 | `score_lockfile` | Score a lockfile's direct and transitive dependencies |
+| `review_dependency_diff` | Review all changed packages between two manifest/lockfile refs |
+| `get_agent_guidance` | Retrieve policy-aware guidance for the current agent context |
+| `record_agent_decision` | Append an agent install decision to the local audit log |
+| `generate_governance_report` | Produce a summary governance report of recent decisions |
+| `get_recent_package_decisions` | List the most recent package scan decisions from the audit log |
+| `get_policy_evidence` | Return policy evidence for a given package or rule |
 
 <details>
 <summary>Talking to the server directly</summary>
@@ -338,10 +346,24 @@ see [docs/github-action.md](docs/github-action.md).
 
 ## Docs & help
 
-Questions, false positives, or a package PkgSafe got wrong? Open a
+**Start here:** [docs/README.md](docs/README.md) (full index) ·
+[Getting started](docs/getting-started.md) ·
+[Commands](docs/commands.md) ·
+[Policy](docs/policy-guide.md) ·
+[Troubleshooting](docs/troubleshooting.md)
+
+| Guide | Link |
+|-------|------|
+| Install & verify | [docs/install.md](docs/install.md) · [docs/release-verification.md](docs/release-verification.md) |
+| CI / GitHub Action | [docs/ci-cd.md](docs/ci-cd.md) · [docs/github-action.md](docs/github-action.md) |
+| AI agents (MCP) | [docs/integrations/](docs/integrations/) |
+| Limitations | [docs/known-limitations.md](docs/known-limitations.md) |
+| Offline / air-gap | [docs/offline-intelligence-bundle.md](docs/offline-intelligence-bundle.md) |
+
+Questions or false positives? Open a
 [Discussion](https://github.com/sairintechnologycom/pkgsafe/discussions) or see
-[docs/feedback.md](docs/feedback.md). When reporting, include the output and rule
-IDs — but **never paste secrets, tokens, credentials, or private source**.
+[docs/feedback.md](docs/feedback.md). Include decision, risk score, and rule IDs —
+**never paste secrets, tokens, credentials, or private source**.
 
 Contributions welcome:
 
