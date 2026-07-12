@@ -37,7 +37,7 @@ jobs:
         run: go vet ./...
 
       - name: Run Tests (race)
-        run: go test -race ./...
+        run: scripts/run-race-tests-ci.sh
 
   build-windows:
     name: Build & Vet (windows-latest)
