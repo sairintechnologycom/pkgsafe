@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
+if [[ "${GITHUB_REF_NAME:-}" != *-* && -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
   echo "::error title=GoReleaser preflight::HOMEBREW_TAP_TOKEN is not configured"
   exit 1
 fi

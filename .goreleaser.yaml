@@ -65,7 +65,7 @@ signs:
       - "--yes"
 
 release:
-  draft: true
+  draft: false
   prerelease: auto
   # Attach the remote install script to every release as install.sh so
   # https://github.com/sairintechnologycom/pkgsafe/releases/latest/download/install.sh
@@ -82,6 +82,9 @@ release:
 # Add it at: Settings → Secrets → Actions in the pkgsafe repo.
 brews:
   - name: pkgsafe
+    # Beta/RC tags publish verifiable GitHub prerelease assets without updating
+    # the stable Homebrew channel. Stable tags still require tap write access.
+    skip_upload: auto
     repository:
       owner: sairintechnologycom
       name: homebrew-pkgsafe
