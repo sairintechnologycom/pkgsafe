@@ -84,6 +84,16 @@ func TestComputeReadinessStageProductionGA(t *testing.T) {
 	if rep.FinalStatus != ReadinessProductionGA {
 		t.Errorf("expected PRODUCTION_GA_READY, got %q", rep.FinalStatus)
 	}
+	if rep.EcosystemDepthStatus != "npm-ga-go-cargo-preview" {
+		t.Errorf("expected npm GA ecosystem status, got %q", rep.EcosystemDepthStatus)
+	}
+}
+
+func TestProductionEcosystemDepthKeepsPyPIBeta(t *testing.T) {
+	rep := ProductionReadinessReport{PyPIRepoCount: 3}
+	if got := productionEcosystemDepthStatus(rep); got != "npm-ga-pypi-public-beta-go-cargo-preview" {
+		t.Fatalf("expected npm-only GA with PyPI beta and Go/Cargo preview, got %q", got)
+	}
 }
 
 func TestProductionReadinessGABlockedWhenRepoCountLow(t *testing.T) {

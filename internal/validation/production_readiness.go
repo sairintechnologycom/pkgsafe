@@ -257,6 +257,9 @@ func computeReadinessStage(rep *ProductionReadinessReport, blockingFailed bool) 
 		rep.GitHubActionStatus == "valid" &&
 		rep.RealRepoValidationCount >= 1
 	productionGAReady := len(rep.GABlockers) == 0
+	if productionGAReady {
+		rep.EcosystemDepthStatus = productionEcosystemDepthStatus(*rep)
+	}
 
 	switch {
 	case productionGAReady:
@@ -333,6 +336,8 @@ func gaBlockers(rep *ProductionReadinessReport) []string {
 	}
 	if rep.EcosystemDepthStatus != "npm-public-beta-pypi-public-beta-go-cargo-preview" &&
 		rep.EcosystemDepthStatus != "npm-public-beta-go-cargo-preview" &&
+		rep.EcosystemDepthStatus != "npm-ga-pypi-public-beta-go-cargo-preview" &&
+		rep.EcosystemDepthStatus != "npm-ga-go-cargo-preview" &&
 		rep.EcosystemDepthStatus != "multi-ecosystem-validated" {
 		blockers = append(blockers, "GA ecosystem scope is unclear")
 	}
@@ -368,6 +373,13 @@ func ecosystemDepthStatus(rep ProductionReadinessReport) string {
 		return "npm-public-beta-pypi-public-beta-go-cargo-preview"
 	}
 	return "npm-public-beta-go-cargo-preview"
+}
+
+func productionEcosystemDepthStatus(rep ProductionReadinessReport) string {
+	if rep.PyPIRepoCount >= 3 {
+		return "npm-ga-pypi-public-beta-go-cargo-preview"
+	}
+	return "npm-ga-go-cargo-preview"
 }
 
 func isolatedBackendStatus(rep BenchmarkReport, err error) string {
