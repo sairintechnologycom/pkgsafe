@@ -14,7 +14,9 @@ status=${PIPESTATUS[0]}
 set -e
 
 if [[ $status -ne 0 ]]; then
-  summary=$(tail -n 120 "$log_file")
+	# Keep the terminal failure within GitHub's annotation-size limit and strip
+	# ANSI control sequences so the actual error is not truncated by styling.
+	summary=$(tail -n 35 "$log_file" | sed $'s/\033\[[0-9;]*[[:alpha:]]//g')
   summary=${summary//'%'/'%25'}
   summary=${summary//$'\r'/'%0D'}
   summary=${summary//$'\n'/'%0A'}
