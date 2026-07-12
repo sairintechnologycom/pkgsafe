@@ -4,6 +4,11 @@ COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 VERPKG := github.com/sairintechnologycom/pkgsafe/internal/version
 LDFLAGS := -s -w -X $(VERPKG).Version=$(VERSION) -X $(VERPKG).Commit=$(COMMIT)
 DIST := dist
+PACKAGE_ARCHIVES := \
+	$(APP)_$(VERSION)_linux_amd64.tar.gz \
+	$(APP)_$(VERSION)_darwin_amd64.tar.gz \
+	$(APP)_$(VERSION)_darwin_arm64.tar.gz \
+	$(APP)_$(VERSION)_windows_amd64.zip
 
 .PHONY: test build sbom package clean cross check-public-boundary fmt-check
 
@@ -32,7 +37,7 @@ package: cross
 	cd $(DIST) && tar -czf $(APP)_$(VERSION)_darwin_amd64.tar.gz $(APP)_darwin_amd64
 	cd $(DIST) && tar -czf $(APP)_$(VERSION)_darwin_arm64.tar.gz $(APP)_darwin_arm64
 	cd $(DIST) && zip -q $(APP)_$(VERSION)_windows_amd64.zip $(APP)_windows_amd64.exe
-	cd $(DIST) && rm -f checksums.txt && { command -v sha256sum >/dev/null && sha256sum $(APP)_* || shasum -a 256 $(APP)_*; } > checksums.txt
+	cd $(DIST) && rm -f checksums.txt && { command -v sha256sum >/dev/null && sha256sum $(PACKAGE_ARCHIVES) || shasum -a 256 $(PACKAGE_ARCHIVES); } > checksums.txt
 	$(MAKE) sbom
 
 sbom:

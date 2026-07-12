@@ -6,12 +6,16 @@ import (
 )
 
 type SafetyFlags struct {
-	Mode            string
-	PolicyPath      string
-	Sandbox         bool
-	Offline         bool
-	DryRun          bool
-	Yes             bool
+	Mode       string
+	PolicyPath string
+	Sandbox    bool
+	Offline    bool
+	DryRun     bool
+	Yes        bool
+	// NonInteractive forces WARN handling to fail closed without consulting
+	// terminal state. It is used by validation and automation paths that must
+	// never prompt; setting it cannot authorize an install.
+	NonInteractive  bool
 	JSON            bool
 	ForceRiskAccept bool
 	Reason          string

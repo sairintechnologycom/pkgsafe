@@ -506,17 +506,17 @@ func runInstallInterceptionGate() (bool, string, []string) {
 	pol := policy.Default()
 	var details []string
 
-	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionWarn, intercept.SafetyFlags{Yes: false}, pol); proceed {
+	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionWarn, intercept.SafetyFlags{Yes: false, NonInteractive: true}, pol); proceed {
 		details = append(details, "WARN proceeded in non-interactive/no-approval mode")
 	}
-	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionWarn, intercept.SafetyFlags{Yes: true}, pol); !proceed {
+	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionWarn, intercept.SafetyFlags{Yes: true, NonInteractive: true}, pol); !proceed {
 		details = append(details, "WARN did not proceed with explicit --yes")
 	}
-	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionBlock, intercept.SafetyFlags{Yes: true, ForceRiskAccept: false}, pol); proceed {
+	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionBlock, intercept.SafetyFlags{Yes: true, ForceRiskAccept: false, NonInteractive: true}, pol); proceed {
 		details = append(details, "BLOCK proceeded without force-risk-accept")
 	}
 	_ = os.Setenv("PKGSAFE_REQUESTED_BY", "ai_agent")
-	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionWarn, intercept.SafetyFlags{Yes: true}, pol); proceed {
+	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionWarn, intercept.SafetyFlags{Yes: true, NonInteractive: true}, pol); proceed {
 		details = append(details, "AI-agent WARN proceeded by default")
 	}
 	_ = os.Unsetenv("PKGSAFE_REQUESTED_BY")

@@ -67,7 +67,7 @@ func CanProceed(results []types.ScanResult, overallDecision types.Decision, sf S
 			return false, "WARN decision requires interactive confirmation by policy (--yes disabled).", ExitDeclined
 		}
 
-		if !IsInteractive() {
+		if sf.NonInteractive || !IsInteractive() {
 			return false, "Non-interactive mode detected. WARN decisions require --yes to proceed.", ExitDeclined
 		}
 

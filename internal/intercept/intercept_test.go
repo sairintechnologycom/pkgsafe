@@ -486,6 +486,20 @@ func TestCanProceedAIAndNonInteractiveWarnings(t *testing.T) {
 	}
 }
 
+func TestCanProceedExplicitNonInteractiveNeverPrompts(t *testing.T) {
+	pol := policy.Default()
+	proceed, reason, code := CanProceed(nil, types.DecisionWarn, SafetyFlags{NonInteractive: true}, pol)
+	if proceed {
+		t.Fatal("explicit non-interactive WARN must fail closed")
+	}
+	if code != ExitDeclined {
+		t.Fatalf("expected declined exit code, got %d", code)
+	}
+	if !strings.Contains(reason, "Non-interactive mode detected") {
+		t.Fatalf("expected non-interactive reason, got %q", reason)
+	}
+}
+
 func TestLookPathRealSkipsWrapperScripts(t *testing.T) {
 	tmpDir := t.TempDir()
 

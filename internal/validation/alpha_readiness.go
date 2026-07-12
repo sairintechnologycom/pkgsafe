@@ -655,14 +655,14 @@ func runInstallEnforcementTests() bool {
 	pol := policy.Default()
 
 	// 1. Non-interactive warning blocks without --yes
-	sfNo := intercept.SafetyFlags{Yes: false}
+	sfNo := intercept.SafetyFlags{Yes: false, NonInteractive: true}
 	proceedNo, _, _ := intercept.CanProceed(nil, types.DecisionWarn, sfNo, pol)
 	if proceedNo {
 		return false
 	}
 
 	// 2. Non-interactive warning proceeds with --yes
-	sfYes := intercept.SafetyFlags{Yes: true}
+	sfYes := intercept.SafetyFlags{Yes: true, NonInteractive: true}
 	proceedYes, _, _ := intercept.CanProceed(nil, types.DecisionWarn, sfYes, pol)
 	if !proceedYes {
 		return false
