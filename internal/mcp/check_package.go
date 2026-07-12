@@ -121,9 +121,6 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 		}
 	}
 
-	// Map internal decision to string
-	decision := decisionString(res.Decision)
-
 	// Format top reasons; do not fabricate safety assumptions when empty
 	var reasons []string
 	for _, r := range res.Reasons {
@@ -139,7 +136,7 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 	guidance := GetAgentGuidance(res.Decision, pol.AgentPolicy, pol.Mode)
 
 	// Override decision string with guidance's potentially-escalated value
-	decision = guidance.Decision
+	decision := guidance.Decision
 
 	toolRes := AgentMCPResult{
 		Decision:           decision,

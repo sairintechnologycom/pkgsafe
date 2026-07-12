@@ -77,9 +77,7 @@ func ParsePnpmLock(content []byte) ([]LockfileDependency, error) {
 
 		line = strings.TrimSuffix(line, ":")
 		line = strings.Trim(line, `'"`)
-		if strings.HasPrefix(line, "/") {
-			line = line[1:]
-		}
+		line = strings.TrimPrefix(line, "/")
 
 		// Find last "@" to split name and version
 		idx := strings.LastIndex(line, "@")

@@ -368,7 +368,7 @@ func writeLockfileReport(w io.Writer, result types.ScanResult) error {
 	var total, allowed, blocked, warned int
 	for _, s := range result.Suspicious {
 		if strings.HasPrefix(s, "lockfile_summary:") {
-			fmt.Sscanf(s, "lockfile_summary:total:%d,allowed:%d,blocked:%d,warned:%d", &total, &allowed, &blocked, &warned)
+			_, _ = fmt.Sscanf(s, "lockfile_summary:total:%d,allowed:%d,blocked:%d,warned:%d", &total, &allowed, &blocked, &warned)
 		}
 	}
 
@@ -404,10 +404,7 @@ func writeLockfileReport(w io.Writer, result types.ScanResult) error {
 		fmt.Fprintf(w, "  %s\n", strings.Repeat("-", 80))
 
 		for _, r := range findings {
-			status := "✓ PASS"
-			statusColor := green
-			decision := "ALLOW"
-			decisionColor := green
+			var status, statusColor, decision, decisionColor string
 
 			if r.ID == "blocked_package" || r.ID == "known_malware_indicator" || strings.HasPrefix(r.ID, "known_vulnerability_high") || strings.HasPrefix(r.ID, "known_vulnerability_critical") {
 				status = "✗ FAIL"

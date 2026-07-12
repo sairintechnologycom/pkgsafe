@@ -56,13 +56,6 @@ var secretKeywords = []string{
 	"database_url", "db_password",
 }
 
-// networkImports are Go stdlib/popular packages that make network connections.
-var networkImports = []string{
-	"net/http", "net", "net/smtp", "net/rpc",
-	"github.com/valyala/fasthttp",
-	"golang.org/x/net",
-}
-
 type Analysis struct {
 	Result   types.ScanResult
 	Findings []types.Reason

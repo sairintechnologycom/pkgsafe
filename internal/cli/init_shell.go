@@ -48,7 +48,7 @@ func autoInstallAliases() error {
 	if isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd()) {
 		fmt.Printf("Detected %s shell. Append PkgSafe shims to %s? [y/N]: ", shellName, profilePath)
 		var answer string
-		fmt.Scanln(&answer)
+		_, _ = fmt.Scanln(&answer)
 		answer = strings.ToLower(strings.TrimSpace(answer))
 		if answer != "y" && answer != "yes" {
 			fmt.Println("Installation cancelled.")
@@ -91,9 +91,9 @@ func autoInstallAliases() error {
 	// Append shims
 	var shims string
 	if shellName == "fish" {
-		shims = fmt.Sprintf("\n# PkgSafe package install guard\nfunction npm\n    pkgsafe npm $argv\nend\nfunction pip\n    pkgsafe pip $argv\nend\n")
+		shims = "\n# PkgSafe package install guard\nfunction npm\n    pkgsafe npm $argv\nend\nfunction pip\n    pkgsafe pip $argv\nend\n"
 	} else {
-		shims = fmt.Sprintf("\n# PkgSafe package install guard\nalias npm=\"pkgsafe npm\"\nalias pip=\"pkgsafe pip\"\n")
+		shims = "\n# PkgSafe package install guard\nalias npm=\"pkgsafe npm\"\nalias pip=\"pkgsafe pip\"\n"
 	}
 
 	f, err := os.OpenFile(profilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

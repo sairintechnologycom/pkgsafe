@@ -809,7 +809,7 @@ func detectEcosystem(pkgName string, pol policy.Policy, offline bool) (string, s
 			fmt.Printf("Package %q found in both npm and pypi registries.\n", pkgName)
 			fmt.Print("Which ecosystem did you mean?\n  1) npm\n  2) PyPI\nSelect (1-2, default 1): ")
 			var choice string
-			fmt.Scanln(&choice)
+			_, _ = fmt.Scanln(&choice)
 			if choice == "2" {
 				return "pypi", pkgName
 			}
@@ -1998,8 +1998,8 @@ func logLockfileToAudit(pol policy.Policy, path string, res types.ScanResult) {
 		if r.ID == "lockfile_summary" || r.ID == "score_clamped" || r.ID == "large_dependency_graph" || r.ID == "empty_lockfile" {
 			continue
 		}
-		dec := "ALLOW"
-		score := 0
+		var dec string
+		var score int
 		if r.ID == "blocked_package" || r.ID == "known_malware_indicator" || strings.HasPrefix(r.ID, "known_vulnerability_high") || strings.HasPrefix(r.ID, "known_vulnerability_critical") {
 			dec = "BLOCK"
 			score = 100

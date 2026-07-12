@@ -540,7 +540,9 @@ func TestPolicyEditCommandInteractive(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdin = r
-	w.WriteString("7\n")
+	if _, err := w.WriteString("7\n"); err != nil {
+		t.Fatal(err)
+	}
 	w.Close()
 
 	err = Run([]string{"policy", "edit", "--policy", polPath})
@@ -553,7 +555,9 @@ func TestPolicyEditCommandInteractive(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdin = r2
-	w2.WriteString("1\nblock\n6\n")
+	if _, err := w2.WriteString("1\nblock\n6\n"); err != nil {
+		t.Fatal(err)
+	}
 	w2.Close()
 
 	err = Run([]string{"policy", "edit", "--policy", polPath})
