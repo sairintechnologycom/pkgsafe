@@ -247,15 +247,23 @@ func Validate(ctx context.Context, cmd *InstallCommand, sf SafetyFlags, pol poli
 		_ = saveResult(res)
 		results = append(results, res)
 
-		// Decision precedence: block > warn > allow
-		if res.Decision == types.DecisionBlock {
-			overallDecision = types.DecisionBlock
-		} else if res.Decision == types.DecisionWarn && overallDecision != types.DecisionBlock {
-			overallDecision = types.DecisionWarn
-		}
+		overallDecision = aggregateInterceptDecision(overallDecision, res.Decision)
 	}
 
 	return results, overallDecision, nil
+}
+
+func aggregateInterceptDecision(current, next types.Decision) types.Decision {
+	precedence := map[types.Decision]int{
+		types.DecisionAllow:          0,
+		types.DecisionWarn:           1,
+		types.DecisionReviewRequired: 2,
+		types.DecisionBlock:          3,
+	}
+	if precedence[next] > precedence[current] {
+		return next
+	}
+	return current
 }
 
 func saveResult(res types.ScanResult) error {

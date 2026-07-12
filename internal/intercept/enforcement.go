@@ -48,6 +48,13 @@ func CanProceed(results []types.ScanResult, overallDecision types.Decision, sf S
 		return false, "Install was blocked by policy.", ExitBlocked
 	}
 
+	// REVIEW_REQUIRED is a gated decision, not a warning that can be accepted
+	// locally. Until an authorized approval object is part of this contract,
+	// --yes and force-risk-accept must not turn it into an install.
+	if overallDecision == types.DecisionReviewRequired {
+		return false, "Installation requires authorized human review.", ExitBlocked
+	}
+
 	if overallDecision == types.DecisionWarn {
 		if sf.ForceRiskAccept {
 			return true, "", ExitSuccess
@@ -98,7 +105,7 @@ func PrintHumanOutput(cmd *InstallCommand, results []types.ScanResult, overallDe
 		switch overallDecision {
 		case types.DecisionBlock:
 			decisionStr = red + bold + decisionStr + reset
-		case types.DecisionWarn:
+		case types.DecisionWarn, types.DecisionReviewRequired:
 			decisionStr = yellow + bold + decisionStr + reset
 		default:
 			decisionStr = green + bold + decisionStr + reset
@@ -117,7 +124,7 @@ func PrintHumanOutput(cmd *InstallCommand, results []types.ScanResult, overallDe
 			switch res.Decision {
 			case types.DecisionBlock:
 				resDecisionStr = red + bold + resDecisionStr + reset
-			case types.DecisionWarn:
+			case types.DecisionWarn, types.DecisionReviewRequired:
 				resDecisionStr = yellow + bold + resDecisionStr + reset
 			default:
 				resDecisionStr = green + bold + resDecisionStr + reset

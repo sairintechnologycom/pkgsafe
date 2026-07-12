@@ -674,6 +674,17 @@ func runInstallEnforcementTests() bool {
 		return false
 	}
 
+	// 3b. REVIEW_REQUIRED cannot be locally overridden.
+	proceedReview, _, _ := intercept.CanProceed(nil, types.DecisionReviewRequired, intercept.SafetyFlags{
+		Yes:             true,
+		ForceRiskAccept: true,
+		Reason:          "validation",
+		NonInteractive:  true,
+	}, pol)
+	if proceedReview {
+		return false
+	}
+
 	// 4. AI-agent context blocks WARN packages by default
 	os.Setenv("PKGSAFE_REQUESTED_BY", "ai_agent")
 	defer os.Unsetenv("PKGSAFE_REQUESTED_BY")

@@ -500,6 +500,40 @@ func TestCanProceedExplicitNonInteractiveNeverPrompts(t *testing.T) {
 	}
 }
 
+func TestCanProceedReviewRequiredCannotBeOverridden(t *testing.T) {
+	pol := policy.Default()
+	cases := []SafetyFlags{
+		{},
+		{Yes: true},
+		{ForceRiskAccept: true, Reason: "local acceptance"},
+		{Yes: true, ForceRiskAccept: true, Reason: "local acceptance"},
+	}
+	for _, flags := range cases {
+		proceed, reason, code := CanProceed(nil, types.DecisionReviewRequired, flags, pol)
+		if proceed {
+			t.Fatalf("REVIEW_REQUIRED proceeded with flags %+v", flags)
+		}
+		if code != ExitBlocked {
+			t.Fatalf("expected blocked exit code with flags %+v, got %d", flags, code)
+		}
+		if !strings.Contains(reason, "authorized human review") {
+			t.Fatalf("expected review guidance with flags %+v, got %q", flags, reason)
+		}
+	}
+}
+
+func TestAggregateInterceptDecisionReviewRequiredPrecedence(t *testing.T) {
+	if got := aggregateInterceptDecision(types.DecisionAllow, types.DecisionReviewRequired); got != types.DecisionReviewRequired {
+		t.Fatalf("expected REVIEW_REQUIRED to dominate ALLOW, got %s", got)
+	}
+	if got := aggregateInterceptDecision(types.DecisionWarn, types.DecisionReviewRequired); got != types.DecisionReviewRequired {
+		t.Fatalf("expected REVIEW_REQUIRED to dominate WARN, got %s", got)
+	}
+	if got := aggregateInterceptDecision(types.DecisionReviewRequired, types.DecisionBlock); got != types.DecisionBlock {
+		t.Fatalf("expected BLOCK to dominate REVIEW_REQUIRED, got %s", got)
+	}
+}
+
 func TestLookPathRealSkipsWrapperScripts(t *testing.T) {
 	tmpDir := t.TempDir()
 

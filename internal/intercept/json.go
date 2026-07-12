@@ -44,6 +44,8 @@ func PrintJSONOutput(w io.Writer, cmd *InstallCommand, results []types.ScanResul
 	recommended := "Proceed with installation."
 	if overallDecision == types.DecisionBlock {
 		recommended = "Do not install blocked packages."
+	} else if overallDecision == types.DecisionReviewRequired {
+		recommended = "Request authorized human review before installing."
 	} else if overallDecision == types.DecisionWarn {
 		recommended = "Inspect package details and proceed with caution."
 	}

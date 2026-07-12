@@ -515,6 +515,9 @@ func runInstallInterceptionGate() (bool, string, []string) {
 	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionBlock, intercept.SafetyFlags{Yes: true, ForceRiskAccept: false, NonInteractive: true}, pol); proceed {
 		details = append(details, "BLOCK proceeded without force-risk-accept")
 	}
+	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionReviewRequired, intercept.SafetyFlags{Yes: true, ForceRiskAccept: true, Reason: "validation", NonInteractive: true}, pol); proceed {
+		details = append(details, "REVIEW_REQUIRED proceeded without an authorized approval object")
+	}
 	_ = os.Setenv("PKGSAFE_REQUESTED_BY", "ai_agent")
 	if proceed, _, _ := intercept.CanProceed(nil, types.DecisionWarn, intercept.SafetyFlags{Yes: true, NonInteractive: true}, pol); proceed {
 		details = append(details, "AI-agent WARN proceeded by default")
@@ -524,7 +527,7 @@ func runInstallInterceptionGate() (bool, string, []string) {
 	if len(details) > 0 {
 		return false, "install interception allowed unsafe install flow", details
 	}
-	return true, "WARN and BLOCK install enforcement is fail-closed by default", []string{"WARN requires --yes for humans", "BLOCK does not install", "AI-agent WARN does not install by default"}
+	return true, "WARN, REVIEW_REQUIRED, and BLOCK install enforcement is fail-closed by default", []string{"WARN requires --yes for humans", "REVIEW_REQUIRED requires authorized review", "BLOCK does not install", "AI-agent WARN does not install by default"}
 }
 
 func runMalformedInputGate() (bool, string, []string) {
