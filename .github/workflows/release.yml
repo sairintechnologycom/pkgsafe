@@ -45,7 +45,7 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: --version
+          install-only: true
 
       - name: Run GoReleaser
         run: scripts/run-goreleaser-ci.sh
