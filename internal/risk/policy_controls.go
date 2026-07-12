@@ -8,7 +8,7 @@ import (
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 )
 
-func ApplyEnterpriseControls(
+func ApplyPolicyControls(
 	res types.ScanResult,
 	pol policy.Policy,
 	regName string,
@@ -94,22 +94,19 @@ func ApplyEnterpriseControls(
 		}
 	}
 
-	// Check known malware or critical credential issues
-	hasMalware := false
+	// Security blocks are centrally classified and non-overridable. Do not
+	// infer this property from score, severity, or a partial list of names.
+	hasSecurityBlock := false
 	for _, r := range res.Reasons {
-		if r.ID == "known_malware_indicator" || r.ID == "credential_path_reference" {
-			hasMalware = true
-			break
-		}
-		if rule, ok := policy.RuleFor(pol, r.ID); ok && rule.BlockInStrictMode && pol.Mode == policy.ModeBlock {
-			hasMalware = true
+		if policy.EnforcementClassFor(pol, r.ID) == policy.EnforcementSecurityBlock {
+			hasSecurityBlock = true
 			break
 		}
 	}
 
 	// 4. Check Trusted Package Rules
 	trustRule, trustMatched := policy.FindTrustedPackageRule(pol, res.Package.Ecosystem, res.Package.Name, res.Package.Version, regName)
-	if trustMatched && !blockedMatched && !hasMalware {
+	if trustMatched && !blockedMatched && !hasSecurityBlock {
 		res.TrustInfo = &types.TrustEvidence{
 			Matched: true,
 			RuleID:  "trusted_internal_scope",
@@ -142,7 +139,7 @@ func ApplyEnterpriseControls(
 		}
 	}
 
-	forcedBlock := blockedMatched || hasMalware || res.Score >= blockThreshold
+	forcedBlock := blockedMatched || hasSecurityBlock || res.Score >= blockThreshold
 
 	if forcedBlock {
 		res.Decision = types.DecisionBlock
@@ -159,8 +156,9 @@ func ApplyEnterpriseControls(
 		exc, excMatched = policy.FindActiveException(pol, res.Package, env)
 	}
 	if excMatched && res.Decision == types.DecisionBlock {
-		// Exceptions cannot override known malware unless policy explicitly permits
-		if !hasMalware {
+		// Controlled exceptions may affect ordinary policy/score blocks, but can
+		// never override a security invariant.
+		if !hasSecurityBlock {
 			res.ExceptionInfo = &types.ExceptionEvidence{
 				Matched:    true,
 				RuleID:     exc.ID,
@@ -196,6 +194,7 @@ func ApplyEnterpriseControls(
 	// Update Action & Enforcement
 	res.Enforcement = Enforcement(res.Decision, pol.Mode)
 	res.Recommended = RecommendedAction(res.Decision, pol.Mode)
+	res.Profile = BuildPackageProfile(res, pol)
 
 	return res
 }

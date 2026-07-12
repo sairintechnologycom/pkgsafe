@@ -58,6 +58,12 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		pol = policy.Default()
 	}
 	ctx := context.Background()
+	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
+	if s.Offline {
+		if err := sandbox.ValidateOfflineBehavior(ctx, behaviorMode, s.NetworkMode); err != nil {
+			return types.ScanResult{}, err
+		}
+	}
 
 	var regName string
 	var regCfg policy.RegistryConfig
@@ -97,7 +103,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		if err != nil {
 			return types.ScanResult{}, err
 		}
-		return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+		return risk.ApplyPolicyControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 	}
 
 	regURL := regCfg.URL
@@ -180,7 +186,6 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	res := risk.Evaluate(analysis.Result.Package, findings, nil, analysis.Result.Suspicious, alts, pol)
 	res.Vulnerabilities = vulns
 	res.Artifact = analysis.Artifact
-	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
 	behaviorEnabled := behaviorMode != types.BehaviorDisabled
 	runnerSelection := sandbox.SelectRunner(ctx, behaviorMode)
 	res.Sandbox = types.SandboxSummary{
@@ -299,7 +304,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		res.Vulnerabilities = vulns
 		res.Artifact = analysis.Artifact
 	}
-	return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+	return risk.ApplyPolicyControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 }
 
 func (s Scanner) scanOffline(ctx context.Context, name, version string, pol policy.Policy) (types.ScanResult, error) {

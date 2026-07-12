@@ -43,7 +43,7 @@ func TestCheckEcosystemDatabaseIntegration(t *testing.T) {
 	dbPath := filepath.Join(tmpDir, "pkgsafe.db")
 	os.Setenv("PKGSAFE_DBPath_TEST", dbPath)
 	defer os.Unsetenv("PKGSAFE_DBPath_TEST")
-	
+
 	// Simply reset cache to trigger reload from default db path (which would be blank since db does not exist, falling back to seeds)
 	ResetCacheForTest(nil, nil)
 	alts := CheckEcosystem("pypi", "reqeusts")
@@ -51,4 +51,3 @@ func TestCheckEcosystemDatabaseIntegration(t *testing.T) {
 		t.Fatalf("expected requests typosquat candidate from default fallback, got %+v", alts)
 	}
 }
-

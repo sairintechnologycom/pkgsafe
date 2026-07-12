@@ -37,6 +37,11 @@ type ProductionReadinessReport struct {
 	// only "verified"/"pass"/"signed" when actually confirmed, otherwise it is
 	// "configured" (infrastructure present) or a failure state.
 	OnlineBenchmarkStatus           string   `json:"online_benchmark_status"`
+	BenchmarkCandidateEligible      bool     `json:"benchmark_candidate_eligible"`
+	BenchmarkPackagesConfigured     int      `json:"benchmark_packages_configured"`
+	BenchmarkPackagesExecuted       int      `json:"benchmark_packages_executed"`
+	BenchmarkPackagesSkipped        int      `json:"benchmark_packages_skipped"`
+	BenchmarkCoverageRatio          float64  `json:"benchmark_coverage_ratio"`
 	GitHubActionStatus              string   `json:"github_action_status"`
 	SignedReleaseStatus             string   `json:"signed_release_status"`
 	SigningConfigured               bool     `json:"signing_configured"`
@@ -121,14 +126,10 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 			return r.Pass, r.FinalStatus, []string{r.Recommendation}
 		}),
 		timedGate("benchmark validation", true, func() (bool, string, []string) {
-			if benchErr != nil {
-				return false, "benchmark failed", []string{benchErr.Error()}
-			}
-			return benchReport.Pass, benchReport.Status, []string{
-				fmt.Sprintf("direct recall %.2f%%", benchReport.Metrics.DirectDependencyRecall*100),
-				fmt.Sprintf("transitive recall %.2f%%", benchReport.Metrics.TransitiveDependencyRecall*100),
-				fmt.Sprintf("source import recall %.2f%%", benchReport.Metrics.SourceImportRecall*100),
-			}
+			return benchmarkValidationGate(benchReport, benchErr)
+		}),
+		timedGate("real repository evidence", true, func() (bool, string, []string) {
+			return realRepoEvidenceGate(benchReport, benchErr, 15)
 		}),
 		timedGate("online benchmark", false, func() (bool, string, []string) {
 			return onlineBenchmarkGate(benchReport, benchErr)
@@ -166,6 +167,11 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 	rep.ProvenanceVerified = provenanceVerified()
 	rep.DocsStatus = gateStatusString(rep, "documentation", "complete", "incomplete")
 	if benchErr == nil {
+		rep.BenchmarkCandidateEligible = benchReport.Metrics.CandidateStatusEligible
+		rep.BenchmarkPackagesConfigured = benchReport.Metrics.PackagesConfigured
+		rep.BenchmarkPackagesExecuted = benchReport.Metrics.PackagesExecuted
+		rep.BenchmarkPackagesSkipped = benchReport.Metrics.PackagesSkipped
+		rep.BenchmarkCoverageRatio = benchReport.Metrics.PackageCoverageRatio
 		rep.RealRepoValidationCount = countRealRepos(benchReport, opts.RealRepos)
 		rep.NPMRepoCount = benchReport.Metrics.NPMRepoCount
 		rep.PyPIRepoCount = benchReport.Metrics.PyPIRepoCount
@@ -192,6 +198,36 @@ func RunProductionReadinessWithOptions(opts ProductionReadinessOptions) (Product
 
 	computeReadinessStage(&rep, blockingFailed)
 	return rep, nil
+}
+
+func benchmarkValidationGate(rep BenchmarkReport, err error) (bool, string, []string) {
+	if err != nil {
+		return false, "benchmark failed", []string{err.Error()}
+	}
+	passed := rep.Pass && rep.Metrics.CandidateStatusEligible
+	return passed, rep.Status, []string{
+		fmt.Sprintf("direct recall %.2f%%", rep.Metrics.DirectDependencyRecall*100),
+		fmt.Sprintf("transitive recall %.2f%%", rep.Metrics.TransitiveDependencyRecall*100),
+		fmt.Sprintf("source import recall %.2f%%", rep.Metrics.SourceImportRecall*100),
+		fmt.Sprintf("packages configured=%d executed=%d skipped=%d coverage=%.2f%% candidate_eligible=%t", rep.Metrics.PackagesConfigured, rep.Metrics.PackagesExecuted, rep.Metrics.PackagesSkipped, rep.Metrics.PackageCoverageRatio*100, rep.Metrics.CandidateStatusEligible),
+	}
+}
+
+func realRepoEvidenceGate(rep BenchmarkReport, err error, required int) (bool, string, []string) {
+	if err != nil {
+		return false, "real repository evidence unavailable", []string{err.Error()}
+	}
+	details := []string{fmt.Sprintf("validated=%d required=%d passed=%d failed=%d", rep.Metrics.RealRepoValidationCount, required, rep.Metrics.ReposPassed, rep.Metrics.ReposFailed)}
+	if rep.Metrics.RealRepoValidationCount < required {
+		return false, "real repository threshold not met", details
+	}
+	if rep.Metrics.ReposFailed > 0 || rep.Metrics.ScannerCrashCount > 0 || rep.Metrics.FalseBlockCount > 0 {
+		return false, "real repository validation failures", details
+	}
+	if !rep.Metrics.RealRepoTimingTrustworthy {
+		return false, "real repository timing is not trustworthy", details
+	}
+	return true, "real repository evidence threshold met", details
 }
 
 // computeReadinessStage assigns the final readiness stage conservatively. A
@@ -295,7 +331,9 @@ func gaBlockers(rep *ProductionReadinessReport) []string {
 	if rep.BehaviorAnalysisDefaultMode != string(types.BehaviorDisabled) {
 		blockers = append(blockers, "behavior analysis must be disabled by default for npm-first GA")
 	}
-	if rep.EcosystemDepthStatus != "npm-ga-other-ecosystems-preview" && rep.EcosystemDepthStatus != "multi-ecosystem-validated" {
+	if rep.EcosystemDepthStatus != "npm-public-beta-pypi-public-beta-go-cargo-preview" &&
+		rep.EcosystemDepthStatus != "npm-public-beta-go-cargo-preview" &&
+		rep.EcosystemDepthStatus != "multi-ecosystem-validated" {
 		blockers = append(blockers, "GA ecosystem scope is unclear")
 	}
 	return blockers
@@ -326,7 +364,10 @@ func ecosystemDepthStatus(rep ProductionReadinessReport) string {
 	if rep.PyPIRepoCount >= 3 && rep.GoRepoCount >= 2 && rep.CargoRepoCount >= 2 {
 		return "multi-ecosystem-validated"
 	}
-	return "npm-ga-other-ecosystems-preview"
+	if rep.PyPIRepoCount >= 3 {
+		return "npm-public-beta-pypi-public-beta-go-cargo-preview"
+	}
+	return "npm-public-beta-go-cargo-preview"
 }
 
 func isolatedBackendStatus(rep BenchmarkReport, err error) string {
@@ -363,6 +404,8 @@ func WriteProductionReadiness(w io.Writer, rep ProductionReadinessReport, asJSON
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Stage Status Fields")
 	fmt.Fprintf(w, "  online benchmark:        %s\n", rep.OnlineBenchmarkStatus)
+	fmt.Fprintf(w, "  benchmark eligible:      %t\n", rep.BenchmarkCandidateEligible)
+	fmt.Fprintf(w, "  benchmark execution:     %d/%d (skipped=%d, coverage=%.2f%%)\n", rep.BenchmarkPackagesExecuted, rep.BenchmarkPackagesConfigured, rep.BenchmarkPackagesSkipped, rep.BenchmarkCoverageRatio*100)
 	fmt.Fprintf(w, "  github action:           %s\n", rep.GitHubActionStatus)
 	fmt.Fprintf(w, "  signed release:          %s\n", rep.SignedReleaseStatus)
 	fmt.Fprintf(w, "  signing verified:        %t\n", rep.SigningVerified)

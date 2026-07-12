@@ -50,9 +50,9 @@ func TestGetAgentGuidanceTool_ToolError_BadPolicyPath(t *testing.T) {
 // directly for each decision × agent-policy combination.
 func TestGetAgentGuidance_Unit(t *testing.T) {
 	defaultAP := policy.AgentPolicy{
-		Mode:                    "enforce",
-		WarnRequiresHuman:       true,
-		BlockInstallCommands:    true,
+		Mode:                             "enforce",
+		WarnRequiresHuman:                true,
+		BlockInstallCommands:             true,
 		RequirePkgSafeCheckBeforeInstall: true,
 	}
 
@@ -95,6 +95,19 @@ func TestGetAgentGuidance_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("REVIEW_REQUIRED requires authorized review", func(t *testing.T) {
+		g := GetAgentGuidance(types.DecisionReviewRequired, defaultAP, policy.ModeWarn)
+		if g.Decision != "REVIEW_REQUIRED" {
+			t.Errorf("expected REVIEW_REQUIRED, got %s", g.Decision)
+		}
+		if !contains(g.AllowedNextActions, "request_review") {
+			t.Errorf("expected 'request_review' in allowed_next_actions, got %v", g.AllowedNextActions)
+		}
+		if !contains(g.ProhibitedActions, "run_install") {
+			t.Errorf("expected 'run_install' in prohibited_actions for REVIEW_REQUIRED, got %v", g.ProhibitedActions)
+		}
+	})
+
 	t.Run("observe mode always allows proceed", func(t *testing.T) {
 		observeAP := policy.AgentPolicy{Mode: "observe"}
 		g := GetAgentGuidance(types.DecisionBlock, observeAP, policy.ModeWarn)
@@ -110,6 +123,32 @@ func TestGetAgentGuidance_Unit(t *testing.T) {
 			t.Errorf("expected WARN escalated to BLOCK in block mode, got %s", g.Decision)
 		}
 	})
+}
+
+func TestDecisionString_ReviewRequired(t *testing.T) {
+	if got := decisionString(types.DecisionReviewRequired); got != "REVIEW_REQUIRED" {
+		t.Fatalf("expected REVIEW_REQUIRED, got %s", got)
+	}
+}
+
+func TestAgentInstruction_ReviewRequired(t *testing.T) {
+	got := agentInstruction(types.DecisionReviewRequired, false, "ai_agent", policy.ModeWarn)
+	if got.Action != "ask_human" {
+		t.Fatalf("expected ask_human, got %s", got.Action)
+	}
+	if got.Message == "" || got.Message == "Do not install automatically. The policy does not allow installation." {
+		t.Fatalf("expected explicit REVIEW_REQUIRED message, got %q", got.Message)
+	}
+}
+
+func TestRemediationForDecision_ReviewRequired(t *testing.T) {
+	got := remediationForDecision(types.DecisionReviewRequired)
+	if len(got) == 0 {
+		t.Fatal("expected remediation items for REVIEW_REQUIRED")
+	}
+	if got[0] != "Request authorized human review" {
+		t.Fatalf("unexpected first remediation item: %v", got)
+	}
 }
 
 // TestGetAgentGuidanceTool_ToolList verifies get_agent_guidance appears in
@@ -185,9 +224,9 @@ func TestGetAgentGuidanceTool_WithPolicy(t *testing.T) {
 		return
 	}
 
-	// When a full result is returned, decision must be one of the three values
+	// When a full result is returned, decision must be one of the supported values.
 	switch result.Decision {
-	case "ALLOW", "WARN", "BLOCK":
+	case "ALLOW", "WARN", "BLOCK", "REVIEW_REQUIRED":
 		// valid
 	default:
 		t.Errorf("unexpected decision value: %q", result.Decision)

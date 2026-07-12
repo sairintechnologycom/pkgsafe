@@ -18,12 +18,85 @@ const (
 	ModeAudit Mode = "audit"
 )
 
+// EnforcementClass defines whether and how a finding may be overridden.
+// Security blocks are product safety invariants: score reductions, trust,
+// exceptions, agent requests, and operating modes must never downgrade them.
+type EnforcementClass string
+
+const (
+	EnforcementAdvisory      EnforcementClass = "advisory"
+	EnforcementPolicyBlock   EnforcementClass = "policy_block"
+	EnforcementSecurityBlock EnforcementClass = "security_block"
+)
+
 type Rule struct {
 	Enabled           bool
 	Severity          string
 	Score             int
 	MaxAgeDays        int
 	BlockInStrictMode bool
+	EnforcementClass  EnforcementClass
+}
+
+// SecurityBlockRuleIDs is the centrally reviewed, non-overridable rule
+// taxonomy. Entries may be reserved before a detector is implemented so a
+// future detector cannot accidentally inherit advisory semantics.
+var SecurityBlockRuleIDs = map[string]struct{}{
+	"known_malware_indicator":                {},
+	"credential_path_reference":              {},
+	"credential_canary_read":                 {},
+	"credential_canary_exfiltration_attempt": {},
+	"npm_token_access":                       {},
+	"ssh_key_access":                         {},
+	"env_secret_access":                      {},
+	"pypi_setup_py_credential_access":        {},
+	"pypi_credential_path_access":            {},
+	"pypi_env_secret_access":                 {},
+	"cloud_metadata_access":                  {},
+	"pypi_cloud_metadata_access":             {},
+	"shell_download_execute":                 {},
+	"pypi_setup_py_network_call":             {},
+	"dependency_confusion_candidate":         {},
+	"private_scope_public_registry":          {},
+	"private_prefix_public_registry":         {},
+	"unapproved_registry_url":                {},
+	"provenance_identity_mismatch":           {},
+	"archive_traversal_attempt":              {},
+}
+
+// RequiredSecurityBlockRuleIDs are implemented built-in rules that every
+// valid policy must retain. Other taxonomy entries are ecosystem variants or
+// reserved detector IDs.
+var RequiredSecurityBlockRuleIDs = []string{
+	"known_malware_indicator",
+	"credential_path_reference",
+	"credential_canary_read",
+	"credential_canary_exfiltration_attempt",
+	"cloud_metadata_access",
+	"npm_token_access",
+	"ssh_key_access",
+	"env_secret_access",
+	"shell_download_execute",
+	"pypi_setup_py_network_call",
+	"pypi_setup_py_credential_access",
+	"dependency_confusion_candidate",
+	"private_scope_public_registry",
+	"unapproved_registry_url",
+}
+
+// EnforcementClassFor returns the effective class for a rule. Built-in
+// security invariants cannot be weakened by a policy-provided class.
+func EnforcementClassFor(pol Policy, ruleID string) EnforcementClass {
+	if _, ok := SecurityBlockRuleIDs[ruleID]; ok {
+		return EnforcementSecurityBlock
+	}
+	if ruleID == "blocked_package" {
+		return EnforcementPolicyBlock
+	}
+	if rule, ok := pol.Rules[ruleID]; ok && rule.EnforcementClass != "" {
+		return rule.EnforcementClass
+	}
+	return EnforcementAdvisory
 }
 
 type PackageLists struct {
@@ -118,7 +191,8 @@ type Policy struct {
 	PackageManagers     PackageManagersSettings
 	AgentPolicy         AgentPolicy
 
-	// Enterprise fields
+	// Local governance fields. These are OSS policy and evidence capabilities;
+	// they do not imply a hosted or commercial implementation.
 	PolicyPackName      string
 	PolicyPackVersion   string
 	PolicyPackOwner     string
@@ -175,7 +249,7 @@ func Default() Policy {
 			"new_package":                         {Enabled: true, Severity: "medium", Score: 15, MaxAgeDays: 14},
 			"trusted_package_reduction":           {Enabled: true, Severity: "informational", Score: -20},
 			"blocked_package":                     {Enabled: true, Severity: "critical", Score: 100},
-			"known_vulnerability_critical":        {Enabled: true, Severity: "critical", Score: 70},
+			"known_vulnerability_critical":        {Enabled: true, Severity: "critical", Score: 70, EnforcementClass: EnforcementPolicyBlock},
 			"known_vulnerability_high":            {Enabled: true, Severity: "high", Score: 50},
 			"known_vulnerability_medium":          {Enabled: true, Severity: "medium", Score: 25},
 			"known_vulnerability_low":             {Enabled: true, Severity: "low", Score: 10},
@@ -225,15 +299,15 @@ func Default() Policy {
 			"http_registry_warning":                  {Enabled: true, Severity: "high", Score: 40},
 			"unapproved_registry_url":                {Enabled: true, Severity: "critical", Score: 100},
 			// Cargo / Rust analyzer rules
-			"shell_execution_in_build":   {Enabled: true, Severity: "high", Score: 50, BlockInStrictMode: true},
-			"direct_url_dependency":      {Enabled: true, Severity: "high", Score: 30},
+			"shell_execution_in_build":    {Enabled: true, Severity: "high", Score: 50, BlockInStrictMode: true},
+			"direct_url_dependency":       {Enabled: true, Severity: "high", Score: 30},
 			"suspicious_build_dependency": {Enabled: true, Severity: "medium", Score: 20},
-			"env_secret_exfil":           {Enabled: true, Severity: "critical", Score: 100},
-			"encoded_payload":            {Enabled: true, Severity: "high", Score: 40},
-			"unsafe_memory_operation":    {Enabled: true, Severity: "low", Score: 15},
-			"artifact_oversized":         {Enabled: true, Severity: "medium", Score: 20},
+			"env_secret_exfil":            {Enabled: true, Severity: "critical", Score: 100},
+			"encoded_payload":             {Enabled: true, Severity: "high", Score: 40},
+			"unsafe_memory_operation":     {Enabled: true, Severity: "low", Score: 15},
+			"artifact_oversized":          {Enabled: true, Severity: "medium", Score: 20},
 			// Go module analyzer rules
-			"shell_execution": {Enabled: true, Severity: "high", Score: 40, BlockInStrictMode: true},
+			"shell_execution":  {Enabled: true, Severity: "high", Score: 40, BlockInStrictMode: true},
 			"init_side_effect": {Enabled: true, Severity: "high", Score: 40, BlockInStrictMode: true},
 		},
 		BlockPatterns: []string{
@@ -377,6 +451,14 @@ func Validate(pol Policy) error {
 		if _, exists := defaultPol.Rules[id]; !exists {
 			return fmt.Errorf("unknown rule ID: %s", id)
 		}
+		switch rule.EnforcementClass {
+		case "", EnforcementAdvisory, EnforcementPolicyBlock, EnforcementSecurityBlock:
+		default:
+			return fmt.Errorf("invalid enforcement_class for rule %s: %s", id, rule.EnforcementClass)
+		}
+		if _, securityInvariant := SecurityBlockRuleIDs[id]; securityInvariant && rule.EnforcementClass != "" && rule.EnforcementClass != EnforcementSecurityBlock {
+			return fmt.Errorf("security-block rule %s enforcement_class cannot be weakened", id)
+		}
 		if rule.Severity != "low" && rule.Severity != "medium" && rule.Severity != "high" && rule.Severity != "critical" && rule.Severity != "informational" {
 			return fmt.Errorf("invalid severity for rule %s: %s", id, rule.Severity)
 		}
@@ -437,23 +519,7 @@ func Validate(pol Policy) error {
 }
 
 func validateHardBlockInvariants(pol Policy) error {
-	hardBlockRules := []string{
-		"blocked_package",
-		"known_malware_indicator",
-		"credential_path_reference",
-		"credential_canary_read",
-		"credential_canary_exfiltration_attempt",
-		"cloud_metadata_access",
-		"npm_token_access",
-		"ssh_key_access",
-		"env_secret_access",
-		"shell_download_execute",
-		"pypi_setup_py_network_call",
-		"pypi_setup_py_credential_access",
-		"dependency_confusion_candidate",
-		"private_scope_public_registry",
-		"unapproved_registry_url",
-	}
+	hardBlockRules := append([]string{"blocked_package"}, RequiredSecurityBlockRuleIDs...)
 	for _, id := range hardBlockRules {
 		rule, ok := pol.Rules[id]
 		if !ok {
@@ -732,6 +798,8 @@ func parseYAMLPolicy(raw string, pol *Policy) error {
 				rule.MaxAgeDays = n
 			case "block_in_strict_mode":
 				rule.BlockInStrictMode = strings.EqualFold(unquote(val), "true")
+			case "enforcement_class":
+				rule.EnforcementClass = EnforcementClass(unquote(val))
 			default:
 				return fmt.Errorf("line %d: unsupported rule property %q", lineNo+1, key)
 			}

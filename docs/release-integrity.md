@@ -92,9 +92,10 @@ step 1) every archive it lists.
 
 ## 3. Verify build provenance
 
-The release workflow runs `actions/attest-build-provenance@v2` over `dist/*`,
-producing a signed **SLSA build provenance** attestation stored as a GitHub
-Artifact Attestation. Provenance proves *where and how* an artifact was built:
+The release workflow runs the pinned `actions/attest-build-provenance` action
+over `dist/*`, producing a signed **SLSA build provenance** attestation stored
+as a GitHub Artifact Attestation. Provenance proves *where and how* an artifact
+was built:
 that this exact binary was produced by the pkgsafe release workflow running in
 GitHub Actions against the repository's source — not built locally and uploaded
 by hand.
@@ -176,10 +177,10 @@ yet claim bit-for-bit reproducibility. Here is the honest state.
 
 **What is *not* guaranteed reproducible today:**
 
-- The Go toolchain is installed with `actions/setup-go` at `go-version: 'stable'`,
-  which floats to whatever the current stable Go release is. Two builds at
-  different times may use different compiler versions and produce different
-  bytes. The toolchain version is **not** pinned to an exact patch release.
+- The Go toolchain is installed with `actions/setup-go` at a pinned
+  `go-version: '1.25.0'`, which removes one source of toolchain drift. The
+  runner image is still `ubuntu-latest`, so OS-level build inputs can change
+  over time.
 - Builds run on GitHub-hosted `ubuntu-latest` runners; the runner image is not
   pinned, so OS-level build inputs can change over time.
 - We do not currently publish a documented, independently re-runnable

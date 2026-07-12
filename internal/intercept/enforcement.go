@@ -111,7 +111,7 @@ func PrintHumanOutput(cmd *InstallCommand, results []types.ScanResult, overallDe
 	for _, res := range results {
 		fmt.Printf("- %s@%s\n", res.Package.Name, res.Package.Version)
 		fmt.Printf("  Score: %d/100\n", res.Score)
-		
+
 		resDecisionStr := strings.ToUpper(string(res.Decision))
 		if color {
 			switch res.Decision {

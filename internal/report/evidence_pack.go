@@ -25,12 +25,8 @@ type Manifest struct {
 	GeneratedAt   string         `json:"generated_at"`
 	Repository    string         `json:"repository"`
 	PolicyPack    string         `json:"policy_pack"`
+	Signature     SignatureInfo  `json:"signature"`
 	Files         []ManifestFile `json:"files"`
-}
-
-func calculateSHA256(data []byte) string {
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
 }
 
 // CreateEvidencePack bundles reports into a ZIP archive with a manifest.json.
@@ -56,6 +52,9 @@ func CreateEvidencePack(outputPath string, r *RepositoryRiskReport, pol policy.P
 
 	sarif, _ := ExportSarif(r)
 	filesMap["sarif/pkgsafe-results.sarif"] = []byte(sarif)
+
+	dependencySPDX, _ := ExportDependencySPDX(r)
+	filesMap["dependency-sbom.spdx.json"] = []byte(dependencySPDX)
 
 	findingsRaw, _ := json.MarshalIndent(r.Findings, "", "  ")
 	filesMap["raw/scan-results.json"] = findingsRaw
@@ -98,6 +97,7 @@ func CreateEvidencePack(outputPath string, r *RepositoryRiskReport, pol policy.P
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
 		Repository:    registry.RedactSecrets(r.Repository.Name),
 		PolicyPack:    registry.RedactSecrets(r.Policy.PackName + "@" + r.Policy.PackVersion),
+		Signature:     SignatureInfo{Present: false},
 		Files:         manifestFiles,
 	}
 
@@ -121,25 +121,32 @@ func CreateEvidencePack(outputPath string, r *RepositoryRiskReport, pol policy.P
 	archive := zip.NewWriter(zipFile)
 	defer archive.Close()
 
-	// Write manifest.json
-	fWriter, err := archive.Create("pkgsafe-evidence-pack/manifest.json")
-	if err != nil {
-		return err
-	}
-	if _, err := fWriter.Write(manifestBytes); err != nil {
+	if err := writeZipFile(archive, "pkgsafe-evidence-pack/manifest.json", manifestBytes); err != nil {
 		return err
 	}
 
 	// Write other files
 	for path, content := range filesMap {
-		fWriter, err := archive.Create("pkgsafe-evidence-pack/" + path)
-		if err != nil {
-			return err
-		}
-		if _, err := fWriter.Write(content); err != nil {
+		if err := writeZipFile(archive, "pkgsafe-evidence-pack/"+path, content); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+func calculateSHA256(data []byte) string {
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+func writeZipFile(archive *zip.Writer, name string, content []byte) error {
+	fWriter, err := archive.Create(name)
+	if err != nil {
+		return err
+	}
+	if _, err := fWriter.Write(content); err != nil {
+		return err
+	}
 	return nil
 }

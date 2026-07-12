@@ -191,4 +191,3 @@ func ComparePEP440Strings(a, b string) int {
 	}
 	return comparePEP440(vA, vB)
 }
-

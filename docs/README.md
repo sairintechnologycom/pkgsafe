@@ -4,7 +4,7 @@ PkgSafe checks open-source packages **before** they install. It returns a clear
 **allow**, **warn**, or **block** decision from your terminal, CI, or AI coding
 agent.
 
-**GA scope today:** npm and PyPI.  
+**Public beta scope today:** npm and PyPI.
 **Preview:** Go modules and Cargo (metadata + OSV; not full artifact depth).
 
 ---

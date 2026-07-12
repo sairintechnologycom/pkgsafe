@@ -4,7 +4,7 @@ Stop risky dependency changes before they merge. The action runs
 `pkgsafe ci scan`, can upload SARIF to GitHub Code Scanning, and can post a
 pull request summary.
 
-**GA:** npm and PyPI. **Preview:** Go and Cargo (not full GA depth).
+**Public beta:** npm and PyPI. **Preview:** Go and Cargo (not full GA depth).
 
 Also see [ci-cd.md](ci-cd.md) for the raw CLI on any runner, and
 [getting-started.md](getting-started.md) for first-time setup.

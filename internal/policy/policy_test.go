@@ -139,6 +139,23 @@ rules:
 	}
 }
 
+func TestPolicyRejectsWeakenedSecurityEnforcementClass(t *testing.T) {
+	path := writeTempPolicy(t, `
+schema_version: "1.0"
+mode: warn
+rules:
+  dependency_confusion_candidate:
+    enabled: true
+    severity: critical
+    score: 100
+    enforcement_class: advisory
+`)
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "enforcement_class cannot be weakened") {
+		t.Fatalf("expected security enforcement weakening rejection, got %v", err)
+	}
+}
+
 func TestPolicyRejectsForceAcceptWithoutReason(t *testing.T) {
 	path := writeTempPolicy(t, `
 schema_version: "1.0"

@@ -26,6 +26,7 @@ type RiskSummary struct {
 	PackagesScanned             int `json:"packages_scanned"`
 	Allowed                     int `json:"allowed"`
 	Warnings                    int `json:"warned"`
+	ReviewRequired              int `json:"review_required"`
 	Blocked                     int `json:"blocked"`
 	Unknown                     int `json:"unknown"`
 	CriticalVulnerabilities     int `json:"critical_vulnerabilities"`
@@ -157,6 +158,49 @@ type RepositoryRiskReport struct {
 	Overrides       []OverrideRecord       `json:"overrides"`
 	Registries      []RegistryRecord       `json:"registries"`
 	Recommendations []RecommendationRecord `json:"recommendations"`
+}
+
+// SignatureInfo records whether a report artifact bundle is signed and how the
+// signature is expected to be verified.
+type SignatureInfo struct {
+	Present   bool   `json:"present"`
+	Algorithm string `json:"algorithm,omitempty"`
+}
+
+// SPDXDocument represents a dependency-level SPDX 2.3 document.
+type SPDXDocument struct {
+	SPDXVersion       string           `json:"spdxVersion"`
+	DataLicense       string           `json:"dataLicense"`
+	SPDXID            string           `json:"SPDXID"`
+	Name              string           `json:"name"`
+	DocumentNamespace string           `json:"documentNamespace"`
+	CreationInfo      SPDXCreationInfo `json:"creationInfo"`
+	Packages          []SPDXPackage    `json:"packages"`
+}
+
+// SPDXCreationInfo captures document generation metadata.
+type SPDXCreationInfo struct {
+	Creators []string `json:"creators"`
+	Created  string   `json:"created"`
+}
+
+// SPDXExternalRef captures a machine-readable package reference, such as a purl.
+type SPDXExternalRef struct {
+	ReferenceCategory string `json:"referenceCategory"`
+	ReferenceType     string `json:"referenceType"`
+	ReferenceLocator  string `json:"referenceLocator"`
+}
+
+// SPDXPackage represents a dependency entry in a dependency-level SBOM.
+type SPDXPackage struct {
+	Name             string            `json:"name"`
+	SPDXID           string            `json:"SPDXID"`
+	VersionInfo      string            `json:"versionInfo,omitempty"`
+	DownloadLocation string            `json:"downloadLocation,omitempty"`
+	FilesAnalyzed    bool              `json:"filesAnalyzed"`
+	LicenseConcluded string            `json:"licenseConcluded,omitempty"`
+	ExternalRefs     []SPDXExternalRef `json:"externalRefs,omitempty"`
+	PackageComment   string            `json:"comment,omitempty"`
 }
 
 // SIEMEvent represents a normalized SIEM alert event.

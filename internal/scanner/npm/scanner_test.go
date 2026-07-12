@@ -50,6 +50,19 @@ func TestScanPackageResolvesLatestAndScansTarball(t *testing.T) {
 	}
 }
 
+func TestOfflineHeuristicRejectedBeforeCacheOrRunner(t *testing.T) {
+	_, err := Scanner{
+		Policy:         policy.Default(),
+		Offline:        true,
+		BehaviorMode:   types.BehaviorHeuristic,
+		SandboxEnabled: true,
+		NetworkMode:    "disabled",
+	}.ScanPackage("not-cached", "1.0.0")
+	if err == nil || !strings.Contains(err.Error(), "offline mode forbids heuristic") {
+		t.Fatalf("expected offline behavior rejection before cache lookup, got %v", err)
+	}
+}
+
 func TestScanPackageUsesRequestedVersion(t *testing.T) {
 	srv := registryServer(t, map[string]string{
 		"1.0.0": packageJSON(t, "safe-package"),

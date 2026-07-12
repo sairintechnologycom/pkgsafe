@@ -50,7 +50,7 @@ Default path is **static**. Package code runs only if you opt into
 | `internal/report` | JSON, Markdown, HTML, CSV, evidence packs |
 | `internal/db` + `dbbundle` | Local sqlite + offline bundles |
 | `internal/sandbox` | Optional behavior backends |
-| `pkg/license` | Enterprise entitlement hooks (OSS is nil-safe) |
+| `pkg/capability` | Neutral downstream capability interface; OSS local provider grants none |
 
 ## Surfaces
 
@@ -66,8 +66,8 @@ Default path is **static**. Package code runs only if you opt into
 
 | Ecosystem | Status |
 |-----------|--------|
-| npm | GA — metadata, lockfiles, tarball/lifecycle analysis, OSV |
-| PyPI | GA — metadata, common lockfiles, wheel/sdist static analysis, OSV |
+| npm | Public beta — metadata, lockfiles, tarball/lifecycle analysis, OSV |
+| PyPI | Public beta — metadata, common lockfiles, wheel/sdist static analysis, OSV |
 | Go | Preview — metadata + OSV + go.mod/sum |
 | Cargo | Preview — metadata + OSV + Cargo.lock |
 

@@ -5,10 +5,13 @@ VERPKG := github.com/sairintechnologycom/pkgsafe/internal/version
 LDFLAGS := -s -w -X $(VERPKG).Version=$(VERSION) -X $(VERPKG).Commit=$(COMMIT)
 DIST := dist
 
-.PHONY: test build sbom package clean cross check-public-boundary
+.PHONY: test build sbom package clean cross check-public-boundary fmt-check
 
 test:
 	go test ./...
+
+fmt-check:
+	@test -z "$$(gofmt -l .)" || (echo "gofmt check failed"; gofmt -l .; exit 1)
 
 check-public-boundary:
 	scripts/check-public-boundary.sh

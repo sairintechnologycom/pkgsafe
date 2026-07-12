@@ -61,6 +61,16 @@ func TestJSONOutputIncludesReasonFields(t *testing.T) {
 	}
 }
 
+func TestRecommendedActionReviewRequired(t *testing.T) {
+	res := types.ScanResult{
+		Package:  types.PackageIdentity{Ecosystem: "npm", Name: "review-me", Version: "1.0.0"},
+		Decision: types.DecisionReviewRequired,
+	}
+	if got := RecommendedAction(res); got != "Request authorized human review before installing." {
+		t.Fatalf("unexpected recommended action: %q", got)
+	}
+}
+
 func TestJSONOutputUsesBehaviorAnalysisContract(t *testing.T) {
 	res := types.ScanResult{
 		Package:  types.PackageIdentity{Ecosystem: "npm", Name: "safe-example", Version: "1.0.0"},

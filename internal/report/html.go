@@ -18,6 +18,9 @@ func ExportHTML(r *RepositoryRiskReport) (string, error) {
 	if r.Summary.Blocked > 0 {
 		overall = "BLOCK"
 		overallClass = "status-block"
+	} else if r.Summary.ReviewRequired > 0 {
+		overall = "REVIEW_REQUIRED"
+		overallClass = "status-warn"
 	} else if r.Summary.Warnings > 0 {
 		overall = "WARN"
 		overallClass = "status-warn"
@@ -193,6 +196,10 @@ func ExportHTML(r *RepositoryRiskReport) (string, error) {
                 <div class="card-label">Warnings</div>
             </div>
             <div class="card">
+                <div class="card-val">` + fmt.Sprintf("%d", r.Summary.ReviewRequired) + `</div>
+                <div class="card-label">Review Required</div>
+            </div>
+            <div class="card">
                 <div class="card-val">` + fmt.Sprintf("%d", r.Summary.CriticalVulnerabilities+r.Summary.HighVulnerabilities) + `</div>
                 <div class="card-label">High/Critical CVEs</div>
             </div>
@@ -219,6 +226,8 @@ func ExportHTML(r *RepositoryRiskReport) (string, error) {
 			decClass := "status-badge status-allow"
 			if f.Decision == "block" {
 				decClass = "status-badge status-block"
+			} else if f.Decision == "review_required" {
+				decClass = "status-badge status-warn"
 			} else if f.Decision == "warn" {
 				decClass = "status-badge status-warn"
 			}

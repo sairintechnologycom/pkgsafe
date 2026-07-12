@@ -39,7 +39,7 @@ var credentialPaths = []string{
 
 // cloudMetadataEndpoints are IMDS URLs used for credential exfiltration.
 var cloudMetadataEndpoints = []string{
-	"169.254.169.254",       // AWS/GCP/Azure IMDS
+	"169.254.169.254", // AWS/GCP/Azure IMDS
 	"metadata.google.internal",
 	"metadata/instance",
 	"latest/meta-data",

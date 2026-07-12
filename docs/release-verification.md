@@ -1,8 +1,8 @@
 # Release Verification
 
 Use these checks before trusting a downloaded PkgSafe release artifact.
-npm and PyPI are GA coverage. Go and Cargo coverage remains preview and is
-not GA-equivalent yet.
+npm and PyPI are public beta coverage. Go and Cargo coverage remains preview
+and is not GA-equivalent yet.
 
 ## Download Release Assets
 
@@ -49,8 +49,16 @@ jq '{spdxVersion, name, packages: (.packages | length)}' *.sbom.json
 ```
 
 Local `make package` builds may include `dist/sbom.spdx.json`, which is a
-minimal deterministic SBOM for local validation rather than the rich per-archive
-release SBOM.
+minimal deterministic SBOM for local validation rather than a dependency-level
+scan SBOM.
+
+Evidence packs generated with `pkgsafe report evidence-pack` now include a
+dependency-level SPDX document at `dependency-sbom.spdx.json`. Verify the
+package hashes and SBOM integrity with:
+
+```bash
+pkgsafe report verify-evidence-pack --input pkgsafe-evidence-pack.zip
+```
 
 ## Cosign Signature
 

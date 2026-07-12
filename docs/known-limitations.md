@@ -1,14 +1,14 @@
 # Known limitations
 
-Honest scope for PkgSafe GA. Read this before treating results as complete
+Honest scope for PkgSafe public beta. Read this before treating results as complete
 security coverage.
 
-## GA scope
+## Public beta scope
 
-**In scope (GA):** npm and PyPI package and lockfile scanning, local policy,
+**In scope (public beta):** npm and PyPI package and lockfile scanning, local policy,
 OSV intelligence, CI gating, MCP tools, evidence-style reports.
 
-**Preview (not GA-depth):** Go modules and Cargo — metadata and OSV, not full
+**Preview (not public beta-depth):** Go modules and Cargo — metadata and OSV, not full
 artifact analysis equivalent to npm/PyPI.
 
 **Not a full SCA platform:** PkgSafe is a **pre-install firewall**. It

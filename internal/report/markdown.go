@@ -20,6 +20,8 @@ func ExportMarkdown(r *RepositoryRiskReport) (string, error) {
 	overall := "ALLOW"
 	if r.Summary.Blocked > 0 {
 		overall = "BLOCK"
+	} else if r.Summary.ReviewRequired > 0 {
+		overall = "REVIEW_REQUIRED"
 	} else if r.Summary.Warnings > 0 {
 		overall = "WARN"
 	}
@@ -37,6 +39,7 @@ func ExportMarkdown(r *RepositoryRiskReport) (string, error) {
 	fmt.Fprintf(&buf, "| Packages Scanned | %d |\n", r.Summary.PackagesScanned)
 	fmt.Fprintf(&buf, "| Allowed | %d |\n", r.Summary.Allowed)
 	fmt.Fprintf(&buf, "| Warnings | %d |\n", r.Summary.Warnings)
+	fmt.Fprintf(&buf, "| Review Required | %d |\n", r.Summary.ReviewRequired)
 	fmt.Fprintf(&buf, "| Blocked | %d |\n", r.Summary.Blocked)
 	fmt.Fprintf(&buf, "| Critical Vulnerabilities | %d |\n", r.Summary.CriticalVulnerabilities)
 	fmt.Fprintf(&buf, "| High Vulnerabilities | %d |\n", r.Summary.HighVulnerabilities)
@@ -47,7 +50,7 @@ func ExportMarkdown(r *RepositoryRiskReport) (string, error) {
 
 	var topFindings []ReportFinding
 	for _, f := range r.Findings {
-		if f.Decision == "block" || f.Decision == "warn" || f.RiskScore > 0 {
+		if f.Decision == "block" || f.Decision == "warn" || f.Decision == "review_required" || f.RiskScore > 0 {
 			topFindings = append(topFindings, f)
 		}
 	}
@@ -255,6 +258,7 @@ func ExportAIAgentActivityReport(r *RepositoryRiskReport) string {
 	validations := 0
 	allowed := 0
 	warned := 0
+	reviewRequired := 0
 	blocked := 0
 	squatting := 0
 
@@ -262,6 +266,7 @@ func ExportAIAgentActivityReport(r *RepositoryRiskReport) string {
 		pkg, eco, reason string
 	}
 	var blockedRequests []blockedReq
+	var reviewRequiredRequests []blockedReq
 
 	// Scan audit log entries for ai_agent installs
 	auditEntries, _ := audit.ReadAuditLog("")
@@ -281,6 +286,13 @@ func ExportAIAgentActivityReport(r *RepositoryRiskReport) string {
 						pkg:    p.Name,
 						eco:    entry.Ecosystem,
 						reason: nonEmpty(entry.Reason, "Blocked by agent install policy"),
+					})
+				case "review_required":
+					reviewRequired++
+					reviewRequiredRequests = append(reviewRequiredRequests, blockedReq{
+						pkg:    p.Name,
+						eco:    entry.Ecosystem,
+						reason: nonEmpty(entry.Reason, "Authorized human review required by agent install policy"),
 					})
 				case "warn":
 					warned++
@@ -317,6 +329,7 @@ func ExportAIAgentActivityReport(r *RepositoryRiskReport) string {
 	fmt.Fprintf(&buf, "| AI-Agent Package Validations | %d |\n", validations)
 	fmt.Fprintf(&buf, "| Allowed | %d |\n", allowed)
 	fmt.Fprintf(&buf, "| Warned | %d |\n", warned)
+	fmt.Fprintf(&buf, "| Review Required | %d |\n", reviewRequired)
 	fmt.Fprintf(&buf, "| Blocked | %d |\n", blocked)
 	fmt.Fprintf(&buf, "| AI Package Squatting Candidates | %d |\n\n", squatting)
 
@@ -329,6 +342,15 @@ func ExportAIAgentActivityReport(r *RepositoryRiskReport) string {
 	} else {
 		for _, br := range blockedRequests {
 			fmt.Fprintf(&buf, "| %s | %s | %s |\n", br.pkg, br.eco, br.reason)
+		}
+	}
+
+	if len(reviewRequiredRequests) > 0 {
+		buf.WriteString("\n## Top Review Required Requests\n\n")
+		buf.WriteString("| Package | Ecosystem | Reason |\n")
+		buf.WriteString("|---|---|---|\n")
+		for _, rr := range reviewRequiredRequests {
+			fmt.Fprintf(&buf, "| %s | %s | %s |\n", rr.pkg, rr.eco, rr.reason)
 		}
 	}
 
@@ -357,6 +379,7 @@ func ExportCIGateReport(inputPath string) (string, error) {
 			PackagesScanned int `json:"packages_scanned"`
 			Allow           int `json:"allow"`
 			Warn            int `json:"warn"`
+			ReviewRequired  int `json:"review_required"`
 			Block           int `json:"block"`
 		} `json:"summary"`
 		Findings []struct {
@@ -388,6 +411,8 @@ func ExportCIGateReport(inputPath string) (string, error) {
 	buf.WriteString("## CI Result\n\n")
 	if strings.EqualFold(result.Decision, "block") {
 		buf.WriteString("The dependency gate failed because one blocked package was detected.\n\n")
+	} else if strings.EqualFold(result.Decision, "review_required") {
+		buf.WriteString("The dependency gate requires authorized human review before merge.\n\n")
 	} else {
 		buf.WriteString("The dependency gate passed successfully.\n\n")
 	}
@@ -398,7 +423,7 @@ func ExportCIGateReport(inputPath string) (string, error) {
 
 	hasFindings := false
 	for _, f := range result.Findings {
-		if f.Decision == "block" || f.Decision == "warn" {
+		if f.Decision == "block" || f.Decision == "warn" || f.Decision == "review_required" {
 			ruleID := "unknown"
 			desc := "Suspicious behavior detected"
 			if len(f.Reasons) > 0 {
@@ -419,6 +444,8 @@ func ExportCIGateReport(inputPath string) (string, error) {
 	buf.WriteString("## Required Action\n\n")
 	if strings.EqualFold(result.Decision, "block") {
 		buf.WriteString("Remove blocked package before merging.\n")
+	} else if strings.EqualFold(result.Decision, "review_required") {
+		buf.WriteString("Request authorized human review before merging.\n")
 	} else {
 		buf.WriteString("No action required. Safe to merge.\n")
 	}

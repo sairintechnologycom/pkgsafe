@@ -25,15 +25,16 @@ type CheckPackageParams struct {
 
 // AgentMCPResult defines the standard agent-facing response structure.
 type AgentMCPResult struct {
-	Decision           string   `json:"decision"`
-	RiskScore          int      `json:"risk_score"`
-	Confidence         string   `json:"confidence"`
-	TopReasons         []string `json:"top_reasons"`
-	PolicyResult       string   `json:"policy_result"`
-	EvidenceID         string   `json:"evidence_id"`
-	AgentInstruction   string   `json:"agent_instruction"`
-	AllowedNextActions []string `json:"allowed_next_actions"`
-	ProhibitedActions  []string `json:"prohibited_actions"`
+	Decision           string               `json:"decision"`
+	RiskScore          int                  `json:"risk_score"`
+	Confidence         string               `json:"confidence"`
+	TopReasons         []string             `json:"top_reasons"`
+	PackageProfile     types.PackageProfile `json:"package_profile"`
+	PolicyResult       string               `json:"policy_result"`
+	EvidenceID         string               `json:"evidence_id"`
+	AgentInstruction   string               `json:"agent_instruction"`
+	AllowedNextActions []string             `json:"allowed_next_actions"`
+	ProhibitedActions  []string             `json:"prohibited_actions"`
 }
 
 // generateEvidenceID returns a collision-resistant evidence ID.
@@ -145,6 +146,7 @@ func (e *Executor) CheckPackage(args json.RawMessage) CallToolResult {
 		RiskScore:          res.Score,
 		Confidence:         "high",
 		TopReasons:         reasons,
+		PackageProfile:     res.Profile,
 		PolicyResult:       fmt.Sprintf("mode: %s, scan_decision: %s", pol.Mode, res.Decision),
 		EvidenceID:         evidenceID,
 		AgentInstruction:   guidance.Instruction,
@@ -196,6 +198,8 @@ func decisionString(d types.Decision) string {
 		return "BLOCK"
 	case types.DecisionWarn:
 		return "WARN"
+	case types.DecisionReviewRequired:
+		return "REVIEW_REQUIRED"
 	case types.DecisionAllow:
 		return "ALLOW"
 	default:

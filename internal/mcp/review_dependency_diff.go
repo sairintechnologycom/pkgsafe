@@ -26,18 +26,19 @@ type ReviewDependencyDiffParams struct {
 
 // ReviewDependencyDiffResult defines the detailed output.
 type ReviewDependencyDiffResult struct {
-	Decision            string   `json:"decision"`
-	RiskScore           int      `json:"risk_score"`
-	Confidence          string   `json:"confidence"`
-	TopReasons          []string `json:"top_reasons"`
-	PolicyResult        string   `json:"policy_result"`
-	EvidenceID          string   `json:"evidence_id"`
-	AgentInstruction    string   `json:"agent_instruction"`
-	AllowedNextActions  []string `json:"allowed_next_actions"`
-	ProhibitedActions   []string `json:"prohibited_actions"`
-	NewDependencies     int      `json:"new_dependencies"`
-	BlockedDependencies int      `json:"blocked_dependencies"`
-	WarnDependencies    int      `json:"warn_dependencies"`
+	Decision            string               `json:"decision"`
+	RiskScore           int                  `json:"risk_score"`
+	Confidence          string               `json:"confidence"`
+	TopReasons          []string             `json:"top_reasons"`
+	PackageProfile      types.PackageProfile `json:"package_profile"`
+	PolicyResult        string               `json:"policy_result"`
+	EvidenceID          string               `json:"evidence_id"`
+	AgentInstruction    string               `json:"agent_instruction"`
+	AllowedNextActions  []string             `json:"allowed_next_actions"`
+	ProhibitedActions   []string             `json:"prohibited_actions"`
+	NewDependencies     int                  `json:"new_dependencies"`
+	BlockedDependencies int                  `json:"blocked_dependencies"`
+	WarnDependencies    int                  `json:"warn_dependencies"`
 }
 
 // ReviewDependencyDiff reviews dependency changes created by AI agents in branches or PRs.
@@ -231,6 +232,7 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 		RiskScore:           maxScore,
 		Confidence:          "high",
 		TopReasons:          topReasons,
+		PackageProfile:      types.PackageProfile{},
 		PolicyResult:        fmt.Sprintf("mode: %s", pol.Mode),
 		EvidenceID:          evidenceID,
 		AgentInstruction:    instruction,
@@ -239,6 +241,29 @@ func (e *Executor) ReviewDependencyDiff(args json.RawMessage) CallToolResult {
 		NewDependencies:     newDepsCount,
 		BlockedDependencies: blockedCount,
 		WarnDependencies:    warnCount,
+	}
+
+	if len(packagesToCheck) > 0 {
+		toolRes.PackageProfile = types.PackageProfile{
+			SchemaVersion: "1.0",
+			Package: types.PackageProfileIdentity{
+				Ecosystem:        packagesToCheck[0].ecosystem,
+				Name:             packagesToCheck[0].name,
+				RequestedVersion: packagesToCheck[0].version,
+				ResolvedVersion:  packagesToCheck[0].version,
+			},
+			Decision:   types.Decision(guidance.Decision),
+			RiskScore:  maxScore,
+			Confidence: "high",
+			TopReasons: append([]string{}, topReasons...),
+			Policy: types.PackageProfilePolicy{
+				Mode:              string(pol.Mode),
+				Thresholds:        pol.Thresholds,
+				Enforcement:       instruction,
+				RecommendedAction: instruction,
+			},
+			EvidenceID: evidenceID,
+		}
 	}
 
 	b, _ := json.MarshalIndent(toolRes, "", "  ")

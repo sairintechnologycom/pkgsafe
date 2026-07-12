@@ -24,7 +24,7 @@ Use these labels or issue title prefixes when reporting:
 | `scanner_crash` | Panic, non-deterministic failure, malformed output, or unexpected command exit. |
 | `performance_issue` | Slow scan, timeout, excessive network use, or large lockfile regression. |
 | `docs_issue` | Incorrect, stale, or unclear documentation. |
-| `ecosystem_preview_gap` | Go or Cargo behavior that is missing compared with npm/PyPI GA coverage. |
+| `ecosystem_preview_gap` | Go or Cargo behavior that is missing compared with npm/PyPI public-beta coverage. |
 | `private_registry_issue` | Private registry routing, redaction, fallback, or authentication problems. |
 | `osv_update_issue` | OSV reachability, cache, `update-db`, or advisory database problems. |
 | `github_action_issue` | GitHub Action configuration, SARIF upload, summary, or fail-on behavior problems. |

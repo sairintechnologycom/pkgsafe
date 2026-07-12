@@ -55,6 +55,7 @@ type ValidatePackageInstallResult struct {
 	RecommendedAction string                     `json:"recommended_action"`
 	AgentInstruction  AgentInstruction           `json:"agent_instruction"`
 	BehaviorAnalysis  *MCPBehaviorAnalysisResult `json:"behavior_analysis,omitempty"`
+	PackageProfile    types.PackageProfile       `json:"package_profile"`
 	Policy            *types.PolicyEvidence      `json:"policy,omitempty"`
 	Registry          *types.RegistryEvidence    `json:"registry,omitempty"`
 	Trust             *types.TrustEvidence       `json:"trust,omitempty"`
@@ -243,6 +244,7 @@ func (e *Executor) ValidatePackageInstall(args json.RawMessage) CallToolResult {
 		RecommendedAction: recAction,
 		AgentInstruction:  instruction,
 		BehaviorAnalysis:  mcpBehavior,
+		PackageProfile:    res.Profile,
 		Policy:            res.PolicyInfo,
 		Registry:          res.RegistryInfo,
 		Trust:             res.TrustInfo,

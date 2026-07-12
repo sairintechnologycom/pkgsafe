@@ -198,6 +198,8 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		switch res.Decision {
 		case types.DecisionBlock:
 			summary.Block++
+		case types.DecisionReviewRequired:
+			summary.ReviewRequired++
 		case types.DecisionWarn:
 			summary.Warn++
 		case types.DecisionUnknown:
@@ -239,17 +241,6 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 			})
 		}
 
-		var fPolicy *types.PolicyEvidence
-		var fRegistry *types.RegistryEvidence
-		var fTrust *types.TrustEvidence
-		var fException *types.ExceptionEvidence
-		if opts.EnterpriseMode {
-			fPolicy = res.PolicyInfo
-			fRegistry = res.RegistryInfo
-			fTrust = res.TrustInfo
-			fException = res.ExceptionInfo
-		}
-
 		findings = append(findings, Finding{
 			Ecosystem:       "npm",
 			Package:         dep.Name,
@@ -265,11 +256,12 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 				Available:             res.Sandbox.Available,
 				CriticalFindingsCount: critSandboxFindings,
 			},
+			PackageProfile:    res.Profile,
 			RecommendedAction: recommendedActionForFinding(res),
-			Policy:            fPolicy,
-			Registry:          fRegistry,
-			Trust:             fTrust,
-			Exception:         fException,
+			Policy:            res.PolicyInfo,
+			Registry:          res.RegistryInfo,
+			Trust:             res.TrustInfo,
+			Exception:         res.ExceptionInfo,
 		})
 	}
 
@@ -277,6 +269,8 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 	overallDecision := "allow"
 	if summary.Block > 0 {
 		overallDecision = "block"
+	} else if summary.ReviewRequired > 0 {
+		overallDecision = "review_required"
 	} else if summary.Warn > 0 {
 		overallDecision = "warn"
 	}
@@ -301,18 +295,14 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		}
 	}
 
-	var policyPack, policyPackVersion string
+	policyPack, policyPackVersion := pol.PolicyPackName, pol.PolicyPackVersion
 	var exceptionsUsed []string
-	if opts.EnterpriseMode {
-		policyPack = pol.PolicyPackName
-		policyPackVersion = pol.PolicyPackVersion
-		for _, f := range findings {
-			if f.Exception != nil && f.Exception.Matched {
-				exceptionsUsed = append(exceptionsUsed, f.Exception.RuleID)
-			}
+	for _, f := range findings {
+		if f.Exception != nil && f.Exception.Matched {
+			exceptionsUsed = append(exceptionsUsed, f.Exception.RuleID)
 		}
-		exceptionsUsed = uniqueStrings(exceptionsUsed)
 	}
+	exceptionsUsed = uniqueStrings(exceptionsUsed)
 	enrichVulnerabilitySummary(&summary, findings)
 
 	return &ScanResult{
@@ -427,6 +417,8 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 		switch res.Decision {
 		case types.DecisionBlock:
 			summary.Block++
+		case types.DecisionReviewRequired:
+			summary.ReviewRequired++
 		case types.DecisionWarn:
 			summary.Warn++
 		case types.DecisionUnknown:
@@ -434,17 +426,6 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 		default:
 			summary.Allow++
 		}
-		var fPolicy *types.PolicyEvidence
-		var fRegistry *types.RegistryEvidence
-		var fTrust *types.TrustEvidence
-		var fException *types.ExceptionEvidence
-		if opts.EnterpriseMode {
-			fPolicy = res.PolicyInfo
-			fRegistry = res.RegistryInfo
-			fTrust = res.TrustInfo
-			fException = res.ExceptionInfo
-		}
-
 		findings = append(findings, Finding{
 			Ecosystem:         "pypi",
 			Package:           res.Package.Name,
@@ -456,31 +437,30 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 			Reasons:           res.Reasons,
 			Vulnerabilities:   res.Vulnerabilities,
 			BehaviorAnalysis:  BehaviorAnalysisSummary{Enabled: res.Sandbox.Enabled, Available: res.Sandbox.Available},
+			PackageProfile:    res.Profile,
 			RecommendedAction: recommendedActionForFinding(res),
-			Policy:            fPolicy,
-			Registry:          fRegistry,
-			Trust:             fTrust,
-			Exception:         fException,
+			Policy:            res.PolicyInfo,
+			Registry:          res.RegistryInfo,
+			Trust:             res.TrustInfo,
+			Exception:         res.ExceptionInfo,
 		})
 	}
 	overallDecision := "allow"
 	if summary.Block > 0 {
 		overallDecision = "block"
+	} else if summary.ReviewRequired > 0 {
+		overallDecision = "review_required"
 	} else if summary.Warn > 0 {
 		overallDecision = "warn"
 	}
-	var policyPack, policyPackVersion string
+	policyPack, policyPackVersion := pol.PolicyPackName, pol.PolicyPackVersion
 	var exceptionsUsed []string
-	if opts.EnterpriseMode {
-		policyPack = pol.PolicyPackName
-		policyPackVersion = pol.PolicyPackVersion
-		for _, f := range findings {
-			if f.Exception != nil && f.Exception.Matched {
-				exceptionsUsed = append(exceptionsUsed, f.Exception.RuleID)
-			}
+	for _, f := range findings {
+		if f.Exception != nil && f.Exception.Matched {
+			exceptionsUsed = append(exceptionsUsed, f.Exception.RuleID)
 		}
-		exceptionsUsed = uniqueStrings(exceptionsUsed)
 	}
+	exceptionsUsed = uniqueStrings(exceptionsUsed)
 	enrichVulnerabilitySummary(&summary, findings)
 
 	return &ScanResult{

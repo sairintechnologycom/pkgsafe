@@ -21,7 +21,7 @@ import (
 
 func cmdReport(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: pkgsafe report [generate|evidence-pack|beta-evidence|ga-evidence|ci]")
+		return fmt.Errorf("usage: pkgsafe report [generate|evidence-pack|verify-evidence-pack|beta-evidence|ga-evidence|ci]")
 	}
 
 	switch args[0] {
@@ -29,33 +29,17 @@ func cmdReport(args []string) error {
 		return cmdReportGenerate(args[1:])
 	case "evidence-pack":
 		return cmdReportEvidencePack(args[1:])
+	case "verify-evidence-pack":
+		return cmdReportVerifyEvidencePack(args[1:])
 	case "beta-evidence":
 		return cmdReportBetaEvidence(args[1:])
 	case "ga-evidence":
 		return cmdReportEvidence(args[1:], "ga")
-	case "team-evidence":
-		return enterpriseOr("report team-evidence", args[1:])
-	case "exceptions":
-		return enterpriseOr("report exceptions", args[1:])
-	case "overrides":
-		return enterpriseOr("report overrides", args[1:])
-	case "policy":
-		return enterpriseOr("report policy", args[1:])
 	case "ci":
 		return cmdReportCI(args[1:])
-	case "siem-export":
-		return enterpriseOr("report siem-export", args[1:])
-	case "servicenow-export":
-		return enterpriseOr("report servicenow-export", args[1:])
-	case "azure-devops-export":
-		return enterpriseOr("report azure-devops-export", args[1:])
 	default:
 		return fmt.Errorf("unknown report subcommand %q", args[0])
 	}
-}
-
-func privateEnterpriseCommand(name string) error {
-	return fmt.Errorf("%s is private-enterprise functionality; use pkgsafe-enterprise", name)
 }
 
 type betaEvidenceReport struct {
@@ -463,12 +447,7 @@ func cmdReportGenerate(args []string) error {
 	fmt.Printf("Report Type: repository-risk-report\n")
 	fmt.Printf("Repository: %s\n", r.Repository.Name)
 	fmt.Printf("Policy Pack: %s@%s\n", r.Policy.PackName, r.Policy.PackVersion)
-	overall := "ALLOW"
-	if r.Summary.Blocked > 0 {
-		overall = "BLOCK"
-	} else if r.Summary.Warnings > 0 {
-		overall = "WARN"
-	}
+	overall := reportOverallDecision(r)
 	fmt.Printf("Overall Decision: %s\n", overall)
 	fmt.Println()
 	fmt.Println("Files:")
@@ -480,11 +459,24 @@ func cmdReportGenerate(args []string) error {
 	fmt.Printf("- Packages scanned: %d\n", r.Summary.PackagesScanned)
 	fmt.Printf("- Allowed: %d\n", r.Summary.Allowed)
 	fmt.Printf("- Warned: %d\n", r.Summary.Warnings)
+	fmt.Printf("- Review required: %d\n", r.Summary.ReviewRequired)
 	fmt.Printf("- Blocked: %d\n", r.Summary.Blocked)
 	fmt.Printf("- Exceptions used: %d\n", r.Summary.ActiveExceptions)
 	fmt.Printf("- Overrides used: %d\n", r.Summary.DeveloperOverrides)
 
 	return nil
+}
+
+func reportOverallDecision(r *report.RepositoryRiskReport) string {
+	overall := "ALLOW"
+	if r.Summary.Blocked > 0 {
+		overall = "BLOCK"
+	} else if r.Summary.ReviewRequired > 0 {
+		overall = "REVIEW_REQUIRED"
+	} else if r.Summary.Warnings > 0 {
+		overall = "WARN"
+	}
+	return overall
 }
 
 func cmdReportEvidencePack(args []string) error {
@@ -506,6 +498,58 @@ func cmdReportEvidencePack(args []string) error {
 	}
 
 	return report.CreateEvidencePack(*output, r, pol)
+}
+
+func cmdReportVerifyEvidencePack(args []string) error {
+	fs := flag.NewFlagSet("verify-evidence-pack", flag.ContinueOnError)
+	input := fs.String("input", "", "evidence pack zip path")
+	asJSON := fs.Bool("json", false, "write JSON output")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *input == "" {
+		if fs.NArg() != 1 {
+			return fmt.Errorf("usage: pkgsafe report verify-evidence-pack [--json] <path>")
+		}
+		*input = fs.Arg(0)
+	}
+
+	res, err := report.VerifyEvidencePack(*input)
+	if err != nil {
+		if *asJSON {
+			payload := map[string]any{
+				"ok":    false,
+				"error": err.Error(),
+			}
+			b, marshalErr := json.MarshalIndent(payload, "", "  ")
+			if marshalErr != nil {
+				return marshalErr
+			}
+			fmt.Println(string(b))
+			return nil
+		}
+		return err
+	}
+
+	if *asJSON {
+		b, err := json.MarshalIndent(res, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(b))
+		return nil
+	}
+
+	fmt.Println("PkgSafe Evidence Pack Verification")
+	fmt.Println()
+	fmt.Printf("Checksum OK: %t\n", res.ChecksumOK)
+	fmt.Printf("Signature present: %t\n", res.SignaturePresent)
+	fmt.Printf("Signature checked: %t\n", res.SignatureChecked)
+	fmt.Printf("Signature verified: %t\n", res.SignatureVerified)
+	fmt.Printf("Manifest repository: %s\n", res.Manifest.Repository)
+	fmt.Printf("Manifest policy pack: %s\n", res.Manifest.PolicyPack)
+	fmt.Printf("Files: %d\n", len(res.Manifest.Files))
+	return nil
 }
 
 func cmdReportCI(args []string) error {

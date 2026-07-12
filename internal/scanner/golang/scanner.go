@@ -133,7 +133,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 
 		res := risk.Evaluate(pkg, findings, nil, nil, nil, pol)
 		res.Vulnerabilities = affectedVulns
-		return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+		return risk.ApplyPolicyControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 	}
 
 	// 3. Online scanning
@@ -278,7 +278,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	res := risk.Evaluate(pkg, findings, nil, suspicious, nil, pol)
 	res.Vulnerabilities = affectedVulns
 
-	return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+	return risk.ApplyPolicyControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 }
 
 func escapeModulePath(path string) string {

@@ -95,6 +95,7 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 	var packages []ValidateInstallCommandPackage
 	hasBlock := false
 	hasWarn := false
+	hasReviewRequired := false
 	ecosystem := "npm"
 
 	for _, pp := range parsedPkgs {
@@ -124,6 +125,8 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 			hasBlock = true
 		} else if res.Decision == types.DecisionWarn {
 			hasWarn = true
+		} else if res.Decision == types.DecisionReviewRequired {
+			hasReviewRequired = true
 		}
 
 		packages = append(packages, ValidateInstallCommandPackage{
@@ -134,39 +137,11 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 		})
 	}
 
-	overallDecision := "allow"
-	if hasBlock {
-		overallDecision = "block"
-	} else if hasWarn {
-		overallDecision = "warn"
-	}
-
-	installAllowed := true
-	if overallDecision == "block" {
-		installAllowed = false
-	} else if overallDecision == "warn" {
-		if pol.Mode == policy.ModeAudit {
-			installAllowed = true
-		} else if pol.Mode == policy.ModeBlock {
-			installAllowed = false
-		} else { // ModeWarn
-			// Default to AI agent settings for validation command
-			if p.RequestedBy == "ai_agent" {
-				installAllowed = pol.MCP.AIAgentDefaultInstallAllowedOnWarn
-			} else {
-				installAllowed = pol.MCP.HumanDefaultInstallAllowedOnWarn
-			}
-		}
-	}
-
-	recommendedAction := "Install may proceed."
-	if overallDecision == "block" {
-		recommendedAction = "Install is blocked due to critical risk findings."
-	} else if overallDecision == "warn" {
-		recommendedAction = "Review warnings and risks before proceeding."
-	}
-	decision := types.Decision(overallDecision)
+	decision := resolveValidateInstallDecision(hasBlock, hasWarn, hasReviewRequired)
+	installAllowed := validateInstallAllowed(decision, pol.Mode, p.RequestedBy, pol.MCP)
+	recommendedAction := validateInstallRecommendedAction(decision)
 	instruction := agentInstruction(decision, installAllowed, p.RequestedBy, pol.Mode)
+	overallDecision := string(decision)
 
 	toolRes := ValidateInstallCommandResult{
 		Command:           p.Command,
@@ -204,5 +179,51 @@ func (e *Executor) ValidateInstallCommand(args json.RawMessage) CallToolResult {
 			Text: string(bResult),
 		}},
 		IsError: false,
+	}
+}
+
+func resolveValidateInstallDecision(hasBlock, hasWarn, hasReviewRequired bool) types.Decision {
+	switch {
+	case hasBlock:
+		return types.DecisionBlock
+	case hasReviewRequired:
+		return types.DecisionReviewRequired
+	case hasWarn:
+		return types.DecisionWarn
+	default:
+		return types.DecisionAllow
+	}
+}
+
+func validateInstallAllowed(decision types.Decision, mode policy.Mode, requestedBy string, mcp policy.MCPSettings) bool {
+	switch decision {
+	case types.DecisionBlock, types.DecisionReviewRequired:
+		return false
+	case types.DecisionWarn:
+		if mode == policy.ModeAudit {
+			return true
+		}
+		if mode == policy.ModeBlock {
+			return false
+		}
+		if requestedBy == "ai_agent" {
+			return mcp.AIAgentDefaultInstallAllowedOnWarn
+		}
+		return mcp.HumanDefaultInstallAllowedOnWarn
+	default:
+		return true
+	}
+}
+
+func validateInstallRecommendedAction(decision types.Decision) string {
+	switch decision {
+	case types.DecisionBlock:
+		return "Install is blocked due to critical risk findings."
+	case types.DecisionWarn:
+		return "Review warnings and risks before proceeding."
+	case types.DecisionReviewRequired:
+		return "Request authorized human review before installing."
+	default:
+		return "Install may proceed."
 	}
 }

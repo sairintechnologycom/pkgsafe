@@ -24,33 +24,33 @@ import (
 	"github.com/mattn/go-isatty"
 	anpm "github.com/sairintechnologycom/pkgsafe/internal/analyzer/npm"
 	"github.com/sairintechnologycom/pkgsafe/internal/api"
+	"github.com/sairintechnologycom/pkgsafe/internal/audit"
 	"github.com/sairintechnologycom/pkgsafe/internal/cache"
 	"github.com/sairintechnologycom/pkgsafe/internal/ci"
 	"github.com/sairintechnologycom/pkgsafe/internal/cli"
 	"github.com/sairintechnologycom/pkgsafe/internal/db"
 	"github.com/sairintechnologycom/pkgsafe/internal/dbbundle"
 	cargodeps "github.com/sairintechnologycom/pkgsafe/internal/deps/cargo"
-	"github.com/sairintechnologycom/pkgsafe/internal/intel"
 	godeps "github.com/sairintechnologycom/pkgsafe/internal/deps/golang"
 	npminventory "github.com/sairintechnologycom/pkgsafe/internal/deps/npm"
 	pydeps "github.com/sairintechnologycom/pkgsafe/internal/deps/python"
+	"github.com/sairintechnologycom/pkgsafe/internal/intel"
 	"github.com/sairintechnologycom/pkgsafe/internal/intercept"
 	"github.com/sairintechnologycom/pkgsafe/internal/mcp"
 	"github.com/sairintechnologycom/pkgsafe/internal/output"
 	"github.com/sairintechnologycom/pkgsafe/internal/policy"
+	"github.com/sairintechnologycom/pkgsafe/internal/registry"
+	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
+	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
+	"github.com/sairintechnologycom/pkgsafe/internal/risk"
 	scargo "github.com/sairintechnologycom/pkgsafe/internal/scanner/cargo"
 	sgolang "github.com/sairintechnologycom/pkgsafe/internal/scanner/golang"
 	snpm "github.com/sairintechnologycom/pkgsafe/internal/scanner/npm"
 	spypi "github.com/sairintechnologycom/pkgsafe/internal/scanner/pypi"
-	"github.com/sairintechnologycom/pkgsafe/internal/registry"
-	rnpm "github.com/sairintechnologycom/pkgsafe/internal/registry/npm"
-	rpypi "github.com/sairintechnologycom/pkgsafe/internal/registry/pypi"
-	"github.com/sairintechnologycom/pkgsafe/internal/audit"
 	"github.com/sairintechnologycom/pkgsafe/internal/types"
 	"github.com/sairintechnologycom/pkgsafe/internal/typosquat"
 	"github.com/sairintechnologycom/pkgsafe/internal/validation"
 	versionpkg "github.com/sairintechnologycom/pkgsafe/internal/version"
-	"github.com/sairintechnologycom/pkgsafe/pkg/license"
 )
 
 // version/commit mirror the build-injected values in internal/version so the
@@ -81,21 +81,8 @@ func (e exitError) Error() string {
 // zero value is the public OSS behavior; the public pkgsafe binary always
 // uses the zero value.
 type RunConfig struct {
-	// CIEnterpriseMode enables enterprise evidence enrichment in `ci scan`
-	// output: per-finding policy/registry/trust/exception evidence plus
-	// policy pack metadata and exceptions-used tracking. Reserved for the
-	// private enterprise distribution.
-	CIEnterpriseMode bool
-
-	// Entitlement carries the resolved enterprise license, or nil. The public
-	// pkgsafe binary always leaves it nil, which — because (*license.Entitlement)
-	// methods are nil-safe and fail open — grants no premium features and
-	// preserves exact OSS behavior. The private enterprise binary resolves a
-	// license at startup (via license.Resolver) and populates this so feature
-	// gates can call cfg.Entitlement.Allows(<feature>). A nil, expired, or
-	// unverifiable entitlement must only withhold premium features; it must
-	// never disable scanning.
-	Entitlement *license.Entitlement
+	// Reserved for implementation-free downstream configuration. Commercial
+	// entitlement and feature-gating logic must not live in the OSS module.
 }
 
 // Execute runs the pkgsafe CLI with the given arguments (excluding the
@@ -133,6 +120,9 @@ func RunWith(cfg RunConfig, args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "help", "--help", "-h":
+		usage()
+		return nil
 	case "version", "--version", "-v":
 		fmt.Printf("pkgsafe %s (%s)\n", version, commit)
 		return nil
@@ -1056,6 +1046,9 @@ func cmdNPMInstall(args []string) error {
 	if res.Decision == types.DecisionBlock {
 		return fmt.Errorf("install blocked by policy: decision=%s score=%d", res.Decision, res.Score)
 	}
+	if res.Decision == types.DecisionReviewRequired {
+		return fmt.Errorf("install requires authorized human review: decision=%s score=%d", res.Decision, res.Score)
+	}
 	if m == policy.ModeWarn && res.Decision == types.DecisionWarn {
 		fmt.Println("Warning mode: package is suspicious. Re-run with --mode audit to inspect only or --mode block to enforce.")
 	}
@@ -1103,10 +1096,7 @@ func scanRemoteNPM(name, version string, pol policy.Policy) (types.ScanResult, e
 
 func loadPolicy(path, mode, policyPack, registryConfig string) (policy.Policy, error) {
 	if strings.TrimSpace(policyPack) != "" {
-		if LoadSignedPolicyFunc != nil {
-			return LoadSignedPolicyFunc(policyPack, path, mode, registryConfig)
-		}
-		return policy.Policy{}, fmt.Errorf("signed policy archives are private-enterprise functionality; use pkgsafe-enterprise")
+		return policy.Policy{}, fmt.Errorf("--policy-pack is not supported by this build")
 	}
 	pol, err := policy.ResolvePolicy(policyPack, "", path, mode, registryConfig)
 	if err != nil {
@@ -1555,7 +1545,6 @@ func cmdCIScan(cfg RunConfig, args []string) error {
 		Timeout:              *timeout,
 		PolicyPack:           "",
 		RegistryConfigPath:   *registryConfig,
-		EnterpriseMode:       cfg.CIEnterpriseMode,
 	}
 
 	res, err := ciRunScanFunc(opts)
@@ -1925,16 +1914,13 @@ func cmdHistory(args []string) error {
 		return nil
 	}
 
-	var bold, green, red, yellow, reset string
+	var bold, reset string
 	color := false
 	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
 		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	}
 	if color {
 		bold = "\033[1m"
-		green = "\033[32m"
-		red = "\033[31m"
-		yellow = "\033[33m"
 		reset = "\033[0m"
 	}
 
@@ -1945,21 +1931,10 @@ func cmdHistory(args []string) error {
 	for _, entry := range filtered {
 		aggDecision := "ALLOW"
 		for _, p := range entry.Packages {
-			if strings.EqualFold(p.Decision, "block") {
-				aggDecision = "BLOCK"
-				break
-			}
-			if strings.EqualFold(p.Decision, "warn") {
-				aggDecision = "WARN"
-			}
+			aggDecision = aggregateSummaryDecision(aggDecision, p.Decision)
 		}
 
-		decColor := green
-		if aggDecision == "BLOCK" {
-			decColor = red
-		} else if aggDecision == "WARN" {
-			decColor = yellow
-		}
+		decColor := summaryDecisionColor(aggDecision)
 
 		cmd := entry.Command
 		if len(cmd) > 32 {
@@ -1987,10 +1962,10 @@ func cmdHistory(args []string) error {
 			tStr = strings.Replace(tStr[:19], "T", " ", 1)
 		}
 
-		fmt.Printf("  %-20s %-32s %s%-8s%s %-16s\n", 
-			tStr, 
-			cmd, 
-			decColor, aggDecision, reset, 
+		fmt.Printf("  %-20s %-32s %s%-8s%s %-16s\n",
+			tStr,
+			cmd,
+			decColor, aggDecision, reset,
 			pkgStr,
 		)
 	}
@@ -2104,7 +2079,7 @@ func cmdScan(args []string) error {
 			res = stripEnterprise(res, false)
 			logLockfileToAudit(pol, lockfilePath, res)
 			jsonResults = append(jsonResults, res)
-			
+
 			findings := "clean"
 			if len(res.Reasons) > 0 {
 				var fList []string
@@ -2136,7 +2111,7 @@ func cmdScan(args []string) error {
 				_ = saveResult(res)
 				logExplainToAudit(pol, "scan-local-npm", "npm", res)
 				jsonResults = append(jsonResults, res)
-				
+
 				findings := "clean"
 				if len(res.Reasons) > 0 {
 					var fList []string
@@ -2224,12 +2199,12 @@ func cmdScan(args []string) error {
 				scanner := scargo.New()
 				scanner.Policy = pol
 				scanner.Offline = *offline
-				
+
 				var subResults []types.ScanResult
 				worstScore := 0
 				aggDecision := "ALLOW"
 				var fList []string
-				
+
 				for _, dep := range deps {
 					res, err := scanner.ScanPackage(dep.Name, dep.Version)
 					if err == nil {
@@ -2239,11 +2214,7 @@ func cmdScan(args []string) error {
 						if res.Score > worstScore {
 							worstScore = res.Score
 						}
-						if res.Decision == types.DecisionBlock {
-							aggDecision = "BLOCK"
-						} else if res.Decision == types.DecisionWarn && aggDecision != "BLOCK" {
-							aggDecision = "WARN"
-						}
+						aggDecision = aggregateSummaryDecision(aggDecision, string(res.Decision))
 						for _, r := range res.Reasons {
 							fList = append(fList, r.ID)
 						}
@@ -2254,7 +2225,7 @@ func cmdScan(args []string) error {
 					"file":    "Cargo.lock",
 					"results": subResults,
 				})
-				
+
 				findings := "clean"
 				if len(fList) > 0 {
 					findings = strings.Join(unique(fList), ", ")
@@ -2280,12 +2251,12 @@ func cmdScan(args []string) error {
 				scanner := sgolang.New()
 				scanner.Policy = pol
 				scanner.Offline = *offline
-				
+
 				var subResults []types.ScanResult
 				worstScore := 0
 				aggDecision := "ALLOW"
 				var fList []string
-				
+
 				for _, dep := range deps {
 					res, err := scanner.ScanPackage(dep.Name, dep.Version)
 					if err == nil {
@@ -2295,11 +2266,7 @@ func cmdScan(args []string) error {
 						if res.Score > worstScore {
 							worstScore = res.Score
 						}
-						if res.Decision == types.DecisionBlock {
-							aggDecision = "BLOCK"
-						} else if res.Decision == types.DecisionWarn && aggDecision != "BLOCK" {
-							aggDecision = "WARN"
-						}
+						aggDecision = aggregateSummaryDecision(aggDecision, string(res.Decision))
 						for _, r := range res.Reasons {
 							fList = append(fList, r.ID)
 						}
@@ -2310,7 +2277,7 @@ func cmdScan(args []string) error {
 					"file":    "go.mod",
 					"results": subResults,
 				})
-				
+
 				findings := "clean"
 				if len(fList) > 0 {
 					findings = strings.Join(unique(fList), ", ")
@@ -2334,12 +2301,12 @@ func cmdScan(args []string) error {
 			scanner := spypi.New()
 			scanner.Policy = pol
 			scanner.Offline = *offline
-			
+
 			var subResults []types.ScanResult
 			worstScore := 0
 			aggDecision := "ALLOW"
 			var fList []string
-			
+
 			for _, dep := range deps {
 				res, err := scanner.ScanPackage(dep.Name, dep.Version)
 				if err == nil {
@@ -2349,11 +2316,7 @@ func cmdScan(args []string) error {
 					if res.Score > worstScore {
 						worstScore = res.Score
 					}
-					if res.Decision == types.DecisionBlock {
-						aggDecision = "BLOCK"
-					} else if res.Decision == types.DecisionWarn && aggDecision != "BLOCK" {
-						aggDecision = "WARN"
-					}
+					aggDecision = aggregateSummaryDecision(aggDecision, string(res.Decision))
 					for _, r := range res.Reasons {
 						fList = append(fList, r.ID)
 					}
@@ -2364,7 +2327,7 @@ func cmdScan(args []string) error {
 				"file":    "requirements.txt",
 				"results": subResults,
 			})
-			
+
 			findings := "clean"
 			if len(fList) > 0 {
 				findings = strings.Join(unique(fList), ", ")
@@ -2385,16 +2348,13 @@ func cmdScan(args []string) error {
 		return enc.Encode(jsonResults)
 	}
 
-	var bold, green, red, yellow, reset string
+	var bold, reset string
 	color := false
 	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
 		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	}
 	if color {
 		bold = "\033[1m"
-		green = "\033[32m"
-		red = "\033[31m"
-		yellow = "\033[33m"
 		reset = "\033[0m"
 	}
 
@@ -2413,22 +2373,17 @@ func cmdScan(args []string) error {
 	fmt.Println(strings.Repeat("-", 76))
 
 	for _, r := range results {
-		decColor := green
-		if strings.EqualFold(r.decision, "BLOCK") {
-			decColor = red
-		} else if strings.EqualFold(r.decision, "WARN") {
-			decColor = yellow
-		}
-		
+		decColor := summaryDecisionColor(r.decision)
+
 		findingsStr := r.findings
 		if len(findingsStr) > 24 {
 			findingsStr = findingsStr[:21] + "..."
 		}
 
-		fmt.Printf("  %-20s %s%-8s%s %-12d %-24s\n", 
-			r.file, 
-			decColor, r.decision, reset, 
-			r.score, 
+		fmt.Printf("  %-20s %s%-8s%s %-12d %-24s\n",
+			r.file,
+			decColor, r.decision, reset,
+			r.score,
 			findingsStr,
 		)
 	}
@@ -2436,7 +2391,7 @@ func cmdScan(args []string) error {
 
 	hasBlock := false
 	for _, r := range results {
-		if strings.EqualFold(r.decision, "BLOCK") {
+		if summaryDecisionIsBlocking(r.decision) {
 			hasBlock = true
 		}
 	}
@@ -2457,6 +2412,42 @@ func unique(in []string) []string {
 		}
 	}
 	return out
+}
+
+func aggregateSummaryDecision(current, decision string) string {
+	switch strings.ToUpper(strings.TrimSpace(decision)) {
+	case "BLOCK":
+		return "BLOCK"
+	case "REVIEW_REQUIRED":
+		if current != "BLOCK" {
+			return "REVIEW_REQUIRED"
+		}
+	case "WARN":
+		if current != "BLOCK" && current != "REVIEW_REQUIRED" {
+			return "WARN"
+		}
+	}
+	return current
+}
+
+func summaryDecisionColor(decision string) string {
+	switch strings.ToUpper(strings.TrimSpace(decision)) {
+	case "BLOCK":
+		return "\033[31m"
+	case "WARN", "REVIEW_REQUIRED":
+		return "\033[33m"
+	default:
+		return "\033[32m"
+	}
+}
+
+func summaryDecisionIsBlocking(decision string) bool {
+	switch strings.ToUpper(strings.TrimSpace(decision)) {
+	case "BLOCK", "REVIEW_REQUIRED":
+		return true
+	default:
+		return false
+	}
 }
 
 func logDependenciesToAudit(pol policy.Policy, cmd, ecosystem string, subResults []types.ScanResult) {
@@ -2687,7 +2678,7 @@ func cmdPolicyEdit(args []string) error {
 			fmt.Println("\n--- Change Threat Score Thresholds ---")
 			fmt.Printf("Current: Allow Max = %d, Warn Max = %d, Block Min = %d\n",
 				pol.Thresholds.AllowMaxScore, pol.Thresholds.WarnMaxScore, pol.Thresholds.BlockMinScore)
-			
+
 			fmt.Print("Enter new Allow Max Score (e.g. 29): ")
 			allowStr, _ := reader.ReadString('\n')
 			allowVal, err1 := strconv.Atoi(strings.TrimSpace(allowStr))
@@ -2907,7 +2898,7 @@ func enrichTreeDecisions(node *depNode, pol policy.Policy, d *db.DB) {
 }
 
 func pruneCleanNodes(node *depNode) bool {
-	isRisky := node.Decision == "block" || node.Decision == "warn"
+	isRisky := node.Decision == "block" || node.Decision == "warn" || node.Decision == "review_required"
 
 	var activeChildren []*depNode
 	for _, child := range node.Children {
@@ -2941,16 +2932,14 @@ func printTree(node *depNode, prefix string, isLast bool, color bool) {
 		reset = "\033[0m"
 	}
 
-	var label, decColor string
-	switch node.Decision {
-	case "block":
-		label = " [✗ BLOCK]"
+	label, colorName := treeDecisionPresentation(node.Decision)
+	var decColor string
+	switch colorName {
+	case "red":
 		decColor = red
-	case "warn":
-		label = " [⚠ WARN]"
+	case "yellow":
 		decColor = yellow
-	case "allow":
-		label = " [✓ ALLOW]"
+	case "green":
 		decColor = green
 	}
 
@@ -2985,9 +2974,24 @@ func printTree(node *depNode, prefix string, isLast bool, color bool) {
 	}
 }
 
+func treeDecisionPresentation(decision string) (label, color string) {
+	switch decision {
+	case "block":
+		return " [✗ BLOCK]", "red"
+	case "review_required":
+		return " [⚠ REVIEW_REQUIRED]", "yellow"
+	case "warn":
+		return " [⚠ WARN]", "yellow"
+	case "allow":
+		return " [✓ ALLOW]", "green"
+	default:
+		return "", ""
+	}
+}
+
 func cmdTree(args []string) error {
 	fs := flag.NewFlagSet("tree", flag.ContinueOnError)
-	onlyRisky := fs.Bool("only-risky", false, "show only paths containing warn or block decisions")
+	onlyRisky := fs.Bool("only-risky", false, "show only paths containing warn, review-required, or block decisions")
 	depth := fs.Int("depth", 99, "max depth to print the dependency tree")
 	asJSON := fs.Bool("json", false, "output raw tree structure as JSON")
 	policyPath := fs.String("policy", "", "policy YAML path")
@@ -3070,7 +3074,7 @@ func cmdTree(args []string) error {
 			Version: pi.ver,
 		}
 		parent.Children = append(parent.Children, node)
-		
+
 		nodeKey := strings.Join(pi.chain, ">")
 		nodes[nodeKey] = node
 	}
@@ -3161,81 +3165,86 @@ func cmdSandboxProfile(args []string) error {
 		}
 	}
 
+	if cached.Profile.SchemaVersion == "" {
+		pol, err := loadPolicy(*policyPath, "", "", *registryConfig)
+		if err != nil {
+			return err
+		}
+		cached.Profile = risk.BuildPackageProfile(cached, pol)
+	}
+
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(cached.Sandbox)
+		return enc.Encode(cached.Profile)
 	}
 
-	var bold, green, red, yellow, reset string
+	var bold, yellow, reset string
 	color := false
 	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
 		color = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 	}
 	if color {
 		bold = "\033[1m"
-		green = "\033[32m"
-		red = "\033[31m"
 		yellow = "\033[33m"
 		reset = "\033[0m"
 	}
 
-	fmt.Printf("%sSandbox Behavioral Profile for %s/%s@%s%s\n", bold, eco, cleanName, cached.Package.Version, reset)
+	profile := cached.Profile
+	fmt.Printf("%sPackage Trust Profile for %s/%s@%s%s\n", bold, profile.Package.Ecosystem, profile.Package.Name, profile.Package.ResolvedVersion, reset)
 	fmt.Println(strings.Repeat("=", 60))
 
-	sb := cached.Sandbox
-	fmt.Printf("Sandbox Enabled:    %t\n", sb.Enabled)
-	fmt.Printf("Backend Available:  %t\n", sb.Available)
-	fmt.Printf("Behavior Mode:      %s\n", sb.BehaviorMode)
-	fmt.Printf("Isolated Execution: %t\n", sb.Isolated)
-	if sb.Runner != "" {
-		fmt.Printf("Runner Name:        %s\n", sb.Runner)
+	fmt.Printf("Schema Version:     %s\n", profile.SchemaVersion)
+	fmt.Printf("Decision:           %s\n", profile.Decision)
+	fmt.Printf("Risk Score:         %d\n", profile.RiskScore)
+	fmt.Printf("Confidence:         %s\n", profile.Confidence)
+	fmt.Printf("Evidence ID:        %s\n", profile.EvidenceID)
+	if profile.Package.Registry != "" {
+		fmt.Printf("Registry:           %s\n", profile.Package.Registry)
 	}
-	if sb.NetworkMode != "" {
-		fmt.Printf("Network Policy:     %s\n", sb.NetworkMode)
+	if profile.Policy.Mode != "" {
+		fmt.Printf("Policy Mode:        %s\n", profile.Policy.Mode)
 	}
-	if sb.Warning != "" {
-		fmt.Printf("%sWarning:            %s%s\n", yellow, sb.Warning, reset)
+	if profile.Policy.Enforcement != "" {
+		fmt.Printf("Policy Enforcement: %s\n", profile.Policy.Enforcement)
 	}
-	if sb.NotPerformed {
-		fmt.Printf("%sExecution Skipped:   %s%s\n", yellow, sb.NotPerfReason, reset)
+	if len(profile.HardBlocks) > 0 {
+		fmt.Printf("Hard Blocks:        %s\n", strings.Join(profile.HardBlocks, ", "))
 	}
 
-	fmt.Println("\nScripts Executed:")
-	if len(sb.ScriptsExecuted) == 0 {
+	fmt.Println("\nTop Reasons:")
+	if len(profile.TopReasons) == 0 {
 		fmt.Println("  (None)")
 	} else {
-		for _, scr := range sb.ScriptsExecuted {
-			status := fmt.Sprintf("%sExit Code %d%s", green, scr.ExitCode, reset)
-			if scr.ExitCode != 0 {
-				status = fmt.Sprintf("%sExit Code %d%s", red, scr.ExitCode, reset)
-			}
-			if scr.TimedOut {
-				status = fmt.Sprintf("%sTimed Out%s", red, reset)
-			}
-			if scr.Error != "" {
-				status = fmt.Sprintf("%sError: %s%s", red, scr.Error, reset)
-			}
+		for _, reason := range profile.TopReasons {
+			fmt.Printf("  • %s\n", reason)
+		}
+	}
 
-			fmt.Printf("  • %s%s%s (%s, Duration: %dms, Isolated: %t)\n",
-				bold, scr.Name, reset,
-				status, scr.DurationMs, scr.Isolated,
-			)
+	if len(profile.Remediation) > 0 {
+		fmt.Println("\nRemediation:")
+		for _, item := range profile.Remediation {
+			fmt.Printf("  • %s\n", item)
+		}
+	}
 
-			if len(scr.Trace) > 0 {
-				fmt.Println("    Trace logs:")
-				for _, line := range scr.Trace {
-					fmt.Printf("      - %s\n", line)
-				}
-			}
-
-			if len(scr.Findings) > 0 {
-				fmt.Println("    Findings:")
-				for _, f := range scr.Findings {
-					fmt.Printf("      - [%s%s%s] %s\n", red, f.RuleID, reset, f.Description)
-				}
-			}
-			fmt.Println()
+	if len(profile.BehaviorSignals) > 0 {
+		sig := profile.BehaviorSignals[0]
+		fmt.Println("\nBehavior Signal:")
+		fmt.Printf("  Mode:             %s\n", sig.Mode)
+		fmt.Printf("  Executed:         %t\n", sig.Executed)
+		fmt.Printf("  Isolated:         %t\n", sig.Isolated)
+		if sig.Runner != "" {
+			fmt.Printf("  Runner:           %s\n", sig.Runner)
+		}
+		if sig.NetworkPolicy != "" {
+			fmt.Printf("  Network Policy:   %s\n", sig.NetworkPolicy)
+		}
+		if sig.Warning != "" {
+			fmt.Printf("%s  Warning:         %s%s\n", yellow, sig.Warning, reset)
+		}
+		if sig.NotPerformed {
+			fmt.Printf("%s  Skipped:         %s%s\n", yellow, sig.Reason, reset)
 		}
 	}
 
@@ -3252,13 +3261,13 @@ type integrityReportItem struct {
 }
 
 type integrityReportSummary struct {
-	File            string                 `json:"file"`
-	TotalPackages   int                    `json:"total_packages"`
-	OKCount         int                    `json:"ok_count"`
-	WeakCount       int                    `json:"weak_count"`
-	MissingCount    int                    `json:"missing_count"`
-	InsecureCount   int                    `json:"insecure_count"`
-	Items           []integrityReportItem  `json:"items"`
+	File          string                `json:"file"`
+	TotalPackages int                   `json:"total_packages"`
+	OKCount       int                   `json:"ok_count"`
+	WeakCount     int                   `json:"weak_count"`
+	MissingCount  int                   `json:"missing_count"`
+	InsecureCount int                   `json:"insecure_count"`
+	Items         []integrityReportItem `json:"items"`
 }
 
 func cmdVerify(args []string) error {

@@ -76,7 +76,7 @@ func TestComputeReadinessStageProductionGA(t *testing.T) {
 		AverageScanDurationMs:       100,
 		P95ScanDurationMs:           200,
 		CriticalDetectionRate:       1,
-		EcosystemDepthStatus:        "npm-ga-other-ecosystems-preview",
+		EcosystemDepthStatus:        "npm-public-beta-go-cargo-preview",
 		IsolatedBackendStatus:       "unavailable",
 		BehaviorAnalysisDefaultMode: "disabled",
 	}
@@ -105,7 +105,7 @@ func TestProductionReadinessGABlockedWhenRepoCountLow(t *testing.T) {
 		AverageScanDurationMs:       100,
 		P95ScanDurationMs:           200,
 		CriticalDetectionRate:       1,
-		EcosystemDepthStatus:        "npm-ga-other-ecosystems-preview",
+		EcosystemDepthStatus:        "npm-public-beta-go-cargo-preview",
 		IsolatedBackendStatus:       "unavailable",
 		BehaviorAnalysisDefaultMode: "disabled",
 	}
@@ -129,7 +129,7 @@ func TestProductionReadinessJSONIncludesGAEvidenceFields(t *testing.T) {
 		RepoValidationPassRate:          0,
 		RepoValidationFailures:          []string{"repo: dependency_inventory_error"},
 		GABlockers:                      []string{"real_repo_validation_count below GA threshold"},
-		EcosystemDepthStatus:            "npm-ga-other-ecosystems-preview",
+		EcosystemDepthStatus:            "npm-public-beta-go-cargo-preview",
 		BehaviorAnalysisDefaultMode:     "disabled",
 		IsolatedBackendAvailable:        false,
 		SigningConfigured:               true,
@@ -186,6 +186,34 @@ func TestOnlineBenchmarkStatusIsExplicit(t *testing.T) {
 	rep := BenchmarkReport{Online: OnlineBenchmarkSummary{Status: "no_network"}}
 	if got := onlineBenchmarkStatus(rep, nil); got != "no_network" {
 		t.Errorf("expected no_network, got %q", got)
+	}
+}
+
+func TestBenchmarkValidationRejectsIneligibleAggregate(t *testing.T) {
+	rep := BenchmarkReport{Pass: true, Status: "BENCHMARK_EVIDENCE_INELIGIBLE"}
+	rep.Metrics.PackagesConfigured = 25
+	rep.Metrics.PackagesExecuted = 1
+	rep.Metrics.PackagesSkipped = 24
+	rep.Metrics.PackageCoverageRatio = 0.04
+	passed, _, _ := benchmarkValidationGate(rep, nil)
+	if passed {
+		t.Fatal("ineligible aggregate must fail the production readiness benchmark gate")
+	}
+}
+
+func TestRealRepoEvidenceGateRequiresThresholdAndTiming(t *testing.T) {
+	rep := BenchmarkReport{}
+	if passed, _, _ := realRepoEvidenceGate(rep, nil, 15); passed {
+		t.Fatal("zero repositories must fail")
+	}
+	rep.Metrics.RealRepoValidationCount = 15
+	rep.Metrics.ReposPassed = 15
+	if passed, _, _ := realRepoEvidenceGate(rep, nil, 15); passed {
+		t.Fatal("missing trustworthy timing must fail")
+	}
+	rep.Metrics.RealRepoTimingTrustworthy = true
+	if passed, _, _ := realRepoEvidenceGate(rep, nil, 15); !passed {
+		t.Fatal("threshold, clean results, and trustworthy timing should pass")
 	}
 }
 

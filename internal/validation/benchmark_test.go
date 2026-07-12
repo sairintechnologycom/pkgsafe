@@ -72,8 +72,91 @@ func TestBenchmarkOfflineCacheMissesAreReported(t *testing.T) {
 	if report.Metrics.OfflineCacheMisses == 0 {
 		t.Fatal("expected offline cache misses")
 	}
+	if report.Metrics.PackagesSkipped != report.Metrics.OfflineCacheMisses {
+		t.Fatalf("skipped=%d cache_misses=%d", report.Metrics.PackagesSkipped, report.Metrics.OfflineCacheMisses)
+	}
+	if report.Metrics.PackagesPassed > report.Metrics.PackagesExecuted {
+		t.Fatalf("skips counted as passes: %+v", report.Metrics)
+	}
+	if report.Metrics.CandidateStatusEligible {
+		t.Fatalf("cache-miss-heavy benchmark must not be candidate eligible: %+v", report.Metrics)
+	}
+	for _, result := range report.Packages {
+		if result.Skipped && result.Passed {
+			t.Fatalf("skipped result marked passed: %+v", result)
+		}
+	}
 	if report.Metrics.NetworkFailures != 0 {
 		t.Fatalf("expected no network failures in offline mode, got %d", report.Metrics.NetworkFailures)
+	}
+}
+
+func TestPackageEvidenceEligibilityMatrix(t *testing.T) {
+	cases := []struct {
+		name       string
+		configured int
+		executed   int
+		failed     int
+		eligible   bool
+	}{
+		{name: "zero executed", configured: 25, executed: 0, eligible: false},
+		{name: "one executed", configured: 25, executed: 1, eligible: false},
+		{name: "partial below coverage", configured: 25, executed: 19, eligible: false},
+		{name: "threshold met", configured: 25, executed: 20, eligible: true},
+		{name: "executed failure", configured: 25, executed: 25, failed: 1, eligible: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			results := make([]BenchmarkPackageResult, tc.configured)
+			for i := range results {
+				results[i] = BenchmarkPackageResult{Name: "pkg", Skipped: true, SkipReason: "offline cache miss"}
+			}
+			for i := 0; i < tc.executed; i++ {
+				results[i] = BenchmarkPackageResult{Name: "pkg", Attempted: true, Executed: true, Passed: i >= tc.failed}
+			}
+			var report BenchmarkReport
+			applyPackageMetrics(&report, results)
+			if report.Metrics.CandidateStatusEligible != tc.eligible {
+				t.Fatalf("eligible=%t want %t metrics=%+v", report.Metrics.CandidateStatusEligible, tc.eligible, report.Metrics)
+			}
+			if report.Metrics.PackagesConfigured != tc.configured || report.Metrics.PackagesExecuted != tc.executed || report.Metrics.PackagesSkipped != tc.configured-tc.executed {
+				t.Fatalf("incorrect disjoint accounting: %+v", report.Metrics)
+			}
+		})
+	}
+}
+
+func TestOnlineSummaryClassifiesPartialAvailability(t *testing.T) {
+	results := []BenchmarkPackageResult{
+		{Name: "pass", Attempted: true, Executed: true, Passed: true},
+		{Name: "mismatch", Attempted: true, Executed: true, Passed: false, FailureCategory: "expectation_mismatch"},
+		{Name: "network", Attempted: true, Skipped: true, SkipReason: "network_unavailable"},
+		{Name: "missing", Attempted: true, Skipped: true, SkipReason: "package_not_found"},
+		{Name: "scanner", Attempted: true, Skipped: true, SkipReason: "scanner_failure"},
+	}
+	var report BenchmarkReport
+	applyOnlineSummary(&report, results, false)
+	got := report.Online
+	if got.Configured != 5 || got.Attempted != 5 || got.Executed != 2 || got.Passed != 1 || got.Failed != 1 || got.Skipped != 3 {
+		t.Fatalf("incorrect online accounting: %+v", got)
+	}
+	if got.Status != "fail" || got.ExpectationMismatches != 1 || got.NetworkUnavailable != 1 || got.PackageNotFound != 1 || got.ScannerFailures != 1 {
+		t.Fatalf("incorrect failure classification: %+v", got)
+	}
+}
+
+func TestOnlineSummaryDistinguishesNoExecutedSamples(t *testing.T) {
+	results := []BenchmarkPackageResult{
+		{Name: "network", Attempted: true, Skipped: true, SkipReason: "network_unavailable"},
+		{Name: "missing", Attempted: true, Skipped: true, SkipReason: "package_not_found"},
+	}
+	var report BenchmarkReport
+	applyOnlineSummary(&report, results, false)
+	if report.Online.Status != "no_executed_samples" {
+		t.Fatalf("expected no_executed_samples, got %+v", report.Online)
+	}
+	if report.Online.Executed != 0 || report.Online.Skipped != 2 || report.Online.Attempted != 2 {
+		t.Fatalf("incorrect accounting for no-execution case: %+v", report.Online)
 	}
 }
 

@@ -61,6 +61,10 @@ func GetAgentGuidance(decision types.Decision, ap policy.AgentPolicy, pm policy.
 			allowed = []string{"proceed", "suggest_alternative", "remove_dependency"}
 			prohibited = []string{}
 		}
+	case "REVIEW_REQUIRED":
+		instruction = "Do not install automatically. Authorized human review is required before proceeding."
+		allowed = []string{"ask_user", "request_review", "suggest_alternative", "remove_dependency"}
+		prohibited = []string{"run_install", "execute_lifecycle_script"}
 	case "BLOCK":
 		instruction = "Do not install this package. The policy decision is BLOCK."
 		allowed = []string{"suggest_alternative", "remove_dependency"}
@@ -119,6 +123,11 @@ func agentInstruction(decision types.Decision, installAllowed bool, requestedBy 
 			Action:  "ask_human",
 			Message: "WARN decision: install only after human review.",
 		}
+	case types.DecisionReviewRequired:
+		return AgentInstruction{
+			Action:  "ask_human",
+			Message: "Do not install automatically. Authorized human review is required before proceeding.",
+		}
 	default:
 		if installAllowed {
 			return AgentInstruction{
@@ -154,6 +163,8 @@ func decisionToUpper(d types.Decision) string {
 		return "ALLOW"
 	case types.DecisionWarn:
 		return "WARN"
+	case types.DecisionReviewRequired:
+		return "REVIEW_REQUIRED"
 	case types.DecisionBlock:
 		return "BLOCK"
 	default:

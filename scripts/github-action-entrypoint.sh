@@ -59,7 +59,7 @@ ARGS+=("--json-output" "$JSON_REPORT")
 ARGS+=("--sarif-output" "$SARIF_REPORT")
 ARGS+=("--summary-output" "$MD_SUMMARY")
 
-echo "Running PkgSafe CI scan with args: ${ARGS[@]}"
+echo "Running PkgSafe CI scan"
 
 # Run the command and capture exit code
 set +e

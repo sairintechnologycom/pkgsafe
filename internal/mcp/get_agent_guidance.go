@@ -26,7 +26,7 @@ type GetAgentGuidanceParams struct {
 
 // GetAgentGuidanceResult is the response returned by the get_agent_guidance MCP tool.
 type GetAgentGuidanceResult struct {
-	// Decision is the top-level safety verdict: ALLOW, WARN, or BLOCK.
+	// Decision is the top-level safety verdict: ALLOW, WARN, BLOCK, or REVIEW_REQUIRED.
 	Decision string `json:"decision"`
 	// RiskScore is the numeric risk score (0–100).
 	RiskScore int `json:"risk_score"`

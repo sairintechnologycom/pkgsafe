@@ -244,6 +244,7 @@ func TestReportGenerationAndExporters(t *testing.T) {
 
 		foundManifest := false
 		foundPolicy := false
+		foundSBOM := false
 		for _, f := range rZip.File {
 			if f.Name == "pkgsafe-evidence-pack/manifest.json" {
 				foundManifest = true
@@ -263,6 +264,29 @@ func TestReportGenerationAndExporters(t *testing.T) {
 				}
 				if len(manifest.Files) == 0 {
 					t.Errorf("manifest has 0 files listed")
+				}
+				if manifest.Signature.Present {
+					t.Errorf("expected unsigned evidence pack manifest")
+				}
+			}
+			if f.Name == "pkgsafe-evidence-pack/dependency-sbom.spdx.json" {
+				foundSBOM = true
+				rc, err := f.Open()
+				if err != nil {
+					t.Fatalf("failed to open dependency-sbom.spdx.json inside zip: %v", err)
+				}
+				b, _ := io.ReadAll(rc)
+				rc.Close()
+
+				var doc SPDXDocument
+				if err := json.Unmarshal(b, &doc); err != nil {
+					t.Fatalf("failed to parse dependency SBOM: %v", err)
+				}
+				if doc.SPDXVersion != "SPDX-2.3" {
+					t.Fatalf("expected SPDX-2.3 dependency SBOM, got %q", doc.SPDXVersion)
+				}
+				if len(doc.Packages) == 0 {
+					t.Fatalf("dependency SBOM has no packages")
 				}
 			}
 			if f.Name == "pkgsafe-evidence-pack/raw/policy-effective.json" {
@@ -290,10 +314,85 @@ func TestReportGenerationAndExporters(t *testing.T) {
 		if !foundManifest {
 			t.Errorf("manifest.json not found in ZIP pack")
 		}
+		if !foundSBOM {
+			t.Errorf("dependency-sbom.spdx.json not found in ZIP pack")
+		}
 		if !foundPolicy {
 			t.Errorf("policy-effective.json not found in ZIP pack")
 		}
 	})
+}
+
+func TestVerifyEvidencePack(t *testing.T) {
+	tmp := t.TempDir()
+	zipPath := filepath.Join(tmp, "evidence.zip")
+	if err := CreateEvidencePack(zipPath, sampleReport(), policy.Default()); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := VerifyEvidencePack(zipPath)
+	if err != nil {
+		t.Fatalf("VerifyEvidencePack failed: %v", err)
+	}
+	if !res.ChecksumOK {
+		t.Fatal("expected checksum verification to pass")
+	}
+	if res.SignaturePresent {
+		t.Fatal("expected unsigned evidence pack")
+	}
+	if len(res.Manifest.Files) == 0 {
+		t.Fatal("expected manifest files to be populated")
+	}
+}
+
+func TestVerifyEvidencePackRejectsTamper(t *testing.T) {
+	tmp := t.TempDir()
+	zipPath := filepath.Join(tmp, "evidence.zip")
+	if err := CreateEvidencePack(zipPath, sampleReport(), policy.Default()); err != nil {
+		t.Fatal(err)
+	}
+
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+
+	tampered := filepath.Join(tmp, "tampered.zip")
+	f, err := os.Create(tampered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	zw := zip.NewWriter(f)
+	for _, file := range zr.File {
+		rc, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if file.Name == "pkgsafe-evidence-pack/repository-risk-report.json" {
+			body = append(body, []byte("\n// tampered")...)
+		}
+		w, err := zw.Create(file.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := VerifyEvidencePack(tampered); err == nil {
+		t.Fatal("expected tampered evidence pack verification to fail")
+	}
 }
 
 func TestTokenRedactionInReports(t *testing.T) {

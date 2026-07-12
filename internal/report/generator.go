@@ -380,12 +380,15 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 	// 8. Summary Stats
 	allowedCount := 0
 	warnCount := 0
+	reviewRequiredCount := 0
 	blockCount := 0
 	unknownCount := 0
 	for _, f := range report.Findings {
 		switch f.Decision {
 		case "block":
 			blockCount++
+		case "review_required":
+			reviewRequiredCount++
 		case "warn":
 			warnCount++
 		case "unknown":
@@ -399,6 +402,7 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 		PackagesScanned:             len(report.Findings),
 		Allowed:                     allowedCount,
 		Warnings:                    warnCount,
+		ReviewRequired:              reviewRequiredCount,
 		Blocked:                     blockCount,
 		Unknown:                     unknownCount,
 		CriticalVulnerabilities:     critVuln,
@@ -428,6 +432,15 @@ func GenerateReport(repoPath string, pol policy.Policy, offline bool) (*Reposito
 				Version:   f.Version,
 				Type:      "warn",
 				Message:   fmt.Sprintf("Review warning for package %s@%s: %s", f.Package, f.Version, f.Message),
+			})
+		}
+		if f.Decision == "review_required" {
+			recommendations = append(recommendations, RecommendationRecord{
+				FindingID: f.FindingID,
+				Package:   f.Package,
+				Version:   f.Version,
+				Type:      "review_required",
+				Message:   fmt.Sprintf("Request authorized human review for package %s@%s: %s", f.Package, f.Version, f.Message),
 			})
 		}
 	}

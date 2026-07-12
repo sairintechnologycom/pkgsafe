@@ -278,6 +278,9 @@ func RecommendedAction(result types.ScanResult) string {
 	if result.Decision == types.DecisionBlock {
 		return "Do not install this package."
 	}
+	if result.Decision == types.DecisionReviewRequired {
+		return "Request authorized human review before installing."
+	}
 	if result.Sandbox.Enabled && result.Sandbox.NotPerformed && result.Package.Ecosystem != "pypi" {
 		return "Review package before installing. Requested behavior analysis was not performed."
 	}
@@ -301,6 +304,8 @@ func RecommendedAction(result types.ScanResult) string {
 		return "Do not install this package."
 	case types.DecisionWarn:
 		return "Review package before installing."
+	case types.DecisionReviewRequired:
+		return "Request authorized human review before installing."
 	default:
 		return "Package appears safe to install based on current checks."
 	}
@@ -342,11 +347,11 @@ func writeLockfileReport(w io.Writer, result types.ScanResult) error {
 	decisionColor := green
 	if result.Decision == types.DecisionBlock {
 		decisionColor = red
-	} else if result.Decision == types.DecisionWarn {
+	} else if result.Decision == types.DecisionWarn || result.Decision == types.DecisionReviewRequired {
 		decisionColor = yellow
 	}
 	fmt.Fprintf(w, "Decision:   %s%s%s%s\n", bold, decisionColor, decisionStr, reset)
-	
+
 	// Risk score colorized
 	scoreColor := green
 	scoreLabel := "Low Risk"
@@ -421,10 +426,10 @@ func writeLockfileReport(w io.Writer, result types.ScanResult) error {
 				dep = r.Description
 			}
 
-			fmt.Fprintf(w, "  %s%-8s%s %-32s %s%-10s%s %-24s\n", 
-				statusColor, status, reset, 
-				truncate(dep, 32), 
-				decisionColor, decision, reset, 
+			fmt.Fprintf(w, "  %s%-8s%s %-32s %s%-10s%s %-24s\n",
+				statusColor, status, reset,
+				truncate(dep, 32),
+				decisionColor, decision, reset,
 				truncate(r.ID, 24),
 			)
 		}

@@ -58,6 +58,12 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		pol = policy.Default()
 	}
 	ctx := context.Background()
+	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
+	if s.Offline {
+		if err := sandbox.ValidateOfflineBehavior(ctx, behaviorMode, s.NetworkMode); err != nil {
+			return types.ScanResult{}, err
+		}
+	}
 
 	var regName string
 	var regCfg policy.RegistryConfig
@@ -107,13 +113,13 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		d, err := db.Open(s.DBPath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Warning: vulnerability DB is stale or missing")
-			return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+			return risk.ApplyPolicyControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 		}
 		defer d.Close()
 
 		vulns, err := d.GetVulnerabilitiesForPackage(ctx, "npm", res.Package.Name)
 		if err != nil {
-			return risk.ApplyEnterpriseControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+			return risk.ApplyPolicyControls(res, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 		}
 
 		var affectedVulns []types.Vulnerability
@@ -145,7 +151,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 		evalRes := risk.Evaluate(res.Package, findings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 		evalRes.Vulnerabilities = affectedVulns
 		evalRes.Sandbox = res.Sandbox
-		return risk.ApplyEnterpriseControls(evalRes, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+		return risk.ApplyPolicyControls(evalRes, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 	}
 
 	regURL := regCfg.URL
@@ -205,7 +211,6 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	}
 	_ = json.Unmarshal(pkgJSONData, &pj)
 
-	behaviorMode := types.NormalizeBehaviorMode(string(s.BehaviorMode), s.SandboxEnabled)
 	behaviorEnabled := behaviorMode != types.BehaviorDisabled
 	runnerSelection := sandbox.SelectRunner(ctx, behaviorMode)
 	res.Sandbox = types.SandboxSummary{
@@ -377,7 +382,7 @@ func (s Scanner) ScanPackage(name, version string) (types.ScanResult, error) {
 	finalRes := risk.Evaluate(res.Package, allFindings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 	finalRes.Vulnerabilities = typesVulns
 	finalRes.Sandbox = res.Sandbox
-	return risk.ApplyEnterpriseControls(finalRes, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
+	return risk.ApplyPolicyControls(finalRes, pol, regName, regCfg, s.RequestedBy, s.Environment), nil
 }
 
 func ScanPackage(name, version string) (types.ScanResult, error) {
@@ -527,7 +532,7 @@ func (s Scanner) ScanLocalPackage(dir string) (types.ScanResult, error) {
 
 	finalRes := risk.Evaluate(res.Package, allFindings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 	finalRes.Sandbox = res.Sandbox
-	return risk.ApplyEnterpriseControls(finalRes, pol, "local", policy.RegistryConfig{}, s.RequestedBy, s.Environment), nil
+	return risk.ApplyPolicyControls(finalRes, pol, "local", policy.RegistryConfig{}, s.RequestedBy, s.Environment), nil
 }
 
 func stripPolicyGeneratedReasons(reasons []types.Reason) []types.Reason {

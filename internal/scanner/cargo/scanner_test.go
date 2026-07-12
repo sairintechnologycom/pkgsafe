@@ -267,7 +267,7 @@ func makeMinimalTarGz() []byte {
 	var buf bytes.Buffer
 	gw := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gw)
-	
+
 	content := []byte("[package]\n")
 	header := &tar.Header{
 		Name:     "serde-1.0.0/Cargo.toml",
@@ -277,7 +277,7 @@ func makeMinimalTarGz() []byte {
 	}
 	_ = tw.WriteHeader(header)
 	_, _ = tw.Write(content)
-	
+
 	_ = tw.Close()
 	_ = gw.Close()
 	return buf.Bytes()

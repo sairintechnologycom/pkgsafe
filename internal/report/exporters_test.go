@@ -51,6 +51,70 @@ func sampleReport() *RepositoryRiskReport {
 	}
 }
 
+func TestExportMarkdownReviewRequired(t *testing.T) {
+	r := sampleReport()
+	r.Summary.ReviewRequired = 1
+	r.Findings = append(r.Findings, ReportFinding{
+		Ecosystem:         "npm",
+		Package:           "needs-review",
+		Version:           "1.0.0",
+		Decision:          "review_required",
+		RiskScore:         70,
+		Severity:          "high",
+		RuleID:            "provenance_identity_mismatch",
+		Message:           "authorized human review required",
+		RecommendedAction: "Request authorized human review before installing.",
+	})
+	r.Recommendations = append(r.Recommendations, RecommendationRecord{
+		Type:    "review_required",
+		Message: "Request authorized human review for package needs-review@1.0.0: authorized human review required",
+	})
+
+	out, err := ExportMarkdown(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"**Overall Decision:** REVIEW_REQUIRED",
+		"| Review Required | 1 |",
+		"needs-review",
+		"Request authorized human review for package needs-review@1.0.0",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("markdown missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestExportHTMLReviewRequired(t *testing.T) {
+	r := sampleReport()
+	r.Summary.ReviewRequired = 1
+	r.Findings = append(r.Findings, ReportFinding{
+		Ecosystem: "npm",
+		Package:   "needs-review",
+		Version:   "1.0.0",
+		Decision:  "review_required",
+		RiskScore: 70,
+		Severity:  "high",
+		RuleID:    "provenance_identity_mismatch",
+		Message:   "authorized human review required",
+	})
+
+	out, err := ExportHTML(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		">REVIEW_REQUIRED<",
+		"Review Required",
+		"needs-review",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("html missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestExportCSVAllTypes(t *testing.T) {
 	r := sampleReport()
 	for _, csvType := range []string{"findings", "exceptions", "overrides", "packages"} {
@@ -162,6 +226,39 @@ func TestExportAIAgentActivityReport(t *testing.T) {
 	}
 }
 
+func TestExportAIAgentActivityReportReviewRequired(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	auditDir := filepath.Join(home, ".pkgsafe")
+	if err := os.MkdirAll(auditDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	entry := `{"timestamp":"2026-07-12T00:00:00Z","command":"mcp validate_package_install npm needs-review 1.0.0","ecosystem":"mcp","packages":[{"name":"needs-review","version":"1.0.0","decision":"review_required","risk_score":60}],"mode":"warn","install_executed":false,"override_used":false,"reason":"authorized human review required"}`
+	if err := os.WriteFile(filepath.Join(auditDir, "audit.log"), []byte(entry+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &RepositoryRiskReport{
+		Findings: []ReportFinding{{
+			Package:   "needs-review",
+			Ecosystem: "npm",
+			Decision:  "review_required",
+			RuleID:    "ai_agent_requested_suspicious_package",
+			Message:   "authorized human review required",
+		}},
+	}
+	out := ExportAIAgentActivityReport(r)
+	for _, want := range []string{
+		"Review Required",
+		"Top Review Required Requests",
+		"needs-review",
+		"authorized human review required",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("ai-agent report missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func writeCIResult(t *testing.T, body string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), "ci-result.json")
@@ -209,6 +306,33 @@ func TestExportCIGateReportPass(t *testing.T) {
 	// Branch defaults to "main" when baseline is absent.
 	if !strings.Contains(out, "**Branch:** main") {
 		t.Errorf("expected default branch fallback:\n%s", out)
+	}
+}
+
+func TestExportCIGateReportReviewRequired(t *testing.T) {
+	body := `{
+		"schema_version": "1.0", "tool": "pkgsafe", "command": "ci scan",
+		"mode": "warn", "fail_on": "warn", "decision": "review_required",
+		"lockfile": "package-lock.json", "baseline": "release",
+		"summary": {"packages_scanned": 2, "allow": 1, "warn": 0, "review_required": 1, "block": 0},
+		"findings": [
+			{"ecosystem":"npm","package":"needs-review","version":"1.0.0","decision":"review_required","risk_score":60,
+			 "reasons":[{"rule_id":"provenance_identity_mismatch","message":"authorized human review required"}]}
+		]
+	}`
+	out, err := ExportCIGateReport(writeCIResult(t, body))
+	if err != nil {
+		t.Fatalf("ExportCIGateReport: %v", err)
+	}
+	for _, want := range []string{
+		"REVIEW_REQUIRED",
+		"authorized human review before merge",
+		"Request authorized human review before merging.",
+		"needs-review",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("review-required report missing %q:\n%s", want, out)
+		}
 	}
 }
 

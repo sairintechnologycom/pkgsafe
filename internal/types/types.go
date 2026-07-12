@@ -11,6 +11,10 @@ const (
 	DecisionAllow Decision = "allow"
 	DecisionWarn  Decision = "warn"
 	DecisionBlock Decision = "block"
+	// DecisionReviewRequired gates installation or PR readiness on an
+	// authorized review. It is part of the canonical decision vocabulary even
+	// where a particular scanner currently emits only allow/warn/block.
+	DecisionReviewRequired Decision = "review_required"
 	// DecisionUnknown marks a package that could not be scanned (e.g. offline
 	// with no cached result). It must never be treated as a clean pass.
 	DecisionUnknown Decision = "unknown"
@@ -86,6 +90,7 @@ type ScanResult struct {
 	RegistryInfo    *RegistryEvidence  `json:"registry,omitempty"`
 	TrustInfo       *TrustEvidence     `json:"trust,omitempty"`
 	ExceptionInfo   *ExceptionEvidence `json:"exception,omitempty"`
+	Profile         PackageProfile     `json:"package_profile,omitempty"`
 }
 
 func (r ScanResult) MarshalJSON() ([]byte, error) {

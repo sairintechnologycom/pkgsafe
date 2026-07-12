@@ -36,6 +36,7 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 	fmt.Fprintf(w, "- Allow: %d\n", result.Summary.Allow)
 	fmt.Fprintf(w, "- Warn: %d\n", result.Summary.Warn)
 	fmt.Fprintf(w, "- Block: %d\n", result.Summary.Block)
+	fmt.Fprintf(w, "- Review Required: %d\n", result.Summary.ReviewRequired)
 	fmt.Fprintf(w, "- Vulnerabilities: %d\n", result.Summary.VulnerabilityCount)
 	if len(result.Summary.VulnerabilitiesBySeverity) > 0 {
 		for _, sev := range []string{"critical", "high", "medium", "low"} {
@@ -49,7 +50,7 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 	// Filter and sort top findings (warn or block)
 	var topFindings []Finding
 	for _, f := range result.Findings {
-		if f.Decision == "block" || f.Decision == "warn" {
+		if f.Decision == "block" || f.Decision == "warn" || f.Decision == "review_required" {
 			topFindings = append(topFindings, f)
 		}
 	}
@@ -128,6 +129,8 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 	fmt.Fprintln(w, "Recommended Action:")
 	if result.Decision == "block" {
 		fmt.Fprintln(w, "Remove or replace blocked dependencies before merging.")
+	} else if result.Decision == "review_required" {
+		fmt.Fprintln(w, "Request authorized human review before merging.")
 	} else if result.Decision == "warn" {
 		fmt.Fprintln(w, "Review package warnings before merging.")
 	} else {
@@ -364,9 +367,9 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 	fmt.Fprintf(&sb, "**Packages Scanned:** %d  \n\n", result.Summary.PackagesScanned)
 
 	sb.WriteString("### Counts\n\n")
-	sb.WriteString("| Allow | Warn | Block | Unknown | Vulnerabilities |\n")
-	sb.WriteString("|---:|---:|---:|---:|---:|\n")
-	fmt.Fprintf(&sb, "| %d | %d | %d | %d | %d |\n\n", result.Summary.Allow, result.Summary.Warn, result.Summary.Block, result.Summary.Unknown, result.Summary.VulnerabilityCount)
+	sb.WriteString("| Allow | Warn | Review Required | Block | Unknown | Vulnerabilities |\n")
+	sb.WriteString("|---:|---:|---:|---:|---:|---:|\n")
+	fmt.Fprintf(&sb, "| %d | %d | %d | %d | %d | %d |\n\n", result.Summary.Allow, result.Summary.Warn, result.Summary.ReviewRequired, result.Summary.Block, result.Summary.Unknown, result.Summary.VulnerabilityCount)
 	if result.Summary.VulnerabilityCount > 0 {
 		fmt.Fprintf(&sb, "**Vulnerabilities:** %d  \n", result.Summary.VulnerabilityCount)
 		for _, sev := range []string{"critical", "high", "medium", "low"} {
@@ -379,7 +382,7 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 
 	var issues []Finding
 	for _, f := range result.Findings {
-		if f.Decision == "block" || f.Decision == "warn" {
+		if f.Decision == "block" || f.Decision == "warn" || f.Decision == "review_required" {
 			issues = append(issues, f)
 		}
 	}
@@ -389,7 +392,7 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 			return issues[i].RiskScore > issues[j].RiskScore
 		})
 
-		sb.WriteString("### Warn / Block Findings\n\n")
+		sb.WriteString("### Warn / Review / Block Findings\n\n")
 		sb.WriteString("| Package | Version | Decision | Score | Top Reason |\n")
 		sb.WriteString("|---|---:|---|---:|---|\n")
 		for _, f := range issues {
@@ -405,8 +408,8 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 		}
 		sb.WriteString("\n")
 	} else {
-		sb.WriteString("### Warn / Block Findings\n\n")
-		sb.WriteString("No blocked or warning dependencies found.\n\n")
+		sb.WriteString("### Warn / Review / Block Findings\n\n")
+		sb.WriteString("No blocked, review-required, or warning dependencies found.\n\n")
 	}
 
 	if result.Summary.VulnerabilityCount > 0 {
@@ -431,6 +434,12 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 	sb.WriteString("### Recommended Action\n\n")
 	if result.Decision == "block" {
 		sb.WriteString("Remove or replace blocked dependencies before merging. With `fail-on: block`, this workflow fails for BLOCK findings.\n")
+	} else if result.Decision == "review_required" {
+		if result.FailOn == "warn" {
+			sb.WriteString("Request authorized human review before merging. With `fail-on: warn`, this workflow fails for REVIEW_REQUIRED, WARN, and BLOCK findings.\n")
+		} else {
+			sb.WriteString("Request authorized human review before merging. With `fail-on: block`, REVIEW_REQUIRED findings are reported without auto-merge approval.\n")
+		}
 	} else if result.Decision == "warn" {
 		if result.FailOn == "warn" {
 			sb.WriteString("Review warning dependencies before merging. With `fail-on: warn`, this workflow fails for WARN and BLOCK findings.\n")
@@ -476,12 +485,12 @@ func WriteSummaryOutput(path string, result *ScanResult) error {
 func workflowResultText(result *ScanResult) string {
 	switch result.FailOn {
 	case "warn":
-		if result.Decision == "warn" || result.Decision == "block" {
-			return "fails on WARN or BLOCK"
+		if result.Decision == "warn" || result.Decision == "block" || result.Decision == "review_required" {
+			return "fails on REVIEW_REQUIRED, WARN, or BLOCK"
 		}
 	case "block":
-		if result.Decision == "block" {
-			return "fails on BLOCK"
+		if result.Decision == "block" || result.Decision == "review_required" {
+			return "fails on REVIEW_REQUIRED or BLOCK"
 		}
 	case "none":
 		return "reports only"

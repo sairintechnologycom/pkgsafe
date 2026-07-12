@@ -317,7 +317,7 @@ func TestWriteSummaryOutputIncludesActionContext(t *testing.T) {
 		Command:       "ci scan",
 		Mode:          "warn",
 		FailOn:        "warn",
-		Decision:      "warn",
+		Decision:      "review_required",
 		Lockfile:      "package-lock.json",
 		Ecosystem:     "npm",
 		ChangedOnly:   true,
@@ -326,12 +326,13 @@ func TestWriteSummaryOutputIncludesActionContext(t *testing.T) {
 		Summary: Summary{
 			PackagesScanned: 1,
 			Warn:            1,
+			ReviewRequired:  1,
 		},
 		Findings: []Finding{{
 			Ecosystem: "npm",
 			Package:   "example",
 			Version:   "1.2.3",
-			Decision:  "warn",
+			Decision:  "review_required",
 			RiskScore: 42,
 			Direct:    true,
 			Reasons:   []types.Reason{{ID: "lifecycle_script_present", Severity: "medium", Description: "Package defines a postinstall script", ScoreImpact: 20}},
@@ -346,11 +347,11 @@ func TestWriteSummaryOutputIncludesActionContext(t *testing.T) {
 	}
 	summary := string(b)
 	for _, want := range []string{
-		"**Workflow Result:** fails on WARN or BLOCK",
+		"**Workflow Result:** fails on REVIEW_REQUIRED, WARN, or BLOCK",
 		"**Changed Only:** true",
 		"**Baseline:** .pkgsafe/baseline.json (file)",
-		"| Allow | Warn | Block | Unknown | Vulnerabilities |",
-		"With `fail-on: warn`, this workflow fails for WARN and BLOCK findings.",
+		"| Allow | Warn | Review Required | Block | Unknown | Vulnerabilities |",
+		"With `fail-on: warn`, this workflow fails for REVIEW_REQUIRED, WARN, and BLOCK findings.",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("summary missing %q:\n%s", want, summary)

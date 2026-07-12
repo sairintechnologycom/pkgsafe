@@ -176,7 +176,7 @@ func syncEcosystem(ctx context.Context, d *db.DB, bucket string) (int, error) {
 }
 
 type popularJSON struct {
-	NPM  []struct {
+	NPM []struct {
 		Name      string `json:"name"`
 		Downloads int    `json:"downloads"`
 	} `json:"npm"`

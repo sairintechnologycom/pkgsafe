@@ -160,4 +160,3 @@ func ResetCacheForTest(npm, pypi []string) {
 		loadedPopularOnce.Do(func() {})
 	}
 }
-

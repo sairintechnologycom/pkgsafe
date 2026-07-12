@@ -1,6 +1,6 @@
 # Install PkgSafe
 
-PkgSafe is one static binary. **GA:** npm and PyPI. **Preview:** Go and Cargo.
+PkgSafe is one static binary. **Public beta:** npm and PyPI. **Preview:** Go and Cargo.
 
 New users: [getting-started.md](getting-started.md) · full docs index:
 [README.md](README.md).

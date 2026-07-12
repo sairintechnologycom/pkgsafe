@@ -147,7 +147,7 @@ func (e *Executor) evaluatePackage(eco, name, version string, pol policy.Policy,
 				oldSandbox := res.Sandbox
 				res = risk.Evaluate(res.Package, findings, res.Lifecycle, res.Suspicious, res.SafeAlternates, pol)
 				res.Sandbox = oldSandbox
-				res = risk.ApplyEnterpriseControls(res, pol, regName, regCfg, requestedBy, env)
+				res = risk.ApplyPolicyControls(res, pol, regName, regCfg, requestedBy, env)
 			}
 		}
 	}

@@ -19,6 +19,7 @@ type Finding struct {
 	Reasons           []types.Reason           `json:"reasons"`
 	Vulnerabilities   []types.Vulnerability    `json:"vulnerabilities"`
 	BehaviorAnalysis  BehaviorAnalysisSummary  `json:"behavior_analysis"`
+	PackageProfile    types.PackageProfile     `json:"package_profile"`
 	RecommendedAction string                   `json:"recommended_action"`
 	Policy            *types.PolicyEvidence    `json:"policy,omitempty"`
 	Registry          *types.RegistryEvidence  `json:"registry,omitempty"`
@@ -31,6 +32,7 @@ type Summary struct {
 	Allow                       int            `json:"allow"`
 	Warn                        int            `json:"warn"`
 	Block                       int            `json:"block"`
+	ReviewRequired              int            `json:"review_required"`
 	Unknown                     int            `json:"unknown"`
 	VulnerabilityCount          int            `json:"vulnerability_count"`
 	VulnerabilitiesBySeverity   map[string]int `json:"vulnerabilities_by_severity,omitempty"`

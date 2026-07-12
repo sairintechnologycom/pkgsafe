@@ -19,17 +19,18 @@ type ExplainPolicyDecisionParams struct {
 
 // ExplainPolicyDecisionResult defines the detailed output.
 type ExplainPolicyDecisionResult struct {
-	Decision           string   `json:"decision"`
-	RiskScore          int      `json:"risk_score"`
-	Confidence         string   `json:"confidence"`
-	TopReasons         []string `json:"top_reasons"`
-	PolicyResult       string   `json:"policy_result"`
-	EvidenceID         string   `json:"evidence_id"`
-	AgentInstruction   string   `json:"agent_instruction"`
-	AllowedNextActions []string `json:"allowed_next_actions"`
-	ProhibitedActions  []string `json:"prohibited_actions"`
-	RuleIDs            []string `json:"rule_ids"`
-	Remediation        []string `json:"remediation"`
+	Decision           string               `json:"decision"`
+	RiskScore          int                  `json:"risk_score"`
+	Confidence         string               `json:"confidence"`
+	TopReasons         []string             `json:"top_reasons"`
+	PackageProfile     types.PackageProfile `json:"package_profile"`
+	PolicyResult       string               `json:"policy_result"`
+	EvidenceID         string               `json:"evidence_id"`
+	AgentInstruction   string               `json:"agent_instruction"`
+	AllowedNextActions []string             `json:"allowed_next_actions"`
+	ProhibitedActions  []string             `json:"prohibited_actions"`
+	RuleIDs            []string             `json:"rule_ids"`
+	Remediation        []string             `json:"remediation"`
 }
 
 // ExplainPolicyDecision explains why a package is safe, suspicious, or blocked.
@@ -113,17 +114,7 @@ func (e *Executor) ExplainPolicyDecision(args json.RawMessage) CallToolResult {
 		topReasons = []string{"No critical safety findings."}
 	}
 
-	decStr := decisionString(res.Decision)
-
-	var remediation []string
-	switch types.Decision(decStr) {
-	case types.DecisionBlock:
-		remediation = []string{"Remove dependency", "Use approved internal package", "Request security exception"}
-	case types.DecisionWarn:
-		remediation = []string{"Request human approval", "Request policy exception", "Use a safer alternative"}
-	default:
-		remediation = []string{"No remediation required"}
-	}
+	remediation := remediationForDecision(res.Decision)
 
 	evidenceID := generateEvidenceID(ecosystem, name, version)
 	guidance := GetAgentGuidance(res.Decision, pol.AgentPolicy, pol.Mode)
@@ -133,6 +124,7 @@ func (e *Executor) ExplainPolicyDecision(args json.RawMessage) CallToolResult {
 		RiskScore:          res.Score,
 		Confidence:         "high",
 		TopReasons:         topReasons,
+		PackageProfile:     res.Profile,
 		PolicyResult:       fmt.Sprintf("mode: %s, scan_decision: %s", pol.Mode, res.Decision),
 		EvidenceID:         evidenceID,
 		AgentInstruction:   guidance.Instruction,
@@ -149,5 +141,18 @@ func (e *Executor) ExplainPolicyDecision(args json.RawMessage) CallToolResult {
 			Text: string(b),
 		}},
 		IsError: false,
+	}
+}
+
+func remediationForDecision(decision types.Decision) []string {
+	switch decision {
+	case types.DecisionBlock:
+		return []string{"Remove dependency", "Use approved internal package", "Request security exception"}
+	case types.DecisionWarn:
+		return []string{"Request human approval", "Request policy exception", "Use a safer alternative"}
+	case types.DecisionReviewRequired:
+		return []string{"Request authorized human review", "Do not install automatically", "Use a safer alternative if available"}
+	default:
+		return []string{"No remediation required"}
 	}
 }

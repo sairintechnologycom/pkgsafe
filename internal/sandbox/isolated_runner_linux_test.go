@@ -83,6 +83,17 @@ func TestIsolatedNetworkDisabledByDefault(t *testing.T) {
 	}
 }
 
+func TestIsolatedDNSResolutionDisabledByDefault(t *testing.T) {
+	r := requireIsolatedRunner(t)
+	res, err := r.RunLifecycleScript(context.Background(), isolatedRequest("getent hosts example.com", 10*time.Second))
+	if err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	if res.ExitCode == 0 {
+		t.Fatal("DNS resolution succeeded inside offline isolated network namespace")
+	}
+}
+
 func TestIsolatedNetworkHostModeShares(t *testing.T) {
 	r := requireIsolatedRunner(t)
 

@@ -29,17 +29,18 @@ type DetectedPackage struct {
 
 // CheckInstallCommandResult defines the tool output.
 type CheckInstallCommandResult struct {
-	Decision           string            `json:"decision"`
-	RiskScore          int               `json:"risk_score"`
-	Confidence         string            `json:"confidence"`
-	TopReasons         []string          `json:"top_reasons"`
-	PolicyResult       string            `json:"policy_result"`
-	EvidenceID         string            `json:"evidence_id"`
-	AgentInstruction   string            `json:"agent_instruction"`
-	AllowedNextActions []string          `json:"allowed_next_actions"`
-	ProhibitedActions  []string          `json:"prohibited_actions"`
-	PackagesDetected   []DetectedPackage `json:"packages_detected"`
-	SafeCommand        *string           `json:"safe_command"`
+	Decision           string               `json:"decision"`
+	RiskScore          int                  `json:"risk_score"`
+	Confidence         string               `json:"confidence"`
+	TopReasons         []string             `json:"top_reasons"`
+	PackageProfile     types.PackageProfile `json:"package_profile"`
+	PolicyResult       string               `json:"policy_result"`
+	EvidenceID         string               `json:"evidence_id"`
+	AgentInstruction   string               `json:"agent_instruction"`
+	AllowedNextActions []string             `json:"allowed_next_actions"`
+	ProhibitedActions  []string             `json:"prohibited_actions"`
+	PackagesDetected   []DetectedPackage    `json:"packages_detected"`
+	SafeCommand        *string              `json:"safe_command"`
 }
 
 // CheckInstallCommand extracts and scans packages in an install command string.
@@ -97,6 +98,8 @@ func (e *Executor) CheckInstallCommand(args json.RawMessage) CallToolResult {
 	hasBlock := false
 	hasWarn := false
 	var topReasons []string
+	var profile types.PackageProfile
+	profileScore := -1
 
 	opts := ScanOpts{
 		RequestedBy: "ai_agent",
@@ -127,6 +130,10 @@ func (e *Executor) CheckInstallCommand(args json.RawMessage) CallToolResult {
 
 		if res.Score > maxScore {
 			maxScore = res.Score
+		}
+		if res.Score > profileScore {
+			profileScore = res.Score
+			profile = res.Profile
 		}
 
 		for _, r := range res.Reasons {
@@ -168,6 +175,7 @@ func (e *Executor) CheckInstallCommand(args json.RawMessage) CallToolResult {
 		RiskScore:          maxScore,
 		Confidence:         "high",
 		TopReasons:         topReasons,
+		PackageProfile:     profile,
 		PolicyResult:       fmt.Sprintf("mode: %s", pol.Mode),
 		EvidenceID:         evidenceID,
 		AgentInstruction:   instruction,

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/sairintechnologycom/pkgsafe/internal/api"
-	"github.com/sairintechnologycom/pkgsafe/internal/ci"
+	"github.com/sairintechnologycom/pkgsafe/internal/report"
 	"github.com/sairintechnologycom/pkgsafe/internal/validation"
 )
 
@@ -23,28 +23,61 @@ func TestReorderFlagsAllowsTrailingCommandFlags(t *testing.T) {
 	}
 }
 
-func TestCIScanEnterpriseModeGatedByRunConfig(t *testing.T) {
-	orig := ciRunScanFunc
-	defer func() { ciRunScanFunc = orig }()
+func TestAggregateSummaryDecisionReviewRequired(t *testing.T) {
+	if got := aggregateSummaryDecision("ALLOW", "review_required"); got != "REVIEW_REQUIRED" {
+		t.Fatalf("expected REVIEW_REQUIRED, got %q", got)
+	}
+	if got := aggregateSummaryDecision("REVIEW_REQUIRED", "warn"); got != "REVIEW_REQUIRED" {
+		t.Fatalf("expected REVIEW_REQUIRED to dominate WARN, got %q", got)
+	}
+	if got := aggregateSummaryDecision("WARN", "block"); got != "BLOCK" {
+		t.Fatalf("expected BLOCK to dominate WARN, got %q", got)
+	}
+}
 
-	var captured []bool
-	ciRunScanFunc = func(opts ci.ScanOptions) (*ci.ScanResult, error) {
-		captured = append(captured, opts.EnterpriseMode)
-		return &ci.ScanResult{SchemaVersion: "1.0", Decision: "allow"}, nil
+func TestSummaryDecisionHelpersReviewRequired(t *testing.T) {
+	if !summaryDecisionIsBlocking("REVIEW_REQUIRED") {
+		t.Fatal("expected REVIEW_REQUIRED to be treated as blocking for summaries")
+	}
+	if got := summaryDecisionColor("REVIEW_REQUIRED"); got != "\033[33m" {
+		t.Fatalf("expected REVIEW_REQUIRED to share warning color semantics, got %q", got)
+	}
+}
+
+func TestReportOverallDecisionReviewRequired(t *testing.T) {
+	r := &report.RepositoryRiskReport{}
+	r.Summary.ReviewRequired = 1
+	if got := reportOverallDecision(r); got != "REVIEW_REQUIRED" {
+		t.Fatalf("expected REVIEW_REQUIRED, got %q", got)
+	}
+	r.Summary.Blocked = 1
+	if got := reportOverallDecision(r); got != "BLOCK" {
+		t.Fatalf("expected BLOCK to dominate, got %q", got)
+	}
+}
+
+func TestDependencyTreeReviewRequiredPresentation(t *testing.T) {
+	label, color := treeDecisionPresentation("review_required")
+	if label != " [⚠ REVIEW_REQUIRED]" {
+		t.Fatalf("expected REVIEW_REQUIRED label, got %q", label)
+	}
+	if color != "yellow" {
+		t.Fatalf("expected warning-class color, got %q", color)
 	}
 
-	lockfile := filepath.Join("..", "..", "testdata", "npm", "self-scan", "package-lock.json")
-	args := []string{"ci", "scan", "--lockfile", lockfile, "--offline", "--changed-only=false", "--fail-on", "none"}
-
-	if err := RunWith(RunConfig{}, args); err != nil {
-		t.Fatalf("public ci scan failed: %v", err)
+	root := &depNode{
+		Decision: "allow",
+		Children: []*depNode{{
+			Name:     "needs-review",
+			Version:  "1.0.0",
+			Decision: "review_required",
+		}},
 	}
-	if err := RunWith(RunConfig{CIEnterpriseMode: true}, args); err != nil {
-		t.Fatalf("enterprise ci scan failed: %v", err)
+	if !pruneCleanNodes(root) {
+		t.Fatal("expected REVIEW_REQUIRED dependency to be retained in risky-only tree")
 	}
-
-	if len(captured) != 2 || captured[0] != false || captured[1] != true {
-		t.Fatalf("EnterpriseMode not gated by RunConfig: %v", captured)
+	if len(root.Children) != 1 {
+		t.Fatalf("expected REVIEW_REQUIRED child to remain, got %d children", len(root.Children))
 	}
 }
 
@@ -242,6 +275,15 @@ func TestReportCommandCLI(t *testing.T) {
 	}
 	if _, err := os.Stat(ciEvidence); err != nil {
 		t.Errorf("expected CI gate report to be created")
+	}
+
+	// 4. Evidence Pack Verification
+	evidenceZip := filepath.Join(tmp, "evidence.zip")
+	if err := Run([]string{"report", "evidence-pack", "--repo", ".", "--output", evidenceZip}); err != nil {
+		t.Fatalf("pkgsafe report evidence-pack failed: %v", err)
+	}
+	if err := Run([]string{"report", "verify-evidence-pack", "--input", evidenceZip}); err != nil {
+		t.Fatalf("pkgsafe report verify-evidence-pack failed: %v", err)
 	}
 }
 

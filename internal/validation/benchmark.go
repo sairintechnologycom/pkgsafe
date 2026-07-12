@@ -136,9 +136,14 @@ type OnlineBenchmarkSummary struct {
 	Mode string `json:"mode"`
 	// Status is one of: not_run, skipped_offline, no_network, pass, fail.
 	Status                string   `json:"status"`
+	Configured            int      `json:"configured"`
 	Attempted             int      `json:"attempted"`
+	Executed              int      `json:"executed"`
 	Passed                int      `json:"passed"`
 	Failed                int      `json:"failed"`
+	Skipped               int      `json:"skipped"`
+	CoverageRatio         float64  `json:"coverage_ratio"`
+	CandidateEligible     bool     `json:"candidate_status_eligible"`
 	NetworkFailures       int      `json:"network_failures"`
 	NetworkUnavailable    int      `json:"network_unavailable"`
 	RegistryUnavailable   int      `json:"registry_unavailable"`
@@ -149,6 +154,12 @@ type OnlineBenchmarkSummary struct {
 }
 
 type BenchmarkMetrics struct {
+	PackagesConfigured              int                  `json:"packages_configured"`
+	PackagesAttempted               int                  `json:"packages_attempted"`
+	PackagesExecuted                int                  `json:"packages_executed"`
+	PackagesSkipped                 int                  `json:"packages_skipped"`
+	PackageCoverageRatio            float64              `json:"package_coverage_ratio"`
+	CandidateStatusEligible         bool                 `json:"candidate_status_eligible"`
 	PackagesTested                  int                  `json:"packages_tested"`
 	PackagesPassed                  int                  `json:"packages_passed"`
 	PackagesFailed                  int                  `json:"packages_failed"`
@@ -244,6 +255,8 @@ type BenchmarkPackageResult struct {
 	ActualDecision   string   `json:"actual_decision,omitempty"`
 	RiskScore        int      `json:"risk_score,omitempty"`
 	Passed           bool     `json:"passed"`
+	Attempted        bool     `json:"attempted"`
+	Executed         bool     `json:"executed"`
 	Skipped          bool     `json:"skipped,omitempty"`
 	SkipReason       string   `json:"skip_reason,omitempty"`
 	FailureCategory  string   `json:"failure_category,omitempty"`
@@ -302,7 +315,7 @@ func RunBenchmarkPackWithOptions(opts BenchmarkOptions) (BenchmarkReport, error)
 	report := BenchmarkReport{
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		Pass:        true,
-		Status:      "PRIVATE_BETA_ACCURACY_CANDIDATE",
+		Status:      "FIXTURE_BASELINE_PASS",
 		Online:      OnlineBenchmarkSummary{Mode: benchmarkMode(opts.Offline), Status: "not_run"},
 	}
 
@@ -444,6 +457,12 @@ func RunBenchmarkPackWithOptions(opts BenchmarkOptions) (BenchmarkReport, error)
 		(criticalExpected > 0 && report.Metrics.CriticalFixtureBlockRate != 1) {
 		report.Pass = false
 		report.Status = "BENCHMARK_NEEDS_ATTENTION"
+	} else if report.Metrics.PackagesConfigured > 0 {
+		if report.Metrics.CandidateStatusEligible {
+			report.Status = "PRIVATE_BETA_ACCURACY_CANDIDATE"
+		} else {
+			report.Status = "BENCHMARK_EVIDENCE_INELIGIBLE"
+		}
 	}
 
 	return report, nil
@@ -458,6 +477,12 @@ func WriteBenchmarkReport(w io.Writer, report BenchmarkReport, asJSON bool) erro
 	fmt.Fprintln(w, "PkgSafe Real-World Benchmark Pack")
 	fmt.Fprintln(w, "=================================")
 	fmt.Fprintf(w, "Status: %s\n", passStatus(report.Pass))
+	fmt.Fprintf(w, "Packages Configured:          %d\n", report.Metrics.PackagesConfigured)
+	fmt.Fprintf(w, "Packages Attempted:           %d\n", report.Metrics.PackagesAttempted)
+	fmt.Fprintf(w, "Packages Executed:            %d\n", report.Metrics.PackagesExecuted)
+	fmt.Fprintf(w, "Packages Skipped:             %d\n", report.Metrics.PackagesSkipped)
+	fmt.Fprintf(w, "Package Coverage:             %.2f%%\n", report.Metrics.PackageCoverageRatio*100)
+	fmt.Fprintf(w, "Candidate Eligible:           %t\n", report.Metrics.CandidateStatusEligible)
 	fmt.Fprintf(w, "Packages Tested:              %d\n", report.Metrics.PackagesTested)
 	fmt.Fprintf(w, "Packages Passed:              %d\n", report.Metrics.PackagesPassed)
 	fmt.Fprintf(w, "Packages Failed:              %d\n", report.Metrics.PackagesFailed)
@@ -509,7 +534,10 @@ func WriteBenchmarkReport(w io.Writer, report BenchmarkReport, asJSON bool) erro
 	fmt.Fprintln(w, "Online Benchmark (recorded separately from deterministic fixtures):")
 	fmt.Fprintf(w, "Mode:                          %s\n", report.Online.Mode)
 	fmt.Fprintf(w, "Status:                        %s\n", report.Online.Status)
-	fmt.Fprintf(w, "Attempted / passed / failed:   %d / %d / %d\n", report.Online.Attempted, report.Online.Passed, report.Online.Failed)
+	fmt.Fprintf(w, "Configured / attempted:        %d / %d\n", report.Online.Configured, report.Online.Attempted)
+	fmt.Fprintf(w, "Executed / passed / failed:    %d / %d / %d\n", report.Online.Executed, report.Online.Passed, report.Online.Failed)
+	fmt.Fprintf(w, "Skipped / coverage:            %d / %.2f%%\n", report.Online.Skipped, report.Online.CoverageRatio*100)
+	fmt.Fprintf(w, "Candidate eligible:            %t\n", report.Online.CandidateEligible)
 	fmt.Fprintf(w, "Network failures:              %d\n", report.Online.NetworkFailures)
 	fmt.Fprintf(w, "Network unavailable:           %d\n", report.Online.NetworkUnavailable)
 	fmt.Fprintf(w, "Registry unavailable:          %d\n", report.Online.RegistryUnavailable)
@@ -690,10 +718,11 @@ func runPackageBenchmarks(entries []BenchmarkPackageEntry, offline bool) []Bench
 			Version:          entry.Version,
 			Category:         entry.Category,
 			ExpectedDecision: entry.ExpectedDecision,
-			Passed:           true,
 		}
 		if offline {
 			if cached, ok := store.Get(result.Ecosystem, entry.Name, entry.Version); ok {
+				result.Attempted = true
+				result.Executed = true
 				applyBenchmarkScanResult(&result, cached, entry)
 				result.Details = append(result.Details, "offline cache hit")
 			} else {
@@ -707,6 +736,7 @@ func runPackageBenchmarks(entries []BenchmarkPackageEntry, offline bool) []Bench
 
 		var scanResult types.ScanResult
 		var err error
+		result.Attempted = true
 		switch result.Ecosystem {
 		case "npm":
 			scanner := snpm.New()
@@ -729,6 +759,7 @@ func runPackageBenchmarks(entries []BenchmarkPackageEntry, offline bool) []Bench
 			continue
 		}
 		applyBenchmarkScanResult(&result, scanResult, entry)
+		result.Executed = true
 		result.DurationMs = elapsedMillis(start)
 		results = append(results, result)
 	}
@@ -817,8 +848,13 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 	var knownGood, falseWarn, falseBlock int
 	var installScript, installExplained int
 	var durations []int64
+	report.Metrics.PackagesConfigured = len(results)
 	for _, result := range results {
+		if result.Attempted {
+			report.Metrics.PackagesAttempted++
+		}
 		if result.Skipped {
+			report.Metrics.PackagesSkipped++
 			if result.SkipReason == "offline cache miss" {
 				report.Metrics.OfflineCacheMisses++
 			} else {
@@ -826,10 +862,14 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 			}
 			continue
 		}
+		if !result.Executed {
+			continue
+		}
 		if contains(result.Details, "offline cache hit") {
 			report.Metrics.OfflineCacheHits++
 		}
 		report.Metrics.PackagesTested++
+		report.Metrics.PackagesExecuted++
 		durations = append(durations, result.DurationMs)
 		if result.Passed {
 			report.Metrics.PackagesPassed++
@@ -864,6 +904,8 @@ func applyPackageMetrics(report *BenchmarkReport, results []BenchmarkPackageResu
 	report.Metrics.InstallScriptExplainabilityRate = ratio(installExplained, installScript)
 	report.Metrics.AverageScanDurationMs = averageDuration(durations)
 	report.Metrics.P95ScanDurationMs = percentileDuration(durations, 0.95)
+	report.Metrics.PackageCoverageRatio = ratio(report.Metrics.PackagesExecuted, report.Metrics.PackagesConfigured)
+	report.Metrics.CandidateStatusEligible = report.Metrics.PackagesExecuted >= 10 && report.Metrics.PackageCoverageRatio >= 0.80 && report.Metrics.PackagesFailed == 0
 }
 
 func applyBenchmarkFailureCategory(metrics *BenchmarkMetrics, category string) {
@@ -894,20 +936,31 @@ func benchmarkMode(offline bool) string {
 // reported as skipped; in connected mode the summary distinguishes a genuine
 // pass/fail from a no-network environment so the result is explicit.
 func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResult, offline bool) {
-	summary := OnlineBenchmarkSummary{Mode: benchmarkMode(offline)}
+	summary := OnlineBenchmarkSummary{Mode: benchmarkMode(offline), Configured: len(results)}
 	if len(results) == 0 {
 		summary.Status = "not_run"
 		report.Online = summary
 		return
 	}
 	if offline {
+		summary.Attempted = report.Metrics.PackagesAttempted
+		summary.Executed = report.Metrics.PackagesExecuted
+		summary.Passed = report.Metrics.PackagesPassed
+		summary.Failed = report.Metrics.PackagesFailed
+		summary.Skipped = report.Metrics.PackagesSkipped
+		summary.CoverageRatio = report.Metrics.PackageCoverageRatio
+		summary.CandidateEligible = report.Metrics.CandidateStatusEligible
 		summary.Status = "skipped_offline"
 		summary.Details = append(summary.Details, "offline mode: live registry/advisory checks skipped; using cache only")
 		report.Online = summary
 		return
 	}
 	for _, r := range results {
+		if r.Attempted {
+			summary.Attempted++
+		}
 		if r.Skipped {
+			summary.Skipped++
 			switch r.SkipReason {
 			case "network_unavailable":
 				summary.NetworkFailures++
@@ -925,7 +978,10 @@ func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResul
 			}
 			continue
 		}
-		summary.Attempted++
+		if !r.Executed {
+			continue
+		}
+		summary.Executed++
 		if r.Passed {
 			summary.Passed++
 		} else {
@@ -936,10 +992,12 @@ func applyOnlineSummary(report *BenchmarkReport, results []BenchmarkPackageResul
 			summary.Details = append(summary.Details, fmt.Sprintf("%s/%s@%s failed: %s expected=%s actual=%s score=%d", r.Ecosystem, r.Name, emptyVersion(r.Version), firstNonEmptyString(r.FailureCategory, "benchmark_failure"), r.ExpectedDecision, emptyDecision(r.ActualDecision), r.RiskScore))
 		}
 	}
+	summary.CoverageRatio = ratio(summary.Executed, summary.Configured)
+	summary.CandidateEligible = summary.Executed >= 10 && summary.CoverageRatio >= 0.80 && summary.Failed == 0
 	switch {
-	case summary.Attempted == 0:
-		summary.Status = "no_network"
-		summary.Details = append(summary.Details, "connected mode: no package reachable; treat as skipped, not a pass")
+	case summary.Executed == 0:
+		summary.Status = "no_executed_samples"
+		summary.Details = append(summary.Details, "connected mode: no packages executed; result is ineligible for readiness")
 	case summary.Failed > 0:
 		summary.Status = "fail"
 	default:

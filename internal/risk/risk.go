@@ -30,7 +30,8 @@ func Evaluate(pkg types.PackageIdentity, findings []types.Reason, lifecycle []st
 		}
 		reasons = append(reasons, reason)
 		score += reason.ScoreImpact
-		if reason.ID == "credential_path_reference" || reason.ID == "blocked_package" || reason.ID == "known_malware_indicator" || reason.ID == "known_vulnerability_critical" || reason.Severity == "critical" || (rule.BlockInStrictMode && pol.Mode == policy.ModeBlock) {
+		class := policy.EnforcementClassFor(pol, reason.ID)
+		if class == policy.EnforcementSecurityBlock || class == policy.EnforcementPolicyBlock || (rule.BlockInStrictMode && pol.Mode == policy.ModeBlock) {
 			forcedBlock = true
 		}
 	}
@@ -118,6 +119,9 @@ func Enforcement(decision types.Decision, mode policy.Mode) string {
 		if decision == types.DecisionWarn {
 			return "User review recommended"
 		}
+		if decision == types.DecisionReviewRequired {
+			return "Authorized review required before installation"
+		}
 		return "Install may proceed"
 	}
 }
@@ -138,6 +142,8 @@ func RecommendedAction(decision types.Decision, mode policy.Mode) string {
 		return "Do not install this package."
 	case types.DecisionWarn:
 		return "Review package before installing."
+	case types.DecisionReviewRequired:
+		return "Request authorized review before installing this package."
 	default:
 		return "Package appears safe to install based on current checks."
 	}

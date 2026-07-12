@@ -142,7 +142,7 @@ Air-gapped machines: [offline-intelligence-bundle.md](offline-intelligence-bundl
 2. Optional `--behavior heuristic` runs scripts **on the host** (not a sandbox).
 3. Optional `--behavior isolated` is **Linux-only** (bubblewrap). See
    [behavior-analysis.md](behavior-analysis.md).
-4. npm and PyPI are GA. Go and Cargo are preview.
+4. npm and PyPI are public beta. Go and Cargo are preview.
 5. If something looks wrong, see [troubleshooting.md](troubleshooting.md) and
    [feedback.md](feedback.md).
 

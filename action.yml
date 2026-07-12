@@ -127,9 +127,15 @@ runs:
   using: "composite"
   steps:
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
       with:
-        go-version: 'stable'
+        go-version: '1.25.0'
+
+    - name: Check formatting
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        test -z "$(gofmt -l .)" || (echo "gofmt check failed"; gofmt -l .; exit 1)
 
     - name: Build PkgSafe
       shell: bash
@@ -163,13 +169,13 @@ runs:
 
     - name: Upload PkgSafe SARIF
       if: inputs.upload-sarif == 'true' && always() && steps.scan.outputs.sarif-report != ''
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@641a925cfafe92d0fdf8b239ba4053e3f8d99d6d
       with:
         sarif_file: ${{ steps.scan.outputs.sarif-report }}
 
     - name: Upload PkgSafe Evidence Pack
       if: inputs.generate-evidence-pack == 'true' && inputs.upload-evidence-artifact == 'true' && always() && steps.scan.outputs.evidence-pack != ''
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: pkgsafe-evidence-pack
         path: ${{ inputs.evidence-pack-output }}
