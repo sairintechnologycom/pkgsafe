@@ -212,16 +212,25 @@ func TestGetAgentGuidanceTool_WithPolicy(t *testing.T) {
 		t.Fatal("expected at least one content item in result")
 	}
 
-	// Parse the response and verify required fields are present
-	var result GetAgentGuidanceResult
-	if err := json.Unmarshal([]byte(res.Content[0].Text), &result); err != nil {
-		// Offline scan may return a scan error JSON; that's also acceptable.
-		// Just verify the text is valid JSON.
+	// A clean CI runner may have no offline cache entry for axios. In that case
+	// the tool must return a structured scan error; do not decode that error
+	// object into GetAgentGuidanceResult, because encoding/json accepts unknown
+	// fields and would leave every result field at its zero value.
+	if res.IsError {
 		var raw map[string]any
-		if err2 := json.Unmarshal([]byte(res.Content[0].Text), &raw); err2 != nil {
-			t.Fatalf("response is not valid JSON: %v\ntext: %s", err2, res.Content[0].Text)
+		if err := json.Unmarshal([]byte(res.Content[0].Text), &raw); err != nil {
+			t.Fatalf("error response is not valid JSON: %v\ntext: %s", err, res.Content[0].Text)
+		}
+		if len(raw) == 0 {
+			t.Fatal("expected structured error response")
 		}
 		return
+	}
+
+	// Parse a successful response and verify required fields are present.
+	var result GetAgentGuidanceResult
+	if err := json.Unmarshal([]byte(res.Content[0].Text), &result); err != nil {
+		t.Fatalf("successful response is not valid guidance JSON: %v\ntext: %s", err, res.Content[0].Text)
 	}
 
 	// When a full result is returned, decision must be one of the supported values.
