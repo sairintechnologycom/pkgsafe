@@ -40,12 +40,15 @@ jobs:
           make package        # cross binaries + checksums + SBOM
           ./dist/pkgsafe test benchmark --offline
 
-      - name: Run GoReleaser
+      - name: Set up GoReleaser
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean
+          args: --version
+
+      - name: Run GoReleaser
+        run: scripts/run-goreleaser-ci.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Fine-grained PAT with contents:write on sairintechnologycom/homebrew-pkgsafe.
