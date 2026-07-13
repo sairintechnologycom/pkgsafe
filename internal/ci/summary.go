@@ -24,6 +24,9 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 		fmt.Fprintf(w, "Lockfile: %s\n", result.Lockfile)
 	}
 	fmt.Fprintf(w, "Changed Only: %v\n", result.ChangedOnly)
+	if result.ScanCoverage != "" {
+		fmt.Fprintf(w, "Scan Coverage: %s\n", result.ScanCoverage)
+	}
 	if result.PolicyPack != "" {
 		fmt.Fprintf(w, "Policy Pack: %s@%s\n", result.PolicyPack, result.PolicyPackVersion)
 	}
@@ -35,7 +38,7 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "NOTICE: changed-only scan found 0 packages.")
 		fmt.Fprintln(w, "        Decision ALLOW means no dependency changes were gated — not that the full project is clean.")
-		fmt.Fprintln(w, "        Run with --changed-only=false for a full lockfile scan.")
+		fmt.Fprintln(w, "        Run with --full (or --changed-only=false) for a complete lockfile scan.")
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Summary:")

@@ -142,15 +142,26 @@ func Validate(ctx context.Context, cmd *InstallCommand, sf SafetyFlags, pol poli
 	}
 
 	if len(cmd.DependencyFiles) > 0 {
+		parsedAny := false
+		var lastErr error
 		for _, file := range cmd.DependencyFiles {
 			path := file
 			if !filepath.IsAbs(path) {
 				path = filepath.Join(cwd, path)
 			}
+			if _, err := os.Stat(path); err != nil {
+				// Skip optional candidates (e.g. uv sync lists several lock formats).
+				if len(cmd.DependencyFiles) > 1 {
+					lastErr = err
+					continue
+				}
+				return nil, types.DecisionBlock, InterceptError{Code: ExitUsageError, Err: fmt.Errorf("dependency file %s: %w", file, err)}
+			}
 			deps, err := pydeps.ParseFile(path)
 			if err != nil {
 				return nil, types.DecisionBlock, InterceptError{Code: ExitUsageError, Err: fmt.Errorf("parse python dependency file %s: %w", file, err)}
 			}
+			parsedAny = true
 			for _, dep := range deps {
 				if !dep.Pinned {
 					fmt.Fprintf(os.Stderr, "Warning: %s is unpinned in %s\n", dep.Name, file)
@@ -162,6 +173,12 @@ func Validate(ctx context.Context, cmd *InstallCommand, sf SafetyFlags, pol poli
 					Source:           file,
 				})
 			}
+		}
+		if !parsedAny && len(cmd.Packages) == 0 && !cmd.IsProjectInstall {
+			if lastErr != nil {
+				return nil, types.DecisionBlock, InterceptError{Code: ExitUsageError, Err: fmt.Errorf("no dependency files found: %w", lastErr)}
+			}
+			return nil, types.DecisionBlock, InterceptError{Code: ExitUsageError, Err: fmt.Errorf("no dependency files found")}
 		}
 	}
 

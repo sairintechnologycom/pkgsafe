@@ -40,16 +40,19 @@ type Summary struct {
 }
 
 type ScanResult struct {
-	SchemaVersion     string    `json:"schema_version"`
-	Tool              string    `json:"tool"`
-	Command           string    `json:"command"`
-	Mode              string    `json:"mode"`
-	FailOn            string    `json:"fail_on"`
-	Decision          string    `json:"decision"`
-	Lockfile          string    `json:"lockfile"`
-	DependencyFiles   []string  `json:"dependency_files,omitempty"`
-	Ecosystem         string    `json:"ecosystem,omitempty"`
-	ChangedOnly       bool      `json:"changed_only"`
+	SchemaVersion   string   `json:"schema_version"`
+	Tool            string   `json:"tool"`
+	Command         string   `json:"command"`
+	Mode            string   `json:"mode"`
+	FailOn          string   `json:"fail_on"`
+	Decision        string   `json:"decision"`
+	Lockfile        string   `json:"lockfile"`
+	DependencyFiles []string `json:"dependency_files,omitempty"`
+	Ecosystem       string   `json:"ecosystem,omitempty"`
+	ChangedOnly     bool     `json:"changed_only"`
+	// ScanCoverage describes how much of the lockfile was actually gated:
+	// "full", "changed_only", or "changed_only_empty" (zero packages scanned).
+	ScanCoverage      string    `json:"scan_coverage,omitempty"`
 	Baseline          string    `json:"baseline"`
 	BaselineType      string    `json:"baseline_type,omitempty"`
 	Summary           Summary   `json:"summary"`

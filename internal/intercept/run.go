@@ -49,8 +49,8 @@ func RunIntercept(ctx context.Context, pm string, rawArgs []string, executor Pac
 
 	// 4. Handle bypassed interception (global or per-ecosystem disable)
 	bypassed := !pol.InstallInterception.Enabled ||
-		(pm == "npm" && !pol.PackageManagers.NPM.Enabled) ||
-		((pm == "pip" || pm == "python") && !pol.PackageManagers.Pip.Enabled)
+		((pm == "npm" || pm == "pnpm" || pm == "yarn") && !pol.PackageManagers.NPM.Enabled) ||
+		((pm == "pip" || pm == "python" || pm == "uv") && !pol.PackageManagers.Pip.Enabled)
 
 	if bypassed {
 		return delegate(ctx, executor, pm, cleanArgs, pol)
