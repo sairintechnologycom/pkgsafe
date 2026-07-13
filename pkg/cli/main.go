@@ -310,6 +310,7 @@ func cmdScanPyPIPackage(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	failOn := fs.String("fail-on", "", "fail process when decision reaches this threshold: none, warn, or block (default: block in --mode block, else none)")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
 	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic; PyPI execution remains disabled without isolated backend")
@@ -344,7 +345,10 @@ func cmdScanPyPIPackage(args []string) error {
 	}
 	res = stripEnterprise(res, false)
 	_ = saveResult(res)
-	return output.Write(os.Stdout, res, *asJSON)
+	if err := output.Write(os.Stdout, res, *asJSON); err != nil {
+		return err
+	}
+	return exitIfScanFails(res.Decision, pol.Mode, *failOn)
 }
 
 func cmdScanPythonDeps(args []string) error {
@@ -352,6 +356,7 @@ func cmdScanPythonDeps(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	failOn := fs.String("fail-on", "", "fail process when decision reaches this threshold: none, warn, or block (default: block in --mode block, else none)")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
@@ -387,17 +392,20 @@ func cmdScanPythonDeps(args []string) error {
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(results)
-	}
-	for i, res := range results {
-		if i > 0 {
-			fmt.Fprintln(os.Stdout)
-		}
-		if err := output.Write(os.Stdout, res, false); err != nil {
+		if err := enc.Encode(results); err != nil {
 			return err
 		}
+	} else {
+		for i, res := range results {
+			if i > 0 {
+				fmt.Fprintln(os.Stdout)
+			}
+			if err := output.Write(os.Stdout, res, false); err != nil {
+				return err
+			}
+		}
 	}
-	return nil
+	return exitIfScanResultsFail(results, pol.Mode, *failOn)
 }
 
 func cmdScanGoDeps(args []string) error {
@@ -405,6 +413,7 @@ func cmdScanGoDeps(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	failOn := fs.String("fail-on", "", "fail process when decision reaches this threshold: none, warn, or block (default: block in --mode block, else none)")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
@@ -453,17 +462,20 @@ func cmdScanGoDeps(args []string) error {
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(results)
-	}
-	for i, res := range results {
-		if i > 0 {
-			fmt.Fprintln(os.Stdout)
-		}
-		if err := output.Write(os.Stdout, res, false); err != nil {
+		if err := enc.Encode(results); err != nil {
 			return err
 		}
+	} else {
+		for i, res := range results {
+			if i > 0 {
+				fmt.Fprintln(os.Stdout)
+			}
+			if err := output.Write(os.Stdout, res, false); err != nil {
+				return err
+			}
+		}
 	}
-	return nil
+	return exitIfScanResultsFail(results, pol.Mode, *failOn)
 }
 
 func cmdScanCargoDeps(args []string) error {
@@ -471,6 +483,7 @@ func cmdScanCargoDeps(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	failOn := fs.String("fail-on", "", "fail process when decision reaches this threshold: none, warn, or block (default: block in --mode block, else none)")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
@@ -519,17 +532,20 @@ func cmdScanCargoDeps(args []string) error {
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(results)
-	}
-	for i, res := range results {
-		if i > 0 {
-			fmt.Fprintln(os.Stdout)
-		}
-		if err := output.Write(os.Stdout, res, false); err != nil {
+		if err := enc.Encode(results); err != nil {
 			return err
 		}
+	} else {
+		for i, res := range results {
+			if i > 0 {
+				fmt.Fprintln(os.Stdout)
+			}
+			if err := output.Write(os.Stdout, res, false); err != nil {
+				return err
+			}
+		}
 	}
-	return nil
+	return exitIfScanResultsFail(results, pol.Mode, *failOn)
 }
 
 func cmdScanLocalNPM(args []string) error {
@@ -537,6 +553,7 @@ func cmdScanLocalNPM(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	failOn := fs.String("fail-on", "", "fail process when decision reaches this threshold: none, warn, or block (default: block in --mode block, else none)")
 	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
 	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic")
 	timeout := fs.Duration("timeout", 10*time.Second, "behavior-analysis execution timeout")
@@ -599,7 +616,10 @@ func cmdScanLocalNPM(args []string) error {
 	}
 	res = stripEnterprise(res, false)
 	_ = saveResult(res)
-	return output.Write(os.Stdout, res, *asJSON)
+	if err := output.Write(os.Stdout, res, *asJSON); err != nil {
+		return err
+	}
+	return exitIfScanFails(res.Decision, pol.Mode, *failOn)
 }
 
 func cmdScanNPMPackage(args []string) error {
@@ -608,6 +628,7 @@ func cmdScanNPMPackage(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	failOn := fs.String("fail-on", "", "fail process when decision reaches this threshold: none, warn, or block (default: block in --mode block, else none)")
 	offline := fs.Bool("offline", false, "run scan offline using cached database and metadata")
 	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
 	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic")
@@ -676,7 +697,10 @@ func cmdScanNPMPackage(args []string) error {
 	}
 	res = stripEnterprise(res, false)
 	_ = saveResult(res)
-	return output.Write(os.Stdout, res, *asJSON)
+	if err := output.Write(os.Stdout, res, *asJSON); err != nil {
+		return err
+	}
+	return exitIfScanFails(res.Decision, pol.Mode, *failOn)
 }
 
 func cmdScanLockfile(args []string) error {
@@ -684,6 +708,7 @@ func cmdScanLockfile(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	failOn := fs.String("fail-on", "", "fail process when decision reaches this threshold: none, warn, or block (default: block in --mode block, else none)")
 	_ = fs.Bool("offline", false, "run scan offline using cached database")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
@@ -713,7 +738,10 @@ func cmdScanLockfile(args []string) error {
 	}
 	res = stripEnterprise(res, false)
 	logLockfileToAudit(pol, lockPath, res)
-	return output.Write(os.Stdout, res, *asJSON)
+	if err := output.Write(os.Stdout, res, *asJSON); err != nil {
+		return err
+	}
+	return exitIfScanFails(res.Decision, pol.Mode, *failOn)
 }
 
 func detectEcosystem(pkgName string, pol policy.Policy, offline bool) (string, string) {
@@ -2038,6 +2066,7 @@ func cmdScan(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	policyPath := fs.String("policy", "", "policy YAML path")
 	mode := fs.String("mode", "", "audit, warn, or block")
+	failOn := fs.String("fail-on", "", "fail process when decision reaches this threshold: none, warn, or block (default: block in --mode block, else none)")
 	offline := fs.Bool("offline", false, "run scan offline using cached database")
 	registryConfig := fs.String("registry-config", "", "path to registries.yaml")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
@@ -2342,10 +2371,26 @@ func cmdScan(args []string) error {
 		}
 	}
 
+	// Aggregate worst decision across workspace files (decisions may be mixed case).
+	aggDecision := types.DecisionAllow
+	for _, r := range results {
+		aggDecision = worseDecision(aggDecision, types.Decision(strings.ToLower(r.decision)))
+	}
+
+	// Workspace scan historically failed on block even in warn mode; keep that
+	// default so `pkgsafe scan` remains a fail-closed project gate.
+	workspaceFailOn := *failOn
+	if strings.TrimSpace(workspaceFailOn) == "" {
+		workspaceFailOn = "block"
+	}
+
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(jsonResults)
+		if err := enc.Encode(jsonResults); err != nil {
+			return err
+		}
+		return exitIfScanFails(aggDecision, pol.Mode, workspaceFailOn)
 	}
 
 	var bold, reset string
@@ -2389,17 +2434,7 @@ func cmdScan(args []string) error {
 	}
 	fmt.Println()
 
-	hasBlock := false
-	for _, r := range results {
-		if summaryDecisionIsBlocking(r.decision) {
-			hasBlock = true
-		}
-	}
-	if hasBlock {
-		return fmt.Errorf("scan failed: one or more project files violate policy")
-	}
-
-	return nil
+	return exitIfScanFails(aggDecision, pol.Mode, workspaceFailOn)
 }
 
 func unique(in []string) []string {

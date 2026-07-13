@@ -31,6 +31,12 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 		fmt.Fprintf(w, "Exceptions Used: %s\n", strings.Join(result.ExceptionsUsed, ", "))
 	}
 	fmt.Fprintf(w, "Packages Scanned: %d\n", result.Summary.PackagesScanned)
+	if result.ChangedOnly && result.Summary.PackagesScanned == 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "NOTICE: changed-only scan found 0 packages.")
+		fmt.Fprintln(w, "        Decision ALLOW means no dependency changes were gated — not that the full project is clean.")
+		fmt.Fprintln(w, "        Run with --changed-only=false for a full lockfile scan.")
+	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Summary:")
 	fmt.Fprintf(w, "- Allow: %d\n", result.Summary.Allow)
@@ -133,6 +139,8 @@ func WriteHumanSummary(w io.Writer, result *ScanResult) {
 		fmt.Fprintln(w, "Request authorized human review before merging.")
 	} else if result.Decision == "warn" {
 		fmt.Fprintln(w, "Review package warnings before merging.")
+	} else if result.ChangedOnly && result.Summary.PackagesScanned == 0 {
+		fmt.Fprintln(w, "No dependency changes to gate. Use a full scan if you need whole-lockfile coverage.")
 	} else {
 		fmt.Fprintln(w, "Package scan completed successfully. No action required.")
 	}

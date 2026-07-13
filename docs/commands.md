@@ -10,9 +10,23 @@ Global patterns used widely:
 |------|---------|
 | `--json` | Machine-readable JSON (same shape MCP tools use) |
 | `--mode audit\|warn\|block` | Enforcement mode |
+| `--fail-on none\|warn\|block` | Process exit threshold for scan commands (see below) |
 | `--policy <path>` | Custom policy file |
 | `--offline` | Use local cache / DB only (no registry fetch when required data is missing, fail closed) |
 | `--behavior disabled\|heuristic\|isolated` | Optional lifecycle execution (default: disabled) |
+
+**Scan exit codes:** package scan commands print a decision and, by default, exit
+`0` in `warn`/`audit` mode so interactive review stays usable. With
+`--mode block` (or explicit `--fail-on block`), a `block` or `review_required`
+decision exits `1` so scripts fail closed:
+
+```bash
+pkgsafe scan-npm-package axois --mode block && npm install axois   # blocked install never runs
+pkgsafe scan-local-npm ./pkg --fail-on warn                        # exit 1 on warn or worse
+```
+
+`pkgsafe scan` (workspace) defaults to failing on block even in warn mode so it
+stays a project gate. Use `--fail-on none` to override.
 
 ---
 
