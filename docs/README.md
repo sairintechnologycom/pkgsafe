@@ -16,6 +16,7 @@ agent.
 | [Getting started](getting-started.md) | First install, first scan, first policy |
 | [Install](install.md) | Binary install, Homebrew-style paths, Windows |
 | [Release verification](release-verification.md) | Checksums, cosign, attestations, SBOM |
+| [GA / production checklist](ga-checklist.md) | Path to PRODUCTION_GA_READY |
 | [Commands](commands.md) | Full command list and common flags |
 | [Troubleshooting](troubleshooting.md) | Doctor failures, offline mode, false blocks |
 
@@ -35,7 +36,7 @@ agent.
 |-----|--------|
 | [GitHub Action](github-action.md) | PR gates, SARIF, summary comments |
 | [CI/CD](ci-cd.md) | `pkgsafe ci scan` on any runner |
-| [Install interception](install-interception.md) | Safe wrappers around `npm` / `pip` |
+| [Install interception](install-interception.md) | Safe wrappers around `npm` / `pnpm` / `yarn` / `pip` / `uv` |
 
 ## AI agents (MCP)
 

@@ -23,10 +23,14 @@
 | pnpm intercept BLOCK | PASS (exit 1 on axois) |
 | CI `--full` coverage | PASS |
 
-## Remaining GA blockers (expected)
+## GA verification
 
-- Signed release artifacts verified on the readiness host
-- Build provenance verified locally
+Local ritual completed 2026-07-13: **PRODUCTION_GA_READY** (`ga_ready: true`).
+
+See [GA_VERIFICATION.md](./GA_VERIFICATION.md) and
+[production-readiness-ga.json](./production-readiness-ga.json).
+
+Note: GitHub release is still marked **pre-release** because the tag is `*-beta.*`.
 
 ## Install
 
