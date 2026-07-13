@@ -91,9 +91,19 @@ func autoInstallAliases() error {
 	// Append shims
 	var shims string
 	if shellName == "fish" {
-		shims = "\n# PkgSafe package install guard\nfunction npm\n    pkgsafe npm $argv\nend\nfunction pip\n    pkgsafe pip $argv\nend\n"
+		shims = "\n# PkgSafe package install guard\n" +
+			"function npm\n    pkgsafe npm $argv\nend\n" +
+			"function pnpm\n    pkgsafe pnpm $argv\nend\n" +
+			"function yarn\n    pkgsafe yarn $argv\nend\n" +
+			"function pip\n    pkgsafe pip $argv\nend\n" +
+			"function uv\n    pkgsafe uv $argv\nend\n"
 	} else {
-		shims = "\n# PkgSafe package install guard\nalias npm=\"pkgsafe npm\"\nalias pip=\"pkgsafe pip\"\n"
+		shims = "\n# PkgSafe package install guard\n" +
+			"alias npm=\"pkgsafe npm\"\n" +
+			"alias pnpm=\"pkgsafe pnpm\"\n" +
+			"alias yarn=\"pkgsafe yarn\"\n" +
+			"alias pip=\"pkgsafe pip\"\n" +
+			"alias uv=\"pkgsafe uv\"\n"
 	}
 
 	f, err := os.OpenFile(profilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

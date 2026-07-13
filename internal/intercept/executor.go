@@ -22,10 +22,15 @@ func (e DefaultExecutor) Resolve(pm string, pol policy.Policy) (string, error) {
 	// 1. Check if policy specifies a real_binary path
 	var configPath string
 	switch pm {
-	case "npm":
-		configPath = pol.PackageManagers.NPM.RealBinary
-	case "pip", "python-pip":
-		configPath = pol.PackageManagers.Pip.RealBinary
+	case "npm", "pnpm", "yarn":
+		// Node-family managers share NPM real_binary only for npm; others use PATH.
+		if pm == "npm" {
+			configPath = pol.PackageManagers.NPM.RealBinary
+		}
+	case "pip", "python-pip", "uv":
+		if pm == "pip" || pm == "python-pip" {
+			configPath = pol.PackageManagers.Pip.RealBinary
+		}
 	}
 
 	if configPath != "" {

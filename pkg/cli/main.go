@@ -204,6 +204,12 @@ func RunWith(cfg RunConfig, args []string) error {
 		return fmt.Errorf("unknown subcommand. usage: pkgsafe ci scan")
 	case "npm":
 		return wrapInterceptError(cli.NPMIntercept(args[1:]))
+	case "pnpm":
+		return wrapInterceptError(cli.PnpmIntercept(args[1:]))
+	case "yarn":
+		return wrapInterceptError(cli.YarnIntercept(args[1:]))
+	case "uv":
+		return wrapInterceptError(cli.UVIntercept(args[1:]))
 	case "pip":
 		return wrapInterceptError(cli.PipIntercept(args[1:]))
 	case "python":
@@ -267,6 +273,9 @@ Usage:
   pkgsafe mcp serve
   pkgsafe serve-api [--port <port>] [--token <token>] [--policy <path>] [--mode <mode>] [--offline]
   pkgsafe npm <npm-args...>
+  pkgsafe pnpm <pnpm-args...>
+  pkgsafe yarn <yarn-args...>
+  pkgsafe uv <uv-args...>
   pkgsafe pip <pip-args...>
   pkgsafe python <python-args...>
   pkgsafe run [--] <command-args...>
@@ -1531,7 +1540,8 @@ func cmdCIScan(cfg RunConfig, args []string) error {
 	jsonOutput := fs.String("json-output", "", "path to write JSON report")
 	sarifOutput := fs.String("sarif-output", "", "path to write SARIF report")
 	summaryOutput := fs.String("summary-output", "", "path to write Markdown summary")
-	changedOnly := fs.Bool("changed-only", false, "only scan changed dependencies")
+	changedOnly := fs.Bool("changed-only", false, "only scan changed dependencies vs baseline (PR-style)")
+	full := fs.Bool("full", false, "scan the entire lockfile (overrides policy ci.changed_only and --changed-only)")
 	baseline := fs.String("baseline", "main", "baseline Git ref or package-lock JSON file for diffing")
 	behavior := fs.String("behavior", "", "behavior analysis mode: disabled, heuristic, or isolated")
 	sandbox := fs.Bool("sandbox", false, "compatibility alias for --behavior heuristic")
@@ -1553,6 +1563,14 @@ func cmdCIScan(cfg RunConfig, args []string) error {
 		return found
 	}
 
+	// --full always forces a complete lockfile scan. Otherwise --changed-only
+	// (or policy ci.changed_only) can limit the gate to PR diffs.
+	changedOnlySpecified := isFlagPassed("changed-only") || *full
+	changedOnlyValue := *changedOnly
+	if *full {
+		changedOnlyValue = false
+	}
+
 	opts := ci.ScanOptions{
 		LockfilePath:         *lockfile,
 		DependencyFile:       *dependencyFile,
@@ -1563,8 +1581,8 @@ func cmdCIScan(cfg RunConfig, args []string) error {
 		JsonOutput:           *jsonOutput,
 		SarifOutput:          *sarifOutput,
 		SummaryOutput:        *summaryOutput,
-		ChangedOnlySpecified: isFlagPassed("changed-only"),
-		ChangedOnly:          *changedOnly,
+		ChangedOnlySpecified: changedOnlySpecified,
+		ChangedOnly:          changedOnlyValue,
 		Baseline:             *baseline,
 		SandboxSpecified:     isFlagPassed("sandbox"),
 		Sandbox:              *sandbox,
@@ -1780,7 +1798,7 @@ func cmdTestProductionReadiness(args []string) error {
 	asJSON := fs.Bool("json", false, "write JSON output")
 	fixturesDir := fs.String("fixtures", "testdata/benchmarks", "directory for benchmark fixtures")
 	repo := fs.String("repo", "", "optional real repository path to validate (feeds real_repo_validation_count)")
-	repoList := fs.String("repo-list", "", "JSON file listing real repositories to validate")
+	repoList := fs.String("repo-list", "", "JSON file listing real repositories to validate (default: benchmarks/real-repos.json when present)")
 	if err := fs.Parse(reorderFlags(args)); err != nil {
 		return err
 	}
@@ -1794,6 +1812,12 @@ func cmdTestProductionReadiness(args []string) error {
 	}
 	if *repoList != "" {
 		opts.RepoListPath = *repoList
+	} else if *repo == "" {
+		// Default local fixture catalog so readiness reflects real-repo evidence
+		// without requiring operators to remember the path.
+		if _, err := os.Stat("benchmarks/real-repos.json"); err == nil {
+			opts.RepoListPath = "benchmarks/real-repos.json"
+		}
 	}
 	rep, err := validation.RunProductionReadinessWithOptions(opts)
 	if err != nil {

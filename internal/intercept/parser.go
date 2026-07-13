@@ -96,6 +96,12 @@ func ParseCommand(pm string, args []string) (*InstallCommand, error) {
 	switch pm {
 	case "npm":
 		return ParseNPM(args)
+	case "pnpm":
+		return ParsePnpm(args)
+	case "yarn":
+		return ParseYarn(args)
+	case "uv":
+		return ParseUV(args)
 	case "pip":
 		return ParsePip(args)
 	case "python":

@@ -53,12 +53,28 @@ Still limited or out of scope:
 - Direct URL / VCS deps may surface as unknown rather than scanned as a registry
   package of the same name.
 
+## Install interception coverage
+
+| Manager | Intercept commands | Notes |
+|---------|-------------------|--------|
+| npm | `install` / `i` / `add` / `ci` | Primary |
+| pnpm | `install` / `i` / `add` / `ci` | npm ecosystem scanners |
+| yarn | `install` / `add` (bare `yarn`) | npm ecosystem scanners |
+| pip | `install` | Primary for PyPI |
+| uv | `pip install`, `add`, `sync` | PyPI scanners |
+| python -m pip | `install` | Same as pip |
+
+Git URLs, local paths, and tarballs still pass through without full scan.
+Poetry/pdm/conda native installers are not first-class intercept targets.
+
 ## Other surfaces
 
 - Local REST API is for **loopback** developer use, not a public service.
 - Windows is supported for the binary; some isolation features remain Linux-only.
 - Generated release artifacts and signing proofs must come from the official
   release pipeline when you verify production installs.
+- `test production-readiness` defaults to `benchmarks/real-repos.json` when
+  present so real-repo validation is counted without extra flags.
 
 ## Related
 

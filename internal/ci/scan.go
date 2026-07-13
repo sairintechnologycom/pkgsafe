@@ -305,6 +305,15 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 	exceptionsUsed = uniqueStrings(exceptionsUsed)
 	enrichVulnerabilitySummary(&summary, findings)
 
+	scanCoverage := "full"
+	if isChangedOnlyScan {
+		if summary.PackagesScanned == 0 {
+			scanCoverage = "changed_only_empty"
+		} else {
+			scanCoverage = "changed_only"
+		}
+	}
+
 	return &ScanResult{
 		SchemaVersion:     "1.0",
 		Tool:              "pkgsafe",
@@ -315,6 +324,7 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		Lockfile:          lockfile,
 		Ecosystem:         "npm",
 		ChangedOnly:       isChangedOnlyScan,
+		ScanCoverage:      scanCoverage,
 		Baseline:          opts.Baseline,
 		BaselineType:      baselineType,
 		Summary:           summary,
@@ -474,6 +484,7 @@ func runPyPIScan(opts ScanOptions, pol policy.Policy, failOn string) (*ScanResul
 		DependencyFiles:   files,
 		Ecosystem:         "pypi",
 		ChangedOnly:       false,
+		ScanCoverage:      "full",
 		Baseline:          opts.Baseline,
 		Summary:           summary,
 		Findings:          findings,

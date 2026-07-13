@@ -92,11 +92,15 @@ pkgsafe verify package-lock.json
 ```bash
 pkgsafe npm-install <packages...>
 pkgsafe npm <args...>          # intercept; non-install commands pass through
+pkgsafe pnpm <args...>         # install/add/i/ci
+pkgsafe yarn <args...>         # install/add (bare yarn = project install)
+pkgsafe uv <args...>           # uv pip install / uv add / uv sync
 pkgsafe pip <args...>
 pkgsafe python -m pip <args...>
 ```
 
 Install paths scan first, then call the real package manager only if allowed.
+Shell shims (`pkgsafe init shell`) alias npm, pnpm, yarn, pip, and uv.
 
 ---
 

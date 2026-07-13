@@ -19,7 +19,8 @@ pkgsafe ci scan [flags]
 | `--policy <path>` | Policy file (defaults to `.pkgsafe/policy.yaml` if present) |
 | `--mode audit\|warn\|block` | Decision mode |
 | `--fail-on none\|warn\|block` | Minimum decision that fails the job (default: `block`) |
-| `--changed-only` | Only packages changed vs baseline |
+| `--changed-only` | Only packages changed vs baseline (PR-style) |
+| `--full` | Scan the **entire** lockfile (overrides policy `ci.changed_only` and `--changed-only`) |
 | `--baseline <branch>` | Baseline branch (default: `main`) |
 | `--ecosystem npm\|pypi\|…` | When the project is not npm-default |
 | `--behavior disabled\|heuristic\|isolated` | Default `disabled` |
@@ -29,6 +30,15 @@ pkgsafe ci scan [flags]
 | `--summary-output <path>` | Write Markdown summary |
 
 `--sandbox` is deprecated; it means `--behavior heuristic` (host execution, not a sandbox).
+
+### Full vs changed-only (important)
+
+| Mode | When to use | Caveat |
+|------|-------------|--------|
+| **Changed-only** (`--changed-only` or policy `ci.changed_only: true`) | PR gates: only new/updated deps | If **0 packages** changed, decision is ALLOW — that does **not** mean the whole tree is clean. Output shows `scan_coverage: changed_only_empty` and a NOTICE. |
+| **Full** (`--full` or `--changed-only=false`) | Main branch, release, nightly, audit | Scans every package in the lockfile |
+
+The GitHub Action defaults to **changed-only** for PR speed. For merge-to-main or release jobs, use `--full`.
 
 ## Exit codes
 
@@ -49,10 +59,16 @@ pkgsafe ci scan [flags]
 pkgsafe ci scan --changed-only --baseline main --fail-on block
 ```
 
+**Full lockfile gate (main / release):**
+
+```bash
+pkgsafe ci scan --full --fail-on block
+```
+
 **Offline + SARIF for code scanning upload:**
 
 ```bash
-pkgsafe ci scan --offline --sarif-output pkgsafe-results.sarif
+pkgsafe ci scan --full --offline --sarif-output pkgsafe-results.sarif
 ```
 
 **PyPI project:**
